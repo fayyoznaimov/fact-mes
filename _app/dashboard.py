@@ -25,6 +25,7 @@ import logs
 import metrics
 import people
 import tickets
+import workcal
 from storage import fact, shop
 
 LOG = logs.get("dash")
@@ -276,13 +277,18 @@ def forecast(horizon_min=12 * 60):
             mins = d.get(key) or st.get(key) or 0
             if not mins:
                 continue
-            at = base + timedelta(minutes=mins)
+            # Минуты — работы станка, а в выходной (вс 07:00 → пн 07:00) станки
+            # стоят: съём, посчитанный в субботнюю ночь, будет в понедельник.
+            at = workcal.add_working_minutes(base, mins)
             left = (at - now).total_seconds() / 60
             if left <= 0 or left > horizon_min:
                 continue
+            ahead = (at.date() - now.date()).days
             events.append({"loom": loom, "label_loom": loom_label(loom), "kind": kind,
                            "what": label, "in_min": int(left), "at": at.strftime("%H:%M"),
-                           "tomorrow": at.date() != now.date(),
+                           "tomorrow": ahead == 1,
+                           "when": "" if ahead <= 0 else "завтра" if ahead == 1
+                                   else "пн вт ср чт пт сб вс".split()[at.weekday()] + at.strftime(" %d.%m"),
                            "remaining_m": d.get("remaining_m"), "style": st.get("style")})
     events.sort(key=lambda e: e["in_min"])
     return {"events": events, "horizon_min": horizon_min,

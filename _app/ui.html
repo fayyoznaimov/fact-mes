@@ -2469,7 +2469,7 @@ async function loadDashSoon() {
     $("#dash-soon").innerHTML = ev.length
       ? `<b>Ближайшие 12 часов${f.stale ? ` <span class="bad">(данные FACT от ${esc(f.snapshot_at)} — связи нет, сроки могут сдвинуться)</span>` : ""}:</b> `
         + ev.slice(0, 18).map(e =>
-          `${esc(e.loom)} — ${esc(e.what)} в ${e.at}${e.tomorrow ? " (завтра)" : ""}`).join(" · ")
+          `${esc(e.loom)} — ${esc(e.what)} в ${e.at}${e.when ? ` (${esc(e.when)})` : e.tomorrow ? " (завтра)" : ""}`).join(" · ")
       : f.stale ? `<span class="bad">Прогноза нет: данные FACT от ${esc(f.snapshot_at)}, связи нет.</span>` : "";
   } catch (e) { $("#dash-soon").textContent = ""; }
 }

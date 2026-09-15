@@ -87,9 +87,12 @@ def loom_day_stats(day, letter=""):
 
 
 def report_days():
+    """Дни с отчётом — только те, когда цех работал: воскресенье (выходной по
+    расписанию) и праздники дают 40 строк с нулями и выглядят как день простоя."""
     with fact() as db:
         return [r[0] for r in db.execute(
-            "SELECT DISTINCT day FROM report_daily ORDER BY day DESC")]
+            "SELECT day FROM report_daily GROUP BY day HAVING SUM(COALESCE(picks, 0)) > 0"
+            " ORDER BY day DESC")]
 
 
 PERIOD_MAX_DAYS = 366
