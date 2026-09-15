@@ -11,6 +11,7 @@
   viewer   — только просмотр
 """
 import hashlib
+import json
 import os
 import secrets
 import sqlite3
@@ -38,7 +39,109 @@ PERMISSIONS = {
     "people": {"admin", "master"},                          # справочник операторов
     "settings": {"admin"},                                  # ставка и параметры
     "users": {"admin"},                                     # пользователи и права
+    "plan_edit": {"admin", "master"},                       # план отдельно от расстановки
+    "setup_edit": {"admin", "master"},                      # заправка отдельно от расстановки
 }
+
+# Разделы и действия независимы: видимость раздела не даёт права менять данные.
+# Отсутствие app_user_access означает прежний набор роли, поэтому миграция не
+# расширяет возможности существующих пользователей и не требует их перезаписи.
+SECTIONS = {
+    "dash": ("Дашборд", "Dashboard"),
+    "tickets": ("Тикеты", "Tickets"),
+    "walk": ("Обход цеха", "Shop floor walk"),
+    "setup": ("Заправка", "Machine setup"),
+    "assign": ("Расстановка", "Shift assignments"),
+    "plan": ("План", "Production plan"),
+    "report": ("Производственный отчёт", "Production report"),
+    "explorer": ("Простои", "Downtime"),
+    "history": ("История станков", "Machine history"),
+    "bottle": ("Узкие места", "Bottlenecks"),
+    "manual": ("Ручные остановы", "Manual stops"),
+    "kpi": ("KPI", "KPI"),
+    "salary": ("Зарплата", "Payroll"),
+    "people": ("Операторы", "Operators"),
+    "settings": ("Настройки", "Settings"),
+    "users": ("Пользователи", "Users"),
+}
+ACTION_INFO = {
+    "tickets": ("Классифицировать и закрывать тикеты", "Classify and close tickets", ["tickets", "dash"]),
+    "assign": ("Редактировать расстановку", "Edit shift assignments", ["assign", "salary"]),
+    "plan_edit": ("Редактировать и импортировать план", "Edit and import plan", ["plan"]),
+    "setup_edit": ("Менять заправку и справочник пряжи", "Edit machine setup and yarns", ["setup", "dash", "settings"]),
+    "export": ("Выгружать Excel", "Export Excel", ["report"]),
+    "people": ("Редактировать операторов", "Edit operators", ["people"]),
+    "settings": ("Менять настройки", "Edit settings", ["settings"]),
+    "users": ("Управлять пользователями и ключами API", "Manage users and API keys", ["users", "settings"]),
+}
+ADMIN_ONLY = {"users"}
+_UNSET = object()
+
+
+def role_access(role):
+    """Шаблоны воспроизводят прежнюю видимость меню и права действий."""
+    if role not in ROLES:
+        return {"sections": [], "permissions": []}
+    old_gates = {"assign": "assign", "people": "people", "settings": "settings", "users": "users"}
+    return {
+        "sections": [s for s in SECTIONS if s not in old_gates or role in PERMISSIONS[old_gates[s]]],
+        "permissions": [p for p in ACTION_INFO if role in PERMISSIONS[p]],
+    }
+
+
+def access_catalog():
+    return {
+        "sections": [{"id": k, "name": v[0], "name_en": v[1],
+                      "legacy": k in ("bottle", "kpi")} for k, v in SECTIONS.items()],
+        "permissions": [{"id": k, "name": v[0], "name_en": v[1], "sections": v[2],
+                         "admin_only": k in ADMIN_ONLY} for k, v in ACTION_INFO.items()],
+        "role_defaults": {role: role_access(role) for role in ROLES},
+    }
+
+
+def _validate_access(value, role):
+    if value is None:
+        return None
+    if role == "admin":
+        raise ValueError("у администратора всегда полный доступ; выберите другую роль для ограничений")
+    if not isinstance(value, dict) or set(value) != {"sections", "permissions"}:
+        raise ValueError("access: нужны массивы sections и permissions")
+    out = {}
+    for field, allowed in (("sections", SECTIONS), ("permissions", ACTION_INFO)):
+        items = value[field]
+        if not isinstance(items, list) or any(not isinstance(x, str) or x not in allowed for x in items):
+            raise ValueError("неизвестное значение или неверный список " + field)
+        out[field] = sorted(set(items))
+    if "users" in out["sections"] or ADMIN_ONLY.intersection(out["permissions"]):
+        raise ValueError("управлять пользователями и ключами API может только администратор")
+    for permission in out["permissions"]:
+        if not set(out["sections"]).intersection(ACTION_INFO[permission][2]):
+            raise ValueError("для действия «%s» откройте соответствующий раздел" % ACTION_INFO[permission][0])
+    return out
+
+
+def _user_access(row):
+    """Испорченная индивидуальная настройка закрывает доступ, а не расширяет его."""
+    user = dict(row)
+    raw = user.pop("access_json", None)
+    custom = None
+    if raw is not None and user.get("role") != "admin":
+        try:
+            decoded = json.loads(raw)
+            if not isinstance(decoded, dict):
+                raise ValueError("повреждены индивидуальные права")
+            custom = _validate_access(decoded, user["role"])
+        except (ValueError, TypeError):
+            custom = {"sections": [], "permissions": []}
+    access = custom if custom is not None else role_access(user.get("role"))
+    user.update(access)
+    user["access_mode"] = "custom" if custom is not None else "role"
+    return user
+
+
+def can_section(user, *sections):
+    return bool(user) and bool(set(user.get("sections", role_access(user.get("role"))["sections"]))
+                              .intersection(sections))
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS app_user (
@@ -67,6 +170,10 @@ CREATE TABLE IF NOT EXISTS login_fail (
     at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_fail_at ON login_fail(at);
+CREATE TABLE IF NOT EXISTS app_user_access (
+    user_id INTEGER PRIMARY KEY REFERENCES app_user(id),
+    access_json TEXT NOT NULL
+);
 """
 
 # Защита от перебора пароля: после пяти неудач за четверть часа вход с этого
@@ -89,20 +196,26 @@ def _hash(password, salt):
                                bytes.fromhex(salt), ITERATIONS).hex()
 
 
-def create_user(login, name, role, password, must_change=True):
+def create_user(login, name, role, password, must_change=True, access=None):
     if role not in ROLES:
         raise ValueError("неизвестная роль")
     login = (login or "").strip().lower()
     if not login or not password:
         raise ValueError("нужны логин и пароль")
+    if len(password) < 6:
+        raise ValueError("пароль короче шести символов")
+    access = _validate_access(access, role)
     salt = secrets.token_hex(16)
     conn = db()
     try:
-        conn.execute(
+        cur = conn.execute(
             "INSERT INTO app_user (login, name, role, pwd_hash, pwd_salt, must_change)"
             " VALUES (?,?,?,?,?,?)",
             (login, (name or login).strip(), role, _hash(password, salt), salt,
              1 if must_change else 0))
+        if access is not None:
+            conn.execute("INSERT INTO app_user_access VALUES (?,?)",
+                         (cur.lastrowid, json.dumps(access, ensure_ascii=False)))
         conn.commit()
     except sqlite3.IntegrityError:
         raise ValueError(f"пользователь «{login}» уже есть")
@@ -128,7 +241,7 @@ def set_password(user_id, password, must_change=False, keep_token=None):
     conn.close()
 
 
-def update_user(user_id, name=None, role=None, active=None):
+def update_user(user_id, name=None, role=None, active=None, access=_UNSET, actor_id=None):
     sets, args = [], []
     if name is not None:
         sets.append("name=?"); args.append(name.strip())
@@ -137,23 +250,47 @@ def update_user(user_id, name=None, role=None, active=None):
             raise ValueError("неизвестная роль")
         sets.append("role=?"); args.append(role)
     if active is not None:
+        if type(active) not in (bool, int) or active not in (True, False, 0, 1):
+            raise ValueError("active: нужно true или false")
         sets.append("active=?"); args.append(1 if active else 0)
-    if not sets:
+    if not sets and access is _UNSET:
         return
-    args.append(user_id)
     conn = db()
-    conn.execute(f"UPDATE app_user SET {', '.join(sets)} WHERE id=?", args)
-    if active is False:
-        conn.execute("DELETE FROM app_session WHERE user_id=?", (user_id,))
-    conn.commit()
-    conn.close()
+    try:
+        # Последнего администратора нельзя одновременно отключить из двух окон.
+        conn.execute("BEGIN IMMEDIATE")
+        old = conn.execute("SELECT * FROM app_user WHERE id=?", (user_id,)).fetchone()
+        if not old:
+            raise ValueError("пользователь не найден")
+        next_role = role if role is not None else old["role"]
+        next_active = bool(active) if active is not None else bool(old["active"])
+        if actor_id == old["id"] and (not next_active or (old["role"] == "admin" and next_role != "admin")):
+            raise ValueError("нельзя отключить себя или снять с себя роль администратора")
+        if old["role"] == "admin" and old["active"] and (next_role != "admin" or not next_active):
+            count = conn.execute("SELECT COUNT(*) FROM app_user WHERE role='admin' AND active=1").fetchone()[0]
+            if count <= 1:
+                raise ValueError("нельзя отключить или понизить последнего администратора")
+        if access is not _UNSET:
+            access = _validate_access(access, next_role)
+        if sets:
+            conn.execute(f"UPDATE app_user SET {', '.join(sets)} WHERE id=?", [*args, user_id])
+        if access is None or next_role == "admin":
+            conn.execute("DELETE FROM app_user_access WHERE user_id=?", (user_id,))
+        elif access is not _UNSET:
+            conn.execute("INSERT OR REPLACE INTO app_user_access VALUES (?,?)",
+                         (user_id, json.dumps(access, ensure_ascii=False)))
+        if not next_active:
+            conn.execute("DELETE FROM app_session WHERE user_id=?", (user_id,))
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def list_users():
     conn = db()
-    rows = [dict(r) for r in conn.execute(
-        "SELECT id, login, name, role, active, must_change, created_at, last_login"
-        " FROM app_user ORDER BY role, login")]
+    rows = [_user_access(r) for r in conn.execute(
+        "SELECT u.id, u.login, u.name, u.role, u.active, u.must_change, u.created_at, u.last_login, a.access_json"
+        " FROM app_user u LEFT JOIN app_user_access a ON a.user_id=u.id ORDER BY u.role, u.login")]
     conn.close()
     return rows
 
@@ -211,7 +348,8 @@ def user_by_token(token):
         return None
     conn = db()
     row = conn.execute(
-        "SELECT u.*, s.last_seen FROM app_session s JOIN app_user u ON u.id=s.user_id"
+        "SELECT u.*, s.last_seen, a.access_json FROM app_session s JOIN app_user u ON u.id=s.user_id"
+        " LEFT JOIN app_user_access a ON a.user_id=u.id"
         " WHERE s.token=? AND u.active=1", (token,)).fetchone()
     if not row:
         conn.close()
@@ -228,13 +366,19 @@ def user_by_token(token):
     conn.execute("UPDATE app_session SET last_seen=? WHERE token=?",
                  (datetime.now().astimezone().isoformat(timespec="seconds"), token))
     conn.commit()
-    user = {k: row[k] for k in ("id", "login", "name", "role", "must_change")}
+    user = _user_access({k: row[k] for k in ("id", "login", "name", "role", "must_change", "access_json")})
     conn.close()
     return user
 
 
 def can(user, permission):
-    return bool(user) and user.get("role") in PERMISSIONS.get(permission, set())
+    if not user:
+        return False
+    if permission == "view":
+        return bool(user.get("sections", role_access(user.get("role"))["sections"]))
+    if permission in ADMIN_ONLY and user.get("role") != "admin":
+        return False
+    return permission in user.get("permissions", role_access(user.get("role"))["permissions"])
 
 
 def ensure_admin():

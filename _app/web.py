@@ -60,36 +60,93 @@ GUARD = {
     "/api/operators/import": "people",  # список людей из другой системы или Excel
     "/api/settings": "settings",
     "/api/export_excel": "export",
-    "/api/loom_article": "assign",      # что заправлено на станке — ставит мастер
+    "/api/loom_article": "setup_edit",  # заправка независимо от расстановки
     "/api/assign_one": "assign",        # оператор на один станок
     "/api/assign_copy": "assign",       # повторить расстановку прошлой смены
     "/api/assign_from_fact": "assign",  # взять расстановку из данных FACT
-    "/api/plan/order": "assign",        # заказы и сроки
-    "/api/plan/assign": "assign",
-    "/api/plan/drop": "assign",
-    "/api/plan/close": "assign",
-    "/api/plan/import_1c": "assign",
-    "/api/plan/ppt": "assign",          # пиков на изделие: из 1С или вручную
-    "/api/plan/cloth_map": "assign",    # код ткани на станке = артикул 1С
+    "/api/plan/order": "plan_edit",     # заказы и сроки
+    "/api/plan/assign": "plan_edit",
+    "/api/plan/drop": "plan_edit",
+    "/api/plan/close": "plan_edit",
+    "/api/plan/import_1c": "plan_edit",
+    "/api/plan/ppt": "setup_edit",      # пиков на изделие: из 1С или вручную
+    "/api/plan/cloth_map": "setup_edit", # код ткани на станке = артикул 1С
     "/api/keys": "users",               # ключи внешнего API
     "/api/keys/revoke": "users",
     "/api/shift_doc": "assign",         # расстановка на смену
     "/api/shift_doc/confirm": "assign",
     "/api/shift_doc/fill": "assign",
-    "/api/loom_setup": "assign",        # заправка станка: GSM, вес, PPT, пряжа, лот
-    "/api/loom_setup/bulk": "assign",   # то же таблицей на все станки
-    "/api/yarns": "assign",             # справочник пряжи
-    "/api/yarns/update": "assign",
-    "/api/loom_plan/upload": "assign",  # план цеха из Excel
-    "/api/yarns/import": "assign",      # справочник пряжи файлом из 1С (.mxl)
-    "/api/loom_plan/cells": "assign",   # план цеха: перетаскивание и правка клеток
+    "/api/loom_setup": "setup_edit",    # заправка станка: GSM, вес, PPT, пряжа, лот
+    "/api/loom_setup/bulk": "setup_edit",
+    "/api/yarns": "setup_edit",
+    "/api/yarns/update": "setup_edit",
+    "/api/loom_plan/upload": "plan_edit",
+    "/api/yarns/import": "setup_edit",
+    "/api/loom_plan/cells": "plan_edit",
 }
 
-# Что можно читать без входа: мониторы в цехе не логинятся, проверка живости
-# нужна дежурному. Всё остальное — зарплата, KPI, отчёты — только после входа
-# (или по ключу API с правом чтения).
-PUBLIC_GET = {"/", "/index.html", "/wall", "/cards", "/api/me", "/api/live", "/api/stream",
-              "/api/forecast", "/api/cards", "/api/health", "/api/docs"}
+# Статика и описание доступны до входа, производственные данные — после входа.
+# Терминалу нужна собственная учётная запись с разрешённым разделом «Дашборд».
+PUBLIC_GET = {"/api/me", "/api/health", "/api/docs"}
+GET_SECTIONS = {
+    "/api/live": ("dash", "tickets", "walk"),
+    "/api/stream": ("dash", "tickets", "walk"),
+    "/api/forecast": ("dash",),
+    "/api/cards": ("dash", "setup"),
+    "/api/tickets": ("tickets", "dash", "history"),
+    "/api/shifts": tuple(auth.SECTIONS),
+    "/api/report_days": tuple(auth.SECTIONS),
+    "/api/days": tuple(auth.SECTIONS),
+    "/api/stop_days": tuple(auth.SECTIONS),
+    "/api/report": ("report",),
+    "/api/operators": ("people", "assign", "salary", "kpi", "walk"),
+    "/api/assignments": ("assign", "salary", "walk"),
+    "/api/shift_doc": ("assign",),
+    "/api/shift_docs": ("assign",),
+    "/api/setup_grid": ("setup",),
+    "/api/yarns": ("setup", "dash", "settings"),
+    "/api/salary": ("salary",),
+    "/api/kpi": ("kpi",),
+    "/api/settings": ("settings",),
+    "/api/dashboard": ("dash",),
+    "/api/plan": ("plan", "setup", "dash", "settings"),
+    "/api/loom_plan/catalog": ("plan", "setup"),
+    "/api/ppt_check": ("plan", "setup", "settings"),
+    "/api/onec/messages": ("plan", "settings"),
+    "/api/onec/message": ("plan", "settings"),
+    "/api/loom_plan": ("plan",),
+    "/api/machine_history": ("history",),
+    "/api/bottlenecks": ("bottle",),
+    "/api/manual_stops": ("manual",),
+    "/api/production": ("report", "plan", "dash"),
+    "/api/explorer": ("explorer",),
+    "/api/walk": ("walk",),
+    "/api/excel": ("report",),
+    "/api/users": ("users",),
+    "/api/access_catalog": ("users",),
+    "/api/keys": ("users", "settings"),
+    "/api/logs": ("settings",),
+}
+GET_ACTIONS = {"/api/users": "users", "/api/access_catalog": "users", "/api/keys": "users",
+               "/api/logs": "settings", "/api/excel": "export"}
+# Для входа по cookie внешний API не должен обходить права внутренних страниц.
+V1_READ_ALIAS = {
+    "/api/v1/looms": "/api/live", "/api/v1/forecast": "/api/forecast",
+    "/api/v1/production": "/api/production", "/api/v1/downtime": "/api/bottlenecks",
+    "/api/v1/manual-stops": "/api/manual_stops", "/api/v1/tickets": "/api/tickets",
+    "/api/v1/orders": "/api/plan", "/api/v1/cloth-map": "/api/plan",
+    "/api/v1/loom-plan": "/api/loom_plan", "/api/v1/1c": "/api/onec/messages",
+}
+V1_WRITE_ACTION = {
+    "/api/v1/orders": "plan_edit", "/api/v1/1c": "plan_edit",
+    "/api/v1/production-orders": "plan_edit", "/api/v1/cloth-map": "setup_edit",
+    "/api/v1/tickets": "tickets",
+}
+
+
+def may_read(user, path):
+    sections = GET_SECTIONS.get(path, ())
+    return auth.can_section(user, *sections) and (path not in GET_ACTIONS or may(user, GET_ACTIONS[path]))
 
 
 def current_token(handler):
@@ -192,6 +249,11 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(b"retry: 3000\n\n")
             while True:
                 ver = hub.HUB.version if seen is None else hub.HUB.wait(seen, PING_SEC)
+                # Уже открытый поток тоже прекращается после отзыва доступа.
+                key = api.check(self.headers)
+                if not ((key and "read" in (key.get("scopes") or "").split())
+                        or may_read(current_user(self), "/api/stream")):
+                    break
                 if ver != seen:
                     data = LIVE_EVENT.get(ver)
                     self.wfile.write(b"id: %d\nevent: board\ndata: " % ver + data + b"\n\n")
@@ -213,7 +275,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, api.openapi())
         key = api.check(self.headers)
         user = None if key else current_user(self)
-        can = (lambda p: may(user, p)) if user else None
+        route = api.ROUTES.get((method, path))
+        if user and not key and route:
+            allowed = (may_read(user, V1_READ_ALIAS.get(path, "")) if method == "GET"
+                       else may(user, V1_WRITE_ACTION.get(path, "")))
+            if not allowed:
+                return self._send(403, {"success": False, "error": "нет доступа к этому разделу или действию"})
+        # Проверка выше учитывает конкретный адрес, а не общее право read/write.
+        can = (lambda p: True) if user and route else None
         code, obj = api.handle(method, path, q, body, key, can, user["login"] if user else "")
         # Каждая попытка записи — в журнал, и отказ тоже: «отправили, а ничего не
         # пришло» иначе не разобрать (ключ не подошёл, не тот адрес, пустой список).
@@ -238,27 +307,41 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if u.path in ("/", "/index.html"):
                 return self._send(200, page_bytes("ui.html"), "text/html; charset=utf-8")
+            if u.path == "/ui_i18n.js":
+                return self._send(200, page_bytes("ui_i18n.js"), "text/javascript; charset=utf-8")
             if u.path.startswith("/api/v1/"):
                 return self._api("GET", u.path, q, None)
             if u.path.startswith("/api/") and u.path not in PUBLIC_GET:
                 key = api.check(self.headers)
-                if not (may(current_user(self), "view")
-                        or (key and "read" in (key.get("scopes") or "").split())):
+                user = current_user(self)
+                key_read = bool(key and "read" in (key.get("scopes") or "").split())
+                if not user and not key_read:
                     return self._send(401, {"error": "нужно войти"})
+                # Ключ read сохраняет доступ интеграций; управление доступом,
+                # ключами и журналом никогда не было доступно простому ключу.
+                if not (key_read and u.path not in ("/api/users", "/api/access_catalog", "/api/keys", "/api/logs")):
+                    if not may_read(user, u.path):
+                        return self._send(403, {"error": "нет доступа к этому разделу"})
             if u.path == "/api/stream":
                 return self._stream()
             if u.path == "/api/me":
                 user = current_user(self)
                 perms = sorted(p for p in (auth.PERMISSIONS if auth else {}) if may(user, p))
                 return self._send(200, {"user": user, "permissions": perms,
-                                        "roles": auth.ROLES if auth else {}})
+                                        "roles": auth.ROLES, "sections": user["sections"] if user else [],
+                                        "access_catalog": auth.access_catalog() if user else None})
+            if u.path == "/api/access_catalog":
+                return self._send(200, auth.access_catalog())
             if u.path == "/api/users":
                 if not may(current_user(self), "users"):
                     return self._send(403, {"error": "нет прав"})
-                return self._send(200, {"users": auth.list_users()})
-            # Доска для мониторов в цехе: смотреть можно без входа — экран на
-            # стене не логинится. Заводить и разбирать тикеты — только по правам.
+                return self._send(200, {"users": auth.list_users(), "access_catalog": auth.access_catalog()})
             if u.path == "/wall":
+                user = current_user(self)
+                if not user:
+                    return self._send(200, page_bytes("ui.html"), "text/html; charset=utf-8")
+                if not may_read(user, "/api/live"):
+                    return self._send(403, {"error": "нет доступа к доске цеха"})
                 return self._send(200, page_bytes("wall.html"), "text/html; charset=utf-8")
             if u.path == "/api/live":
                 return self._send(200, live_payload(q))
@@ -308,6 +391,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, dashboard.rows(q.get("day") or tickets.current_shift()[:10],
                                                       q.get("shift", "")))
             if u.path == "/cards":
+                user = current_user(self)
+                if not user:
+                    return self._send(200, page_bytes("ui.html"), "text/html; charset=utf-8")
+                if not may_read(user, "/api/cards"):
+                    return self._send(403, {"error": "нет доступа к техкартам"})
                 return self._send(200, page_bytes("cards.html"), "text/html; charset=utf-8")
             if u.path == "/api/cards":
                 return self._send(200, dashboard.cards(q.get("day") or tickets.current_shift()[:10],
@@ -450,14 +538,16 @@ class Handler(BaseHTTPRequestHandler):
                                   keep_token=current_token(self) if target == me["id"] else None)
                 return self._send(200, {"ok": True})
             if u.path == "/api/users":
-                if not may(current_user(self), "users"):
+                me = current_user(self)
+                if not may(me, "users"):
                     return self._send(403, {"error": "нет прав"})
+                access_args = {"access": body["access"]} if "access" in body else {}
                 if body.get("id"):
                     auth.update_user(body["id"], body.get("name"), body.get("role"),
-                                     body.get("active"))
+                                     body.get("active"), actor_id=me["id"], **access_args)
                 else:
                     auth.create_user(body.get("login"), body.get("name"),
-                                     body.get("role", "viewer"), body.get("password", ""))
+                                     body.get("role", "viewer"), body.get("password", ""), **access_args)
                 return self._send(200, {"ok": True})
             if u.path.startswith("/api/tickets/"):
                 return self._tickets(u.path, body)
