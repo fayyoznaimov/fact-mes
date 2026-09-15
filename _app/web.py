@@ -133,6 +133,8 @@ GET_SECTIONS = {
     "/api/onec/messages": ("plan", "settings"),
     "/api/onec/message": ("plan", "settings"),
     "/api/loom_plan": ("plan",),
+    "/api/gantt": ("plan",),
+    "/api/loom_timeline": ("plan", "history"),
     "/api/machine_history": ("history",),
     "/api/bottlenecks": ("bottle",),
     "/api/manual_stops": ("manual",),
@@ -515,6 +517,16 @@ class Handler(BaseHTTPRequestHandler):
                 except ValueError as e:
                     return self._send(400, {"error": str(e)})
                 return self._send(200, result)
+            if u.path in ("/api/gantt", "/api/loom_timeline"):
+                # Ганта плана и факта по станкам и остановы станка по секундам
+                try:
+                    if u.path == "/api/gantt":
+                        return self._send(200, loomplan.gantt(q.get("from") or tickets.current_shift()[:10],
+                                                              q.get("to", "")))
+                    return self._send(200, loomplan.loom_timeline(q.get("loom", ""), q.get("from", ""),
+                                                                  q.get("to", "")))
+                except ValueError as e:
+                    return self._send(400, {"error": str(e)})
             if u.path == "/api/bottlenecks":
                 return self._send(200, metrics.bottlenecks(
                     q.get("from", "0000"), q.get("to", "9999"),

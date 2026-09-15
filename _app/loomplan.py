@@ -604,6 +604,187 @@ def grid(date_from, date_to):
             "looms": [{"loom": l, "cells": looms[l]} for l in sorted(looms, key=_loom_key)]}
 
 
+# --- Ганта: план и факт станков на временной оси ---------------------------------
+# Как «Задания. Диаграмма Ганта» и «Диаграмма Ганта» станка в DPA, но на наших данных:
+# план — план цеха (loom_plan), факт — итоги смен и остановы FACT.
+
+SHIFT_START_H = {"A": 7, "B": 15, "C": 23}     # смена C даты D — с 23:00 D до 07:00 D+1
+GANTT_MAX_DAYS = 31
+GROUPS = ("Dobby", "Jakart Bonas", "Jakart Staubli")          # порядок групп, как в DPA
+CAUSES_RU = {"Weft": "уток", "Warp": "основа (грунт)", "Warp_top": "ворс", "Manual": "ручной стоп",
+             "Other": "прочее", "Leno": "перевивка", "Fals": "ложная кромка", "Doff": "съём",
+             "Pwr_off": "питание", "Unselect": "не выбрано", "Warp_out": "сход основы",
+             "False_selvage": "ложная кромка"}
+
+
+def loom_group(loom):
+    """Группы станков, как в DPA: Dobby — D1–D12, Jakart Staubli — J1–J6, Jakart Bonas — J7–J28."""
+    m = re.match(r"^([A-Za-z]+)(\d+)$", loom or "")
+    if not m:
+        return "Прочие"
+    kind, n = m.group(1).upper(), int(m.group(2))
+    if kind == "D":
+        return "Dobby"
+    if kind == "J":
+        return "Jakart Staubli" if n <= 6 else "Jakart Bonas"
+    return kind
+
+
+def _iso(t):
+    return t.strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def _next_working(day):
+    """Следующие рабочие производственные сутки после day: воскресенье полосу плана не рвёт."""
+    import workcal
+    d = datetime.strptime(day, "%Y.%m.%d")
+    for _ in range(14):
+        d += timedelta(days=1)
+        if workcal.is_working_day(d.date()):
+            break
+    return d.strftime("%Y.%m.%d")
+
+
+def gantt(date_from, date_to=""):
+    """Ганта по станкам за период: полосы плана цеха и полосы факта по сменам.
+
+    План — клетки loom_plan; соседние рабочие дни с тем же заказом, изделием и
+    пометкой — одна полоса. «План ≈» — по секундам 1С на ряд (в них уже заложено
+    75 %) и панелям изделия, 24 часа в сутки. Факт — итоги смен FACT: код ткани,
+    полотенца (ряды × панели), КПД. Время — производственные сутки 07:00 → 07:00."""
+    import metrics
+    import people
+    import workcal
+    d0 = datetime.strptime(date_from, "%Y.%m.%d")
+    try:
+        d1 = datetime.strptime(date_to, "%Y.%m.%d")
+    except (TypeError, ValueError):
+        d1 = d0 + timedelta(days=6)
+    d1 = min(max(d1, d0), d0 + timedelta(days=GANTT_MAX_DAYS - 1))
+    days = [(d0 + timedelta(days=i)).strftime("%Y.%m.%d") for i in range((d1 - d0).days + 1)]
+    h0 = timedelta(hours=workcal.DAY_START_H)
+    db = shop()
+    cells = [dict(r) for r in db.execute(
+        "SELECT loom, day, order_no, product, product_code, design, size, gsm, note FROM loom_plan"
+        " WHERE day BETWEEN ? AND ? ORDER BY loom, day", (days[0], days[-1]))]
+    cards = {(str(r["order_number"] or ""), r["product_code"]): dict(r) for r in db.execute(
+        "SELECT order_number, product_code, panels, seconds_per_row FROM tech_card")}
+    db.close()
+
+    plan = defaultdict(list)
+    for c in cells:
+        order = str(c["order_no"] or "")
+        key = (order, c["product_code"] or c["product"] or "", c["note"] or "")
+        if not any(key):
+            continue
+        bars = plan[c["loom"]]
+        last = bars[-1] if bars else None
+        if last and last["_key"] == key and _next_working(last["_last"]) == c["day"]:
+            last["_last"] = c["day"]
+            last["days"] += 1
+        else:
+            bars.append({"_key": key, "_first": c["day"], "_last": c["day"], "days": 1,
+                         "order_no": order or None, "product_code": c["product_code"],
+                         "product": c["product"], "design": c["design"], "size": c["size"],
+                         "gsm": c["gsm"], "note": c["note"]})
+    for bars in plan.values():
+        for b in bars:
+            b.pop("_key")
+            start = datetime.strptime(b.pop("_first"), "%Y.%m.%d") + h0
+            end = datetime.strptime(b.pop("_last"), "%Y.%m.%d") + timedelta(days=1) + h0
+            b["start"], b["end"] = _iso(start), _iso(end)
+            card = cards.get((b["order_no"] or "", b["product_code"]))
+            if card and card["seconds_per_row"] and card["panels"]:
+                b["qty_plan"] = int(b["days"] * 24 * 3600 / card["seconds_per_row"] * card["panels"])
+
+    cloth_panels = metrics.panels_by_cloth()
+    by_day = {(c["loom"], c["day"]): c for c in cells}
+    facts = defaultdict(list)
+    with fact() as f:
+        rows = f.execute(
+            "SELECT loom, day, letter, cloth, effic_pct, run_min, stop_min, pieces FROM shift_full"
+            " WHERE day BETWEEN ? AND ?", (days[0], days[-1])).fetchall()
+        last_day = f.execute("SELECT MAX(day) FROM shift_full").fetchone()[0]
+    for r in rows:
+        if (r["run_min"] or 0) <= 5 and (r["stop_min"] or 0) <= 5:
+            continue                                   # станок выключен: выходной
+        start = datetime.strptime(r["day"], "%Y.%m.%d") + timedelta(hours=SHIFT_START_H.get(r["letter"], 7))
+        c = by_day.get((r["loom"], r["day"])) or {}
+        card = cards.get((str(c.get("order_no") or ""), c.get("product_code"))) or {}
+        pn = card.get("panels") or cloth_panels.get(r["cloth"] or "", 1)
+        facts[r["loom"]].append({
+            "start": _iso(start), "end": _iso(start + timedelta(hours=8)), "shift": r["letter"],
+            "day": r["day"], "cloth": (r["cloth"] or "").replace("%20", " "),
+            "towels": int((r["pieces"] or 0) * pn), "eff": round(r["effic_pct"] or 0, 1),
+            "run_min": round(r["run_min"] or 0), "idle": (r["run_min"] or 0) <= 5})
+
+    schedule = []
+    for d in days:
+        base = datetime.strptime(d, "%Y.%m.%d")
+        off = not workcal.is_working_day(base.date())
+        for letter, h in SHIFT_START_H.items():
+            s = base + timedelta(hours=h)
+            schedule.append({"shift": letter, "start": _iso(s), "end": _iso(s + timedelta(hours=8)),
+                             "off": off})
+    rank = {g: i for i, g in enumerate(GROUPS)}
+    names = set(people.all_looms()) | set(plan) | set(facts)
+    looms = sorted(names, key=lambda l: (rank.get(loom_group(l), 9), _loom_key(l)))
+    return {"from": _iso(d0 + h0), "to": _iso(d1 + timedelta(days=1) + h0), "days": days,
+            "now": _iso(datetime.now()), "last_fact_day": last_day, "schedule": schedule,
+            "looms": [{"loom": l, "group": loom_group(l), "plan": plan.get(l, []),
+                       "fact": facts.get(l, [])} for l in looms]}
+
+
+def loom_timeline(loom, t_from, t_to):
+    """Остановы станка за отрезок по секундам — как «Диаграмма Ганта» станка в DPA.
+
+    В stop_log день — календарный, start_sec — от полуночи этого дня (события
+    ночной смены после 00:00 записаны уже следующей датой)."""
+    import tickets
+    loom = (loom or "").strip().upper()
+    if not LOOM.match(loom):
+        raise ValueError("станок «%s» не опознан" % loom)
+    try:
+        a, b = datetime.fromisoformat(t_from), datetime.fromisoformat(t_to)
+    except (TypeError, ValueError):
+        raise ValueError("нужны from и to вида 2026-09-15T07:00:00")
+    if b <= a or b - a > timedelta(days=2):
+        raise ValueError("отрезок должен быть больше нуля и не длиннее двух суток")
+    sid = tickets.current_shift(a)                     # смена, с которой начинается отрезок
+    with fact() as f:
+        rows = f.execute(
+            "SELECT day, start_sec, dur_sec, code, cause, resp_sec FROM stop_log"
+            " WHERE loom=? AND day BETWEEN ? AND ? ORDER BY day, start_sec",
+            (loom, (a - timedelta(days=1)).strftime("%Y.%m.%d"), b.strftime("%Y.%m.%d"))).fetchall()
+        srow = f.execute(
+            "SELECT effic_pct, run_min, stop_min, cloth FROM shift_full WHERE loom=? AND day=? AND letter=?",
+            (loom, sid[:10], sid[11:])).fetchone()
+    events, by = [], {}
+    for r in rows:
+        s = datetime.strptime(r["day"], "%Y.%m.%d") + timedelta(seconds=r["start_sec"] or 0)
+        dur = r["dur_sec"] or 0
+        e = s + timedelta(seconds=dur)
+        if e < a or s > b:
+            continue
+        # Останов, начавшийся до отрезка (станок стоял с выходных), в итог и на
+        # полосу идёт только своей частью внутри отрезка; в списке — целиком.
+        at, inside = max(s, a), int((min(e, b) - max(s, a)).total_seconds())
+        cause = r["cause"] or "Other"
+        events.append({"start": _iso(s), "dur": dur, "at": _iso(at), "dur_in": inside, "cause": cause,
+                       "cause_ru": CAUSES_RU.get(cause, cause), "code": r["code"], "resp": r["resp_sec"]})
+        x = by.setdefault(cause, {"cause": cause, "cause_ru": CAUSES_RU.get(cause, cause), "n": 0, "sec": 0})
+        x["n"] += 1
+        x["sec"] += inside
+    shift = None
+    if srow:
+        shift = {"id": sid, "effic": round(srow["effic_pct"] or 0, 1), "run_min": round(srow["run_min"] or 0),
+                 "stop_min": round(srow["stop_min"] or 0), "cloth": (srow["cloth"] or "").replace("%20", " "),
+                 "worked": (srow["run_min"] or 0) > 5}
+    return {"loom": loom, "from": _iso(a), "to": _iso(b), "events": events,
+            "by_cause": sorted(by.values(), key=lambda x: -x["sec"]),
+            "stop_sec": sum(x["sec"] for x in by.values()), "shift": shift}
+
+
 # --- прогресс заказов и изделий -------------------------------------------------
 
 def order_stats():

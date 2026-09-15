@@ -417,6 +417,52 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
 .mh-event{font:inherit;border:0;background:transparent;color:var(--accent);text-decoration:underline;cursor:pointer;text-align:left}
 #mh-event-detail{margin:12px 0;padding:12px;background:var(--surface-2);border-left:3px solid var(--accent);overflow-wrap:anywhere}
 #mh-status{min-height:20px}
+/* План → Ганта: станки по строкам, время по горизонтали; сверху план, снизу факт смен */
+.gt-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ink-2)}
+.gt-legend i{display:inline-block;width:18px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.gt-legend .sw-a{background:color-mix(in srgb,#f2c94c 45%,transparent)}
+.gt-legend .sw-b{background:color-mix(in srgb,#5aa9e6 40%,transparent)}
+.gt-legend .sw-c{background:color-mix(in srgb,#9b7fd4 40%,transparent)}
+.gt-legend .sw-off{background:repeating-linear-gradient(135deg,var(--muted) 0 3px,transparent 3px 6px)}
+.gt-wrap{overflow:auto;max-height:74vh;border:1px solid var(--hair);background:var(--surface)}
+.gt{display:grid;grid-template-columns:76px minmax(960px,1fr)}
+.gt-names{position:sticky;left:0;z-index:4;background:var(--surface);border-right:1px solid var(--rule)}
+.gt-ax-sp,.gt-ax{position:sticky;top:0;height:36px;background:var(--surface);border-bottom:1px solid var(--rule);z-index:3}
+.gt-ax-sp{z-index:5;font-size:12px;font-weight:600;color:var(--ink-2);padding:10px 8px}
+.gt-canvas{position:relative}
+.gt-ax b{position:absolute;top:0;height:100%;padding:3px 5px;font-size:12px;font-weight:600;border-left:1px solid var(--rule);white-space:nowrap;overflow:hidden}
+.gt-ax small{position:absolute;bottom:2px;margin-left:3px;font-size:10px;color:var(--muted)}
+.gt-body{position:relative}
+.gt-s{position:absolute;top:0;bottom:0;pointer-events:none}
+.gt-s.sA{background:color-mix(in srgb,#f2c94c 16%,transparent)}
+.gt-s.sB{background:color-mix(in srgb,#5aa9e6 12%,transparent)}
+.gt-s.sC{background:color-mix(in srgb,#9b7fd4 13%,transparent)}
+.gt-s.off{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--muted) 20%,transparent) 0 6px,transparent 6px 12px)}
+.gt-now{position:absolute;top:0;bottom:0;width:2px;background:var(--critical);z-index:2;pointer-events:none}
+.gt-g{height:26px;padding:5px 8px;font-size:12px;font-weight:600;color:var(--ink-2);background:var(--surface-2);border-bottom:1px solid var(--hair);position:relative;z-index:1}
+.gt-n,.gt-r{height:50px;border-bottom:1px solid var(--hair)}
+.gt-n{display:flex;align-items:center;padding-left:6px}
+.gt-loom{font:inherit;font-weight:600;border:0;background:none;color:var(--ink);cursor:pointer;padding:2px 4px;border-radius:3px}
+.gt-loom:hover{text-decoration:underline}
+.gt-r{position:relative;z-index:1}
+.gt-lane{position:absolute;left:0;right:0;height:21px}
+.gt-lane.p{top:3px}
+.gt-lane.f{top:26px}
+.gt-b{position:absolute;top:0;bottom:0;border-radius:3px;padding:0 5px;font-size:11px;line-height:21px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+.gt-b.plan{background:hsl(var(--h,215) 50% 38%);color:#fff}
+.gt-b.plan.nt{background:var(--surface-2);color:var(--ink-2);box-shadow:inset 0 0 0 1px var(--rule)}
+.gt-b.fact{cursor:pointer;color:#fff;font-family:"IBM Plex Mono",monospace}
+.gt-b.fact.e-ok{background:#2f9e63}
+.gt-b.fact.e-yel{background:#d4a100;color:#16202b}
+.gt-b.fact.e-red{background:var(--critical)}
+.gt-b.fact.idle{background:var(--muted)}
+.gt-b.fact:hover,.gt-b.fact:focus-visible{outline:2px solid var(--ink);outline-offset:0}
+dialog.gt-dlg{width:min(1040px,95vw)}
+.tl{position:relative;height:34px;border-radius:3px;background:#2f9e63;overflow:hidden}
+.tl.off{background:var(--muted)}
+.tl i{position:absolute;top:0;bottom:0;min-width:1px}
+.tl-ax{position:relative;height:18px;margin-top:2px;font-size:10px;color:var(--muted)}
+.tl-ax span{position:absolute;transform:translateX(-50%);white-space:nowrap}
 </style>
 
 <div class="wrap">
@@ -657,6 +703,7 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
   <section id="tab-plan" class="hidden">
     <div class="seg" role="tablist" aria-label="Разделы плана">
       <button role="tab" data-pane="loom" aria-selected="true">По станкам</button>
+      <button role="tab" data-pane="gantt" aria-selected="false">Ганта</button>
       <button role="tab" data-pane="orders" aria-selected="false">Заказы и сроки</button>
       <button role="tab" data-pane="ppt" aria-selected="false">Сверка PPT</button>
       <button role="tab" data-pane="onec" aria-selected="false">Обмен с 1С</button>
@@ -731,6 +778,50 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
           <button class="act primary" value="save">Сохранить</button>
           <button class="act" value="clear">Очистить клетку</button>
           <button class="act" value="cancel">Отмена</button>
+        </div>
+      </form>
+    </dialog>
+    </div>
+
+    <div class="pane hidden" data-pane="gantt" role="tabpanel">
+    <div class="bar">
+      <div class="f"><label>Период</label><div style="display:flex;gap:4px">
+        <button class="act" type="button" id="gt-prev" aria-label="Раньше">←</button>
+        <button class="act" type="button" id="gt-today">Эта неделя</button>
+        <button class="act" type="button" id="gt-next" aria-label="Позже">→</button></div></div>
+      <div class="f"><label for="gt-days">Дней</label><select id="gt-days">
+        <option value="3">3</option><option value="7" selected>7</option><option value="14">14</option></select></div>
+      <div class="f"><label for="gt-group">Станки</label><select id="gt-group"><option value="">все</option>
+        <option>Dobby</option><option>Jakart Bonas</option><option>Jakart Staubli</option></select></div>
+      <div class="f"><label>&nbsp;</label><span class="note" id="gt-range" style="padding:7px 0"></span></div>
+    </div>
+    <div class="gt-legend">
+      <span>Факт смены:</span>
+      <span><i style="background:#2f9e63"></i>КПД от 80 %</span><span><i style="background:#d4a100"></i>70–79 %</span>
+      <span><i style="background:var(--critical)"></i>ниже 70 %</span><span><i style="background:var(--muted)"></i>стоял</span>
+      <span><i class="sw-a"></i>смена A</span><span><i class="sw-b"></i>B</span><span><i class="sw-c"></i>C</span>
+      <span><i class="sw-off"></i>выходной</span>
+    </div>
+    <div class="gt-wrap" id="gt-wrap"><p class="note" style="padding:12px">Загружаю…</p></div>
+    <p class="note">У каждого станка две полосы: сверху — план цеха (заказ и изделие; соседние рабочие дни
+      с тем же изделием — одна полоса; «план ≈» — по секундам 1С на ряд и панелям), снизу — факт по сменам:
+      полотенца и КПД. Щелчок по смене или по номеру станка — остановы станка по секундам: уток, основа,
+      ворс, ручной стоп.</p>
+    <dialog id="gt-dlg" class="lp-dlg gt-dlg">
+      <form method="dialog">
+        <h3 id="gt-dlg-t" style="margin:0 0 4px;font-size:15px"></h3>
+        <p class="note" id="gt-dlg-sum" style="margin:0 0 8px"></p>
+        <div class="tl" id="gt-tl"></div>
+        <div class="tl-ax" id="gt-tl-ax"></div>
+        <div class="legend" id="gt-tl-leg"></div>
+        <div class="tbl-wrap" style="max-height:36vh;margin-top:8px">
+          <table id="gt-tl-list"><thead><tr><th>Начало</th><th class="n">Стоял, с</th><th>Причина</th>
+            <th>Код</th><th class="n">Ждал оператора, с</th></tr></thead><tbody></tbody></table>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:10px">
+          <button class="act" type="button" id="gt-dlg-prev">← Смена раньше</button>
+          <button class="act" type="button" id="gt-dlg-next">Смена позже →</button>
+          <button class="act" value="close">Закрыть</button>
         </div>
       </form>
     </dialog>
@@ -1659,6 +1750,7 @@ function planPane(p) {
   document.querySelectorAll("#tab-plan .seg button").forEach(b => b.setAttribute("aria-selected", b.dataset.pane === p));
   document.querySelectorAll("#tab-plan .pane").forEach(x => x.classList.toggle("hidden", x.dataset.pane !== p));
   try { localStorage.setItem("plan-pane", p); } catch (e) {}
+  if (p === "gantt") setTimeout(loadGanttOnce, 0);      // Ганта грузится, когда её открыли
 }
 document.querySelectorAll("#tab-plan .seg button").forEach(b => b.onclick = () => planPane(b.dataset.pane));
 try { planPane(localStorage.getItem("plan-pane") || "loom"); } catch (e) { planPane("loom"); }
@@ -1752,6 +1844,105 @@ const ymd = t => t.getFullYear() + "." + String(t.getMonth() + 1).padStart(2, "0
   const b = new Date(t); b.setDate(t.getDate() + 10);
   $("#lp-from").value = ymd(a); $("#lp-to").value = ymd(b); })();
 const hueOf = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+
+/* --- План → Ганта: план и факт станков на временной оси (как «Диаграмма Ганта» в DPA) --- */
+const GT = {from: null, data: null, tl: null};
+const TL_COL = {Weft: "#1f9faa", Warp: "#2d58d6", Warp_top: "#7048d8", Manual: "#e07b12", Other: "#8a939c"};
+const gtMonday = () => { const t = new Date(); t.setDate(t.getDate() - (t.getDay() + 6) % 7); return ymd(t); };
+const gtAdd = (d, n) => { const t = new Date(d.replace(/\./g, "-") + "T12:00"); t.setDate(t.getDate() + n); return ymd(t); };
+const gtIso = t => `${ymd(t).replace(/\./g, "-")}T${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}:00`;
+function loadGanttOnce() { if (!GT.data) loadGantt(); }
+async function loadGantt() {
+  if (!GT.from) GT.from = gtMonday();
+  const n = +$("#gt-days").value || 7;
+  try {
+    GT.data = await api(`/api/gantt?from=${GT.from}&to=${gtAdd(GT.from, n - 1)}`);
+    renderGantt();
+  } catch (e) { say("Ганта не загрузилась: " + e.message, true); }
+}
+function renderGantt() {
+  const g = GT.data; if (!g) return;
+  const t0 = Date.parse(g.from), span = Date.parse(g.to) - t0;
+  const pos = t => Math.max(0, Math.min(100, (Date.parse(t) - t0) / span * 100));
+  const wid = (a, b) => Math.max(0.2, pos(b) - pos(a));
+  const grp = $("#gt-group").value, wd = "вс пн вт ср чт пт сб".split(" ");
+  const axis = g.days.map(d => {
+    const s = d.replace(/\./g, "-") + "T07:00:00", e = gtAdd(d, 1).replace(/\./g, "-") + "T07:00:00";
+    return `<b style="left:${pos(s)}%;width:${wid(s, e)}%">${dmy(d)} ${wd[new Date(d.replace(/\./g, "-") + "T12:00").getDay()]}</b>`;
+  }).join("") + (g.days.length > 7 ? "" : g.schedule.map(s => `<small style="left:${pos(s.start)}%">${s.shift}</small>`).join(""));
+  const bg = g.schedule.map(s => `<i class="gt-s ${s.off ? "off" : "s" + s.shift}" style="left:${pos(s.start)}%;width:${wid(s.start, s.end)}%"></i>`).join("");
+  const now = Date.parse(g.now), nowLine = now > t0 && now < t0 + span ? `<i class="gt-now" style="left:${pos(g.now)}%" title="сейчас"></i>` : "";
+  let names = "", rows = "", last = null;
+  for (const l of g.looms.filter(x => !grp || x.group === grp)) {
+    if (l.group !== last) { names += `<div class="gt-g">${esc(l.group)}</div>`; rows += `<div class="gt-g"></div>`; last = l.group; }
+    names += `<div class="gt-n"><button type="button" class="gt-loom" data-loom="${esc(l.loom)}" title="Остановы станка по секундам">${esc(l.loom)}</button></div>`;
+    const plan = l.plan.map(b => {
+      const what = b.order_no ? `${b.order_no} ${b.design || b.product || ""}` : (b.note || b.product || "");
+      const tip = [b.order_no ? "заказ " + b.order_no : "", b.product_code || b.product || "", b.note || "",
+        `с ${dmy(b.start)}, ${b.days} дн.`, b.qty_plan ? `план ≈ ${nf(b.qty_plan)} шт` : ""].filter(Boolean).join("; ");
+      return `<div class="gt-b plan${b.order_no ? "" : " nt"}" style="left:${pos(b.start)}%;width:${wid(b.start, b.end)}%;${
+        b.order_no ? `--h:${hueOf(b.order_no)}` : ""}" title="${esc(tip)}">${esc(what)}${b.qty_plan ? ` · ≈${nf(b.qty_plan)}` : ""}</div>`;
+    }).join("");
+    const fact = l.fact.map(f => {
+      const cls = f.idle ? "idle" : f.eff < 70 ? "e-red" : f.eff < 80 ? "e-yel" : "e-ok";
+      const tip = `смена ${f.shift} ${dmy(f.start)}: ${f.cloth || "код ткани не задан"}; ${nf(f.towels)} шт; КПД ${nf(f.eff, 1)} %; работал ${f.run_min} мин. Щелчок — остановы`;
+      return `<div class="gt-b fact ${cls}" tabindex="0" role="button" data-loom="${esc(l.loom)}" data-a="${f.start}" data-b="${f.end}"
+        style="left:${pos(f.start)}%;width:${wid(f.start, f.end)}%" title="${esc(tip)}">${f.idle ? "стоял" : `${nf(f.towels)} шт ${nf(f.eff, 0)}%`}</div>`;
+    }).join("");
+    rows += `<div class="gt-r"><div class="gt-lane p">${plan}</div><div class="gt-lane f">${fact}</div></div>`;
+  }
+  $("#gt-range").textContent = `${dmy(g.from)} 07:00 — ${dmy(g.to)} 07:00; факт по ${g.last_fact_day ? dmy(g.last_fact_day) : "—"}`;
+  $("#gt-wrap").innerHTML = `<div class="gt"><div class="gt-names"><div class="gt-ax-sp">Станок</div>${names}</div>
+    <div class="gt-canvas"><div class="gt-ax">${axis}</div><div class="gt-body">${bg}${nowLine}${rows}</div></div></div>`;
+}
+function gtOpenFrom(el) {
+  const b = el.closest(".gt-b.fact");
+  if (b) return openTimeline(b.dataset.loom, b.dataset.a, b.dataset.b);
+  const n = el.closest(".gt-loom");
+  if (!n || !GT.data) return;
+  const row = GT.data.looms.find(x => x.loom === n.dataset.loom);
+  const f = row && row.fact.filter(x => !x.idle).at(-1);
+  if (f) openTimeline(row.loom, f.start, f.end);
+  else say(`По ${n.dataset.loom} за эти дни смен с работой нет`);
+}
+$("#gt-wrap").addEventListener("click", e => gtOpenFrom(e.target));
+$("#gt-wrap").addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.closest(".gt-b.fact")) { e.preventDefault(); gtOpenFrom(e.target); } });
+$("#gt-prev").onclick = () => { GT.from = gtAdd(GT.from || gtMonday(), -(+$("#gt-days").value || 7)); loadGantt(); };
+$("#gt-next").onclick = () => { GT.from = gtAdd(GT.from || gtMonday(), +$("#gt-days").value || 7); loadGantt(); };
+$("#gt-today").onclick = () => { GT.from = gtMonday(); loadGantt(); };
+$("#gt-days").onchange = loadGantt;
+$("#gt-group").onchange = renderGantt;
+
+// Остановы станка за смену по секундам: полоса работы, поверх — остановы цветом причины.
+async function openTimeline(loom, a, b) {
+  GT.tl = {loom, a, b};
+  try {
+    const d = await api(`/api/loom_timeline?loom=${encodeURIComponent(loom)}&from=${a}&to=${b}`);
+    const t0 = Date.parse(d.from), span = Date.parse(d.to) - t0;
+    const pos = t => (Date.parse(t) - t0) / span * 100;
+    const sh = d.shift;
+    $("#gt-dlg-t").textContent = `${loom}: ${sh ? "смена " + sh.id.slice(11) + ", " : ""}${dmy(d.from)} ${d.from.slice(11, 16)}–${d.to.slice(11, 16)}`;
+    $("#gt-dlg-sum").textContent = (sh ? `КПД ${nf(sh.effic, 1)} %, работал ${sh.run_min} мин, стоял ${sh.stop_min} мин; ` : "")
+      + `остановов ${d.events.length}, ${nf(d.stop_sec / 60, 0)} мин${sh && sh.cloth ? "; ткань " + sh.cloth : ""}`;
+    const tl = $("#gt-tl");
+    tl.classList.toggle("off", !!sh && !sh.worked);
+    tl.innerHTML = d.events.map(e => `<i style="left:${pos(e.at || e.start)}%;width:${Math.max(0.12, (e.dur_in ?? e.dur) * 1000 / span * 100)}%;background:${
+      TL_COL[e.cause] || TL_COL.Other}" title="${e.start.slice(11, 19)}, ${esc(e.cause_ru)}, ${e.dur} с"></i>`).join("");
+    const ticks = [];
+    for (let t = Math.ceil(t0 / 3600e3) * 3600e3; t <= t0 + span; t += 3600e3) ticks.push(t);
+    $("#gt-tl-ax").innerHTML = ticks.map(t => `<span style="left:${(t - t0) / span * 100}%">${String(new Date(t).getHours()).padStart(2, "0")}:00</span>`).join("");
+    $("#gt-tl-leg").innerHTML = `<span><i style="background:#2f9e63"></i>работа</span>` + d.by_cause.map(c =>
+      `<span><i style="background:${TL_COL[c.cause] || TL_COL.Other}"></i>${esc(c.cause_ru)}: ${c.n} раз, ${nf(c.sec / 60, 0)} мин</span>`).join("");
+    $("#gt-tl-list tbody").innerHTML = d.events.slice(0, 500).map(e => `<tr><td>${e.start < d.from ? dmy(e.start) + " " : ""}${e.start.slice(11, 19)}</td><td class="n">${e.dur}</td>
+      <td>${esc(e.cause_ru)}</td><td>${esc(e.code || "")}</td><td class="n">${e.resp ?? ""}</td></tr>`).join("")
+      || `<tr><td colspan="5" class="note">Остановов за это время нет</td></tr>`;
+    if (!$("#gt-dlg").open) $("#gt-dlg").showModal();
+  } catch (e) { say("Остановы не загрузились: " + e.message, true); }
+}
+const gtStep = h => { const s = GT.tl; if (!s) return;
+  openTimeline(s.loom, gtIso(new Date(Date.parse(s.a) + h * 3600e3)), gtIso(new Date(Date.parse(s.b) + h * 3600e3))); };
+$("#gt-dlg-prev").onclick = () => gtStep(-8);
+$("#gt-dlg-next").onclick = () => gtStep(8);
 
 /* План составляется здесь: заказы из 1С перетаскиваются на станки. LP — всё
    состояние сетки: план и факт с сервера, выделение, буфер и история отмены. */
