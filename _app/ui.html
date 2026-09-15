@@ -227,8 +227,8 @@ body.rep-full #tab-report .tbl-wrap{margin-top:0 !important;max-height:calc(100v
 .lp-heading h3{font-size:15px;margin:0}
 .lp-help summary{cursor:pointer;color:var(--ink-2);padding:8px 0}
 #lp-selection{font-size:12px;color:var(--ink-2)}
-#lp-table td.d.sel{outline:2px solid var(--accent);outline-offset:-2px}
-#lp-table td.d.hl{box-shadow:inset 0 0 0 2px hsl(var(--h) 70% 45%)}
+.lp-context{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;margin:10px 0}
+.lp-focus{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:5px;background:#1d4ed8;color:#fff;font-size:13px}
 #lp-table td.d.over{background:color-mix(in srgb,var(--accent) 28%,transparent) !important}
 .lp-wrap{display:grid;grid-template-columns:270px minmax(0,1fr);gap:12px;align-items:start}
 @media (max-width:900px){.lp-wrap{grid-template-columns:minmax(0,1fr)}.lp-pal .lp-orders{max-height:180px}}
@@ -241,7 +241,10 @@ body.rep-full #tab-report .tbl-wrap{margin-top:0 !important;max-height:calc(100v
 .lp-orders .oc{padding:9px;border-radius:4px}
 .oc{border:1px solid var(--hair);border-left:4px solid hsl(var(--h) 60% 50%);background:var(--surface);padding:5px 8px;cursor:grab;font-size:12px;line-height:1.35}
 .oc:hover{border-color:var(--rule)}
-.oc.on{outline:2px solid var(--accent);outline-offset:-1px}
+.oc.on{border-color:#1d4ed8;border-left-color:#1d4ed8;background:#e8f0ff;outline:2px solid #1d4ed8;outline-offset:-1px}
+.oc.on .t{color:#173b87;font-weight:600}
+.oc.on .m{color:#3b506e}
+.oc-selected{display:block;margin-top:5px;color:#1d4ed8;font-weight:600}
 .oc .t{display:flex;justify-content:space-between;gap:6px}
 .oc b{font-family:"IBM Plex Mono",monospace}
 .oc .m{color:var(--muted)}
@@ -272,6 +275,14 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
 #lp-table td.d .nt{color:var(--muted);font-style:italic}
 #lp-table td.lm{position:sticky;left:0;background:var(--surface);font-weight:600;z-index:1}
 #lp-table th:first-child{left:0;z-index:2}
+/* Связанные назначения заказа и клетки для правки — два разных выделения.
+   Эти правила идут после цвета заказа, сегодняшнего дня и предупреждений. */
+#lp-table td.d.hl{background:#e8f0ff;box-shadow:inset 4px 0 0 #2563eb,inset 0 0 0 1px #93b4ee}
+#lp-table td.d.hl .lp-order{color:#173b87;font-weight:600}
+#lp-table td.d.sel{background:#cfe1ff;outline:3px solid #1d4ed8;outline-offset:-3px;box-shadow:inset 0 0 0 5px #fff}
+#lp-table td.d.sel .lp-order{color:#173b87;font-weight:600}
+#lp-table th.axis-selected,#lp-table td.lm.axis-selected{background:#dbeafe;color:#173b87;box-shadow:inset 0 -3px #1d4ed8}
+#lp-table .lp-amb{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;margin-left:5px;border-radius:50%;background:var(--critical);color:#fff;font:700 12px/1 sans-serif;vertical-align:middle}
 /* Разделы внутри вкладки (План): вместо одной длинной страницы — по одному делу на экран */
 .seg{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--rule)}
 .seg button{font:inherit;padding:8px 14px;margin-bottom:-1px;border:0;border-bottom:3px solid transparent;
@@ -563,6 +574,10 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
         <input type="file" id="lp-file" accept=".xlsx" class="hidden"></div>
     </div>
     <p class="note" id="lp-note"></p>
+    <div class="lp-context">
+      <span id="lp-focus" class="lp-focus hidden"><span>Выбран заказ:</span> <b data-i18n-skip></b></span>
+      <span id="lp-selection" role="status">Выберите ячейку станка для редактирования.</span>
+    </div>
     <div class="lp-wrap">
       <aside class="lp-pal">
         <div class="lp-heading"><h3>Заказы</h3><span class="note" id="lp-order-count"></span></div>
@@ -577,7 +592,7 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
         <table id="lp-table"><thead></thead><tbody></tbody></table>
       </div>
     </div>
-    <div class="lp-actions"><span id="lp-selection" role="status">Выберите ячейку станка для редактирования.</span><span class="note">Цвет — заказ · серый день — воскресенье · пунктир — уточните изделие</span></div>
+    <div class="lp-actions"><span class="note">Синяя рамка — выбранные ячейки · голубой фон — выбранный заказ · ! — уточните изделие</span></div>
     <details class="lp-help"><summary>Как назначать заказы и читать план / факт</summary>
     <p class="note">Перетащите заказ из списка слева на клетку станка — он встанет на
       столько дней, сколько указано в «Назначить на дней». Клетку можно перетащить на другую (с Ctrl —
@@ -1654,7 +1669,7 @@ function lpCellHtml(l, d) {
   const fx = f && d <= LP.g.last_fact_day ? `<span class="fx${low ? " lo" : ""}" title="по FACT: ${esc(f.cloth || "")} · КПД по времени ${nf(f.eff)}%${
       f.norm != null ? ` · выполнение нормы 1С ${nf(f.norm)}%` : ""}">${nf(f.towels)} шт · ${
       f.norm != null ? "норма " + nf(f.norm) + "%" : nf(f.eff) + "%"}</span>` : "";
-  const head = c.order_no ? `<span class="lp-order">Заказ <b>${esc(c.order_no)}</b></span>` : "";
+  const head = c.order_no ? `<span class="lp-order">Заказ <b>${esc(c.order_no)}</b>${amb ? '<span class="lp-amb" title="Уточните изделие" aria-label="Уточните изделие">!</span>' : ""}</span>` : "";
   const body = c.design ? `${esc(c.size || "")} ${esc(c.design)}${c.client ? "/" + esc(c.client) : ""}${c.gsm ? " · " + c.gsm + " GSM" : ""}`
              : c.product && c.product !== c.note ? esc(c.product) : "";
   const note = c.note ? ` <span class="nt">${esc(c.note)}</span>` : "";
@@ -1669,11 +1684,16 @@ function lpCellHtml(l, d) {
 
 function renderLP() {
   const g = LP.g; if (!g) return;
+  const selectedCells = [...LP.sel].map(lpSplit);
+  const selectedLooms = new Set(selectedCells.map(([l]) => l));
+  const selectedDays = new Set(selectedCells.map(([, d]) => d));
   $("#lp-table thead").innerHTML = `<tr><th>Станок</th>${g.days.map(d => {
     const wd = new Date(d.replace(/\./g, "-") + "T00:00").getDay();
-    return `<th class="d${d === LP.today ? " today" : ""}${wd === 0 ? " wk" : ""}">${dmy(d)}<small>${"вс пн вт ср чт пт сб".split(" ")[wd]}${d === LP.today ? " · сегодня" : wd === 0 ? " · выходной" : ""}</small></th>`; }).join("")}</tr>`;
-  $("#lp-table tbody").innerHTML = LP.looms.map(l => `<tr><td class="lm">${l}</td>${g.days.map(d => lpCellHtml(l, d)).join("")}</tr>`).join("")
+    return `<th class="d${d === LP.today ? " today" : ""}${wd === 0 ? " wk" : ""}${selectedDays.has(d) ? " axis-selected" : ""}">${dmy(d)}<small>${"вс пн вт ср чт пт сб".split(" ")[wd]}${d === LP.today ? " · сегодня" : wd === 0 ? " · выходной" : ""}</small></th>`; }).join("")}</tr>`;
+  $("#lp-table tbody").innerHTML = LP.looms.map(l => `<tr><td class="lm${selectedLooms.has(l) ? " axis-selected" : ""}">${l}</td>${g.days.map(d => lpCellHtml(l, d)).join("")}</tr>`).join("")
     || `<tr><td class="note" colspan="${g.days.length + 1}">Станков нет.</td></tr>`;
+  $("#lp-focus").classList.toggle("hidden", !LP.focus);
+  $("#lp-focus b").textContent = LP.focus || "";
   $("#lp-edit").disabled = !LP.sel.size || !can("plan_edit");
   $("#lp-selection").textContent = LP.sel.size === 1
     ? (() => { const [l, d] = lpSplit([...LP.sel][0]); return `${l} · ${dmy(d)}.${d.slice(0, 4)}${can("plan_edit") ? " — можно редактировать" : " — просмотр"}`; })()
@@ -1706,6 +1726,7 @@ function renderOrders() {
       <div class="m">${o.in_1c ? "1С" : "нет в 1С"}${o.qty ? " · " + nf(o.qty) + " шт" : ""}${o.due_day ? " · срок " + dmy(o.due_day) : ""} · ${o.cells ? o.cells + " ст.-дн." : "не в плане"}${
         o.unpicked ? ` · <span class="bad">без изделия: ${o.unpicked}</span>` : ""}</div>
       ${o.qty ? `<div class="b2" title="сделано ${nf(o.done)}, к концу плана ≈${nf(o.expected)} из ${nf(o.qty)}"><i class="p" style="width:${exp}%"></i><i style="width:${done}%"></i></div>` : ""}
+      ${o.order_no === LP.focus ? '<span class="oc-selected">✓ <span>Выбран</span></span>' : ""}
       ${lines}
     </div>`; }).join("") || `<p class="note">Заказов не найдено.</p>`;
 }
@@ -1839,7 +1860,7 @@ tb.addEventListener("click", e => {
     LP.sel.has(k) ? LP.sel.delete(k) : LP.sel.add(k); LP.anchor = k;
   } else { LP.sel = new Set([k]); LP.anchor = k; }
   const c = lpGet(...lpSplit(k));
-  if (c && c.order_no) LP.focus = c.order_no;
+  LP.focus = c && c.order_no ? c.order_no : null;
   renderLP(); renderOrders(); renderCard();
 });
 tb.addEventListener("dblclick", e => { const td = lpTd(e); if (td) lpOpenDialog(td.dataset.k); });
@@ -1906,6 +1927,10 @@ $("#lp-today").onclick = () => lpMovePeriod(null);
 document.addEventListener("keydown", e => {
   if ($("#tab-plan").classList.contains("hidden") || !LP.g) return;
   if (e.target.closest("input, textarea, select, dialog, button, a, [contenteditable]")) return;
+  if (e.key === "Escape") {
+    LP.sel.clear(); LP.anchor = null; LP.focus = null;
+    renderLP(); renderOrders(); renderCard(); return;
+  }
   if(!can("plan_edit"))return;
   const ctrl = e.ctrlKey || e.metaKey, keys = [...LP.sel];
   if (ctrl && e.key.toLowerCase() === "z") { e.preventDefault(); return lpUndo(); }
@@ -1918,7 +1943,6 @@ document.addEventListener("keydown", e => {
   } else if (ctrl && e.key.toLowerCase() === "v" && LP.clip) {
     e.preventDefault(); lpBlock(LP.clip.snap, LP.clip.from, lpTopLeft(keys), false);
   } else if (e.key === "Enter") { e.preventDefault(); lpOpenDialog(LP.anchor || keys[0]); }
-  else if (e.key === "Escape") { LP.sel = new Set(); renderLP(); }
 });
 
 async function loadOneC() {
