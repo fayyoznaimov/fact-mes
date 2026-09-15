@@ -157,12 +157,13 @@ def public():
         assert b"<title>" in b
         return "%d КБ" % (len(b) // 1024)
     check("открыто", "страница приложения", page)
+    check("интерфейс", "словарь RU/EN", lambda: "MesI18n" if b"MesI18n" in ok("/ui_i18n.js", cookie=False) else (_ for _ in ()).throw(AssertionError("нет словаря")))
     check("открыто", "доска мониторов /wall", lambda: "%d КБ" % (len(ok("/wall", cookie=False)) // 1024))
     check("открыто", "здоровье /api/health", lambda: "; ".join(
         "%s=%s" % kv for kv in ok("/api/health", cookie=False)["checks"].items())[:120])
 
     def live():
-        d = ok("/api/live", cookie=False)
+        d = ok("/api/live")
         assert "looms" in d and "totals" in d, "ответ без looms/totals"
         if not d["looms"]:
             # В песочнице нет зеркала FACT и сборщик выключен — снимка станков нет.
@@ -170,12 +171,12 @@ def public():
             assert "не работает" in str(h.get("collector")), "станков нет, а сборщик работает"
             return "в песочнице снимка нет (сборщик выключен)"
         return "станков %d" % len(d["looms"])
-    check("открыто", "живое состояние /api/live", live)
+    check("чтение", "живое состояние после входа /api/live", live)
 
     def stream():
         c = http.client.HTTPConnection("127.0.0.1", 8790, timeout=15)
         t0 = time.perf_counter()
-        c.request("GET", "/api/stream")
+        c.request("GET", "/api/stream", headers={"Cookie": "sid=" + SECRETS["admin"]["token"]})
         r, got = c.getresponse(), b""
         while b"event: board" not in got:
             line = r.fp.readline()
@@ -183,7 +184,7 @@ def public():
             got += line
         c.close()
         return "первый кадр %.0f мс" % ((time.perf_counter() - t0) * 1000)
-    check("открыто", "поток мониторов /api/stream", stream)
+    check("чтение", "поток после входа /api/stream", stream)
     check("открыто", "описание API /api/docs", lambda: "%d КБ" % (len(ok("/api/docs", cookie=False)) // 1024))
 
     def closed(path):
@@ -193,7 +194,8 @@ def public():
             return "HTTP %s" % code
         return f
     for p in ("/api/salary?day=2026.09.14&shift=A", "/api/report?day=2026.09.14", "/api/setup_grid",
-              "/api/users", "/api/keys", "/api/loom_plan", "/api/onec/messages"):
+              "/api/users", "/api/keys", "/api/loom_plan", "/api/onec/messages",
+              "/api/live", "/api/stream", "/api/cards", "/api/forecast"):
         check("права", "без входа закрыто " + p.split("?")[0], closed(p))
 
     def post_closed():

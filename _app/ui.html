@@ -7,15 +7,11 @@
 <style>
 :root{
   /* Холодный серый суровья и индиго красителя: цвета цеха, а не «тёплый крем» шаблонов */
-  --page:#eef1f4; --surface:#ffffff; --surface-2:#f3f5f7; --ink:#16202b; --ink-2:#465262;
+  color-scheme:light;
+  --page:#ffffff; --surface:#ffffff; --surface-2:#f5f7fa; --ink:#16202b; --ink-2:#465262;
   --muted:#6b7683; --hair:#e1e5ea; --rule:#c7ced6; --accent:#2f5fd0;
   --s1:#2f5fd0; --s2:#eb6834; --s3:#1baf7a; --good:#138a4b; --critical:#c8362e;
 }
-@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
-  --page:#11151a; --surface:#181d23; --surface-2:#1f262d; --ink:#eef2f6; --ink-2:#b6c0cb;
-  --muted:#8994a0; --hair:#262e36; --rule:#36414c; --accent:#4a78e8;
-  --s1:#4a78e8; --s2:#d95926; --s3:#199e70; --good:#3fbf7a; --critical:#ef6a60;
-}}
 :root[data-theme="dark"]{
   --page:#11151a; --surface:#181d23; --surface-2:#1f262d; --ink:#eef2f6; --ink-2:#b6c0cb;
   --muted:#8994a0; --hair:#262e36; --rule:#36414c; --accent:#4a78e8;
@@ -25,22 +21,36 @@
 body{margin:0;background:var(--page);color:var(--ink);font-family:"IBM Plex Sans",system-ui,"Segoe UI",sans-serif;font-size:14px;line-height:1.45}
 /* Слева — меню разделов, сгруппированное по работе (сейчас в цеху, смена, план, отчёты,
    справочники); справа — раздел. На узком экране меню выдвигается кнопкой «Меню». */
-.wrap{max-width:none;margin:0;padding:14px 22px 60px 254px;display:flex;flex-direction:column;gap:14px;min-height:100vh}
+.wrap{max-width:none;min-width:0;margin:0;padding:14px 22px 60px 254px;display:flex;flex-direction:column;gap:14px;min-height:100vh}
 header{position:fixed;top:0;left:0;bottom:0;width:232px;z-index:20;display:flex;flex-direction:column;gap:6px;
-  padding:16px 10px 12px;background:var(--surface);border-right:1px solid var(--rule);overflow-y:auto}
+  padding:14px 10px 12px;background:#f7f9fc;border-right:1px solid var(--hair);overflow:hidden;transition:transform .18s ease}
+.brand{display:flex;gap:8px;align-items:center;min-height:46px;flex-shrink:0}
+.brand h1{flex:1}
+.icon{width:19px;height:19px;flex-shrink:0;display:inline-block;vertical-align:middle;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.icon-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:36px;min-height:36px;border:1px solid var(--hair);border-radius:7px;background:var(--surface);color:var(--ink-2);cursor:pointer}
+.icon-button:hover{background:var(--surface-2);color:var(--accent)}
 h1{margin:0 8px 6px;font-size:17px;font-weight:600;line-height:1.2}
 h1 small{display:block;margin-top:2px;font-size:12px;font-weight:400;color:var(--muted)}
-nav{display:flex;flex-direction:column;gap:1px}
-nav .grp{margin:12px 10px 3px;font-size:12px;color:var(--muted)}
-nav button{font:inherit;text-align:left;padding:6px 10px;background:none;color:var(--ink);border:0;
-  border-left:3px solid transparent;border-radius:0 4px 4px 0;cursor:pointer}
+nav{display:flex;flex-direction:column;gap:2px;min-height:0;flex:1;overflow-y:auto;overflow-x:hidden}
+nav .grp{margin:7px 10px 2px;font-size:9.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);line-height:1.2}
+nav button{display:flex;align-items:center;gap:9px;flex-shrink:0;font:inherit;font-size:13px;text-align:left;padding:6px 9px;background:none;color:var(--ink);border:0;
+  border-left:3px solid transparent;border-radius:6px;cursor:pointer;line-height:1.25}
+nav .icon{width:17px;height:17px;color:var(--muted)}
+nav button[aria-current="true"] .icon{color:var(--accent)}
+*{scrollbar-width:thin;scrollbar-color:#c7d0db transparent}
+nav{scrollbar-color:transparent transparent}nav:hover,nav:focus-within{scrollbar-color:#c7d0db transparent}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:#c7d0db;border-radius:8px}::-webkit-scrollbar-track{background:transparent}
 nav button:hover{background:var(--surface-2)}
 nav button[aria-current="true"]{background:color-mix(in srgb,var(--accent) 11%,transparent);border-left-color:var(--accent);font-weight:600}
-header .meta{margin-top:auto;padding:10px 10px 0;border-top:1px solid var(--hair);font-size:12px;color:var(--ink-2);line-height:1.5}
+header .meta{flex-shrink:0;margin-top:auto;padding:10px 10px 0;border-top:1px solid var(--hair);font-size:12px;color:var(--ink-2);line-height:1.5}
 header .meta a{color:var(--accent)}
-.topbar{display:flex;align-items:center;gap:10px;min-height:34px}
+.topbar{display:flex;align-items:center;gap:10px;min-height:42px}
+.topbar .language{margin-left:auto;display:flex;align-items:center;gap:7px}
+.language select{border-color:var(--hair);border-radius:7px;font-size:12px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
 .topbar h2{margin:0;font-size:21px;font-weight:600;letter-spacing:-.01em}
-#menu-btn{display:none}
+#menu-btn{display:inline-flex}
+@media (min-width:1000px){body.sidebar-collapsed header{transform:translateX(-100%)}body.sidebar-collapsed .wrap{padding-left:22px}}
 @media (max-width:999px){
   .wrap{padding:0 14px 60px}
   header{transform:translateX(-100%);transition:transform .18s ease;box-shadow:0 0 40px rgba(0,0,0,.28)}
@@ -51,6 +61,13 @@ header .meta a{color:var(--accent)}
   #menu-btn{display:inline-flex}
 }
 @media (prefers-reduced-motion:reduce){ header{transition:none} }
+.access-panel{padding:16px;border:1px solid var(--hair);border-radius:8px;background:var(--surface);margin:12px 0}
+.access-panel h3{margin:0 0 8px}.access-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(205px,1fr));gap:9px}
+.access-grid label{display:flex;align-items:center;gap:8px;padding:9px;border:1px solid var(--hair);border-radius:6px;font-size:13px}
+.access-grid label:has(input:checked){background:#f0f5ff;border-color:#ccdafa}
+.access-grid input{accent-color:var(--accent);width:16px;height:16px}
+.access-panel fieldset{border:0;padding:0;margin:14px 0}.access-panel legend{font-weight:600;margin-bottom:8px}
+.access-actions{display:flex;gap:8px;align-items:center;margin-top:14px}
 .bar{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;background:var(--surface);border:1px solid var(--hair);padding:11px}
 .f{display:flex;flex-direction:column;gap:4px}
 .f label{font-size:12px;color:var(--ink-2)}
@@ -296,8 +313,8 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
 </style>
 
 <div class="wrap">
-  <header>
-    <h1>Ткацкий цех<small>40 станков Toyota</small></h1>
+  <header id="sidebar">
+    <div class="brand"><h1>Ткацкий цех<small>Производство</small></h1><button type="button" class="icon-button" id="sidebar-close" aria-label="Скрыть меню" title="Скрыть меню"></button></div>
     <nav aria-label="Разделы">
       <div class="grp">Сейчас в цеху</div>
       <button data-tab="dash">Дашборд</button>
@@ -312,9 +329,7 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
       <button data-tab="report" aria-current="true">Производственный отчёт</button>
       <button data-tab="explorer">Простои</button>
       <button data-tab="history">История станков</button>
-      <button data-tab="bottle">Узкие места</button>
       <button data-tab="manual">Ручные остановы</button>
-      <button data-tab="kpi">KPI</button>
       <button data-tab="salary">Зарплата</button>
       <div class="grp">Справочники</div>
       <button data-tab="people">Операторы</button>
@@ -324,10 +339,12 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
     <div class="meta" id="whoami"></div>
   </header>
   <div class="topbar">
-    <button class="act" id="menu-btn" aria-label="Открыть меню разделов" aria-expanded="false">☰ Меню</button>
+    <button type="button" class="icon-button" id="menu-btn" aria-label="Скрыть меню" aria-controls="sidebar" aria-expanded="true" title="Скрыть меню"></button>
     <h2 id="page-title">Производственный отчёт</h2>
+    <label class="language"><span class="sr-only">Язык интерфейса</span><select id="ui-language" aria-label="Язык интерфейса"><option value="ru">Русский</option><option value="en">English</option></select></label>
   </div>
   <div id="msg" class="msg hidden" role="status"></div>
+  <div id="empty-access" class="access-panel hidden">Нет доступных разделов. Обратитесь к администратору.</div>
 
   <!-- ВХОД -->
   <div id="gate" class="hidden">
@@ -345,20 +362,29 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
 
   <!-- ПОЛЬЗОВАТЕЛИ -->
   <section id="tab-users" class="hidden">
+    <h3 id="u-heading">Новый пользователь</h3>
     <div class="bar">
       <div class="f"><label for="u-login">Логин</label><input id="u-login" size="12" autocomplete="off"></div>
       <div class="f"><label for="u-name">Имя</label><input id="u-name" size="20" autocomplete="off"></div>
       <div class="f"><label for="u-role">Роль</label><select id="u-role"></select></div>
-      <div class="f"><label for="u-pass">Временный пароль</label><input id="u-pass" size="14" autocomplete="off"></div>
+      <div class="f" id="u-pass-wrap"><label for="u-pass">Временный пароль</label><input id="u-pass" type="password" size="14" autocomplete="new-password"></div>
+      <div class="f"><label for="u-mode">Настройка доступа</label><select id="u-mode"><option value="custom">Индивидуально</option><option value="role">По шаблону роли</option></select></div>
       <div class="f"><label>&nbsp;</label><button class="act primary" id="u-add">Создать</button></div>
+      <div class="f"><label>&nbsp;</label><button class="act hidden" id="u-cancel">Отмена</button></div>
+    </div>
+    <div class="access-panel" id="u-access">
+      <p class="note">Сначала выберите доступные разделы, затем разрешённые действия. Просмотр раздела не разрешает менять его данные.</p>
+      <fieldset><legend>Что пользователь видит</legend><div class="access-grid" id="u-sections"></div></fieldset>
+      <fieldset><legend>Что пользователь может менять</legend><div class="access-grid" id="u-actions"></div></fieldset>
+      <p class="note" id="u-access-note"></p>
     </div>
     <div class="tbl-wrap" style="margin-top:14px">
       <table id="u-table">
-        <thead><tr><th>Логин</th><th>Имя</th><th>Роль</th><th>Активен</th><th>Последний вход</th><th></th></tr></thead>
+        <thead><tr><th>Логин</th><th>Имя</th><th>Роль</th><th>Доступ</th><th>Активен</th><th>Последний вход</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
-    <p class="note">Пароли хранятся только хэшем — посмотреть их нельзя, можно задать новый. Роли: администратор — всё; мастер — назначения, тикеты, выгрузка; оператор — тикеты и просмотр; наблюдатель — только просмотр.</p>
+    <p class="note">Администратор управляет пользователями и имеет полный доступ. Индивидуальные ограничения проверяются сервером при каждом запросе.</p>
   </section>
 
   <!-- ОТЧЁТ -->
@@ -1049,9 +1075,37 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
   </section>
 </div>
 
+<script src="/ui_i18n.js"></script>
 <script>
 const $ = s => document.querySelector(s);
-const nf = (x,d=0) => (x==null||x==="") ? "" : Number(x).toLocaleString("ru-RU",{minimumFractionDigits:d,maximumFractionDigits:d});
+const tr = text => window.MesI18n ? MesI18n.t(text) : text;
+const confirmTranslated = text => window.confirm(tr(text));
+const nf = (x,d=0) => (x==null||x==="") ? "" : Number(x).toLocaleString(document.documentElement.lang==='en'?'en-GB':'ru-RU',{minimumFractionDigits:d,maximumFractionDigits:d});
+const ICONS = {
+  menu:'M4 6h16M4 12h16M4 18h16',close:'m14 6-6 6 6 6',
+  dash:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
+  tickets:'M5 3h14v18l-3-2-4 2-4-2-3 2zM8 8h8M8 12h5',
+  walk:'M4 5h6v6H4zM14 13h6v6h-6zM10 8h6v5M7 11v5h7',
+  setup:'m14 6 4-4 4 4-4 4M14 6l4 4-10 10-4-4zM3 3l5 5',
+  assign:'M4 4h16v16H4zM4 9h16M10 9v11M14 13h3M14 17h3',
+  plan:'M4 5h16v16H4zM8 3v4M16 3v4M4 10h16M8 14h3M14 17h3',
+  report:'M5 3h10l4 4v14H5zM14 3v5h5M8 12h8M8 16h8',
+  explorer:'M5 4v16h16M9 15v-4M14 15V7M19 15v-6',
+  history:'M4 5v15h17M8 7h7M12 11h9M7 15h8',
+  manual:'M9 11V5a2 2 0 0 1 4 0v6M13 8h2l5 3-2 9H9l-5-7 2-2 3 3',
+  salary:'M3 6h18v14H3zM3 6V4h15M16 11h5v5h-5z',
+  people:'M16 21v-3a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v3M20 21v-3a4 4 0 0 0-3-4M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8M17 3a4 4 0 0 1 0 8',
+  settings:'M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8',
+  users:'M12 3 3 7v6c0 4 9 8 9 8s9-4 9-8V7zM8 12l3 3 5-6'
+};
+const icon = name => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${ICONS[name]||ICONS.report}"/></svg>`;
+document.querySelectorAll('nav button[data-tab]').forEach(b=>{
+  b.dataset.labelRu=b.textContent.trim();
+  const label=document.createElement('span');label.className='nav-label';label.textContent=b.dataset.labelRu;
+  b.innerHTML=icon(b.dataset.tab);b.append(label);
+});
+$('#menu-btn').innerHTML=icon('menu');$('#sidebar-close').innerHTML=icon('close');
+document.documentElement.dataset.theme='light';
 const api = async (path, body) => {
   const r = await fetch(path, body ? {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)} : {});
   const j = await r.json();
@@ -1075,16 +1129,16 @@ const say = (text, isErr) => {
 
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   const t = b.dataset.tab;
+  if (!canSection(t)) return;
   document.querySelectorAll("nav button").forEach(x => x.setAttribute("aria-current", x === b));
   document.querySelectorAll("section").forEach(s => s.classList.add("hidden"));
   $("#tab-" + t).classList.remove("hidden");
-  $("#page-title").textContent = b.textContent;
-  document.title = b.textContent + " — Ткацкий цех";
+  $("#page-title").textContent = tr(b.dataset.labelRu);
+  document.title = tr(b.dataset.labelRu) + " — " + tr("Ткацкий цех");
   // Раздел — в адресе (#setup): обновление страницы и кнопка «Назад» возвращают туда же.
   if (location.hash !== "#" + t) history[NAV_PUSH ? "pushState" : "replaceState"](null, "", "#" + t);
   try { localStorage.setItem("tab", t); } catch (e) {}
-  document.body.classList.remove("menu-open");
-  $("#menu-btn").setAttribute("aria-expanded", "false");
+  if (MENU_MOBILE.matches) setMenu(false);
   if (t === "report") repStick();       // отступы шапки меряются только на видимой вкладке
   if (t === "tickets") loadTickets();   // тикеты — живые, всегда свежие
   // Остальное не перекачиваем при каждом щелчке по вкладке: план — это пять
@@ -1098,6 +1152,11 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   if (t === "settings") onTab("settings", loadKeys);
   if (t === "assign") onTab("assign", loadAssign);
   if (t === "setup") onTab("setup", loadGrid);
+  if (t === "report") onTab("report", () => loadReport(true));
+  if (t === "explorer") onTab("explorer", loadExplorer);
+  if (t === "walk") onTab("walk", loadWalk);
+  if (t === "salary") onTab("salary", loadSalary);
+  if (t === "users") renderUsers();
 });
 const TAB_AT = {};
 function onTab(key, load, fresh = 30000) {
@@ -1113,7 +1172,8 @@ function openTab(t, push = false) {
   NAV_PUSH = push; b.click(); NAV_PUSH = true;
   return true;
 }
-window.addEventListener("popstate", () => openTab(location.hash.slice(1)));
+window.addEventListener("popstate", () => { if (!openTab(location.hash.slice(1))) openFirstTab(); });
+function openFirstTab(){ const b=document.querySelector('nav button[data-tab]:not(.hidden)');if(b)openTab(b.dataset.tab); }
 // Группа меню без доступных разделов (нет прав) — не показываем и её заголовок.
 function syncNavGroups() {
   document.querySelectorAll("nav .grp").forEach(g => {
@@ -1122,26 +1182,64 @@ function syncNavGroups() {
     g.classList.toggle("hidden", !any);
   });
 }
-$("#menu-btn").onclick = e => {
-  e.stopPropagation();
-  const open = document.body.classList.toggle("menu-open");
-  $("#menu-btn").setAttribute("aria-expanded", open);
-};
+const MENU_MOBILE=matchMedia('(max-width:999px)');
+let MENU_COLLAPSED=false;
+try{MENU_COLLAPSED=localStorage.getItem('mes-sidebar-collapsed')==='1';}catch(e){}
+function syncMenu(){
+  const open=MENU_MOBILE.matches?document.body.classList.contains('menu-open'):!MENU_COLLAPSED;
+  document.body.classList.toggle('sidebar-collapsed',MENU_COLLAPSED);
+  $('#sidebar').inert=!open;$('#sidebar').setAttribute('aria-hidden',String(!open));
+  $('#menu-btn').setAttribute('aria-expanded',String(open));
+  $('#menu-btn').setAttribute('aria-label',tr(open?'Скрыть меню':'Открыть меню'));
+  $('#menu-btn').title=tr(open?'Скрыть меню':'Открыть меню');
+}
+function setMenu(open,focus=false){
+  if(MENU_MOBILE.matches)document.body.classList.toggle('menu-open',open);
+  else {MENU_COLLAPSED=!open;try{localStorage.setItem('mes-sidebar-collapsed',MENU_COLLAPSED?'1':'0');}catch(e){}}
+  syncMenu();if(focus)(open&&MENU_MOBILE.matches?$('#sidebar-close'):$('#menu-btn')).focus();
+}
+$('#menu-btn').onclick=e=>{e.stopPropagation();setMenu($('#menu-btn').getAttribute('aria-expanded')!=='true',true);};
+$('#sidebar-close').onclick=()=>setMenu(false,true);
+MENU_MOBILE.addEventListener('change',()=>{document.body.classList.remove('menu-open');syncMenu();});
 document.addEventListener("click", e => {
-  if (document.body.classList.contains("menu-open") && !e.target.closest("header")) document.body.classList.remove("menu-open");
+  if (document.body.classList.contains("menu-open") && !e.target.closest("#sidebar,#menu-btn")) setMenu(false,true);
 });
-document.addEventListener("keydown", e => { if (e.key === "Escape") document.body.classList.remove("menu-open"); });
+document.addEventListener("keydown",e=>{if(e.key==='Escape'&&document.body.classList.contains('menu-open'))setMenu(false,true);});
+syncMenu();
+$('#ui-language').value=window.MesI18n?.language||'ru';
+$('#ui-language').onchange=e=>window.MesI18n?.setLanguage(e.target.value);
+window.addEventListener('mes-language-change',()=>{
+  syncMenu();const b=document.querySelector('nav button[aria-current="true"]');
+  if(b){$('#page-title').textContent=tr(b.dataset.labelRu);document.title=tr(b.dataset.labelRu)+' — '+tr('Ткацкий цех');}
+  $('#ui-language').value=MesI18n.language;
+  if(typeof ACCESS_CATALOG!=='undefined'&&ACCESS_CATALOG)renderAccessFields();
+});
 
-let SHIFTS = [], OPERATORS = [], ME = null, PERMS = [], ROLES = {};
+let SHIFTS = [], OPERATORS = [], ME = null, PERMS = [], ROLES = {}, SECTIONS = [];
 const shiftLabel = s => `${s.day.replace(/\./g,"/")} · смена ${s.shift}`;
 const can = p => PERMS.includes(p);
+const canSection = id => SECTIONS.includes(id) && !['bottle','kpi'].includes(id);
+function syncActionControls(){
+  if(!ME)return;
+  const gates={
+    plan_edit:'#pl-add,#pl-1c,#lp-up,#lp-file,#lp-span,#lp-sun,#pl-table [data-assign],#pl-table [data-close],#pl-table [data-loom-for]',
+    setup_edit:'#ppt-save,#cm-unmapped select,#cm-map button,#ls-save,#sg-save,#sg-fill,#sg-row,#sg-undo,#yarn-add,#yarn-imp,#yarn-file,#yarn-table input,#yarn-table select,#yarn-table button,#dash-table .art',
+    assign:'#sal-copy,#sal-looms select[data-assign],#as-save,#as-confirm,#as-apply,#as-prev,#as-fact,#as-foreman,#as-note',
+    people:'#op-add,#op-import,#op-paste-go,#op-table button,#op-table select',
+    settings:'#an-save,#set-save',users:'#key-add,#key-table button',export:'#rep-excel'
+  };
+  for(const [permission,selector] of Object.entries(gates))if(!can(permission))document.querySelectorAll(selector).forEach(e=>{e.disabled=true;});
+  if(!can('plan_edit')){ $('#lp-edit').disabled=true;$('#lp-undo').disabled=true;document.querySelectorAll('#lp-table [draggable],#lp-orders [draggable]').forEach(e=>e.draggable=false); }
+}
+let ACTION_FRAME=false;
+new MutationObserver(()=>{if(!ACTION_FRAME){ACTION_FRAME=true;requestAnimationFrame(()=>{ACTION_FRAME=false;syncActionControls();});}}).observe(document.body,{childList:true,subtree:true});
 
 /* --- вход и права --- */
-const TAB_PERM = { assign:"assign", people:"people", settings:"settings", users:"users" };
 
 async function whoAmI() {
   const r = await api("/api/me");
-  ME = r.user; PERMS = r.permissions || []; ROLES = r.roles || {};
+  ME = r.user; PERMS = r.permissions || []; ROLES = r.roles || {}; SECTIONS = r.sections || [];
+  ACCESS_CATALOG=r.access_catalog||null;
   const gate = $("#gate");
   if (!ME) {
     gate.classList.remove("hidden");
@@ -1150,15 +1248,17 @@ async function whoAmI() {
   }
   gate.classList.add("hidden");
   document.body.classList.remove("locked");
-  $("#whoami").innerHTML = `<b>${esc(ME.name)}</b><br>${esc(ROLES[ME.role] || ME.role)}<br><a href="#" id="logout">Выйти</a>`;
+  $("#whoami").innerHTML = `<b data-i18n-skip>${esc(ME.name)}</b><br>${esc(ROLES[ME.role] || ME.role)}<br><a href="#" id="logout">Выйти</a>`;
   $("#logout").onclick = async (e) => { e.preventDefault(); await api("/api/logout", {}); location.reload(); };
   document.querySelectorAll("nav button").forEach(b => {
-    const need = TAB_PERM[b.dataset.tab];
-    b.classList.toggle("hidden", !!need && !can(need));
+    b.classList.toggle("hidden", !canSection(b.dataset.tab));
   });
   syncNavGroups();
   $("#u-role").innerHTML = Object.entries(ROLES).map(([k,v])=>`<option value="${k}">${v}</option>`).join("");
-  if (can("users")) renderUsers();
+  $("#u-role").value="viewer";
+  if (can("users")) renderAccessFields();
+  $('#rep-excel').disabled=!can('export');
+  $('#lp-up').disabled=!can('plan_edit');
   return true;
 }
 
@@ -1198,30 +1298,71 @@ $("#login-form").onsubmit = async (e) => {
   location.reload();
 };
 
-async function renderUsers() {
-  try {
-    const { users } = await api("/api/users");
-    $("#u-table tbody").innerHTML = users.map(u => `<tr>
-      <td>${u.login}</td><td>${u.name}</td><td>${ROLES[u.role] || u.role}</td>
-      <td>${u.active ? '<span class="ok">да</span>' : "нет"}</td>
-      <td class="n">${u.last_login ? u.last_login.slice(0,16).replace("T"," ") : "—"}</td>
-      <td><button class="act" data-off="${u.id}">${u.active ? "Отключить" : "Включить"}</button></td></tr>`).join("");
-    document.querySelectorAll("[data-off]").forEach(b => b.onclick = async () => {
-      const u = users.find(x => String(x.id) === b.dataset.off);
-      await api("/api/users", { id: u.id, active: !u.active });
-      renderUsers();
-    });
-  } catch (e) { say("Список пользователей не загрузился: " + e.message, true); }
+let ACCESS_CATALOG=null, USER_EDIT=null, USER_DRAFT=null, USER_ROWS=[];
+const accessName=x=>document.documentElement.lang==='en'?(x.name_en||x.name):x.name;
+function readAccessFields(){return {sections:[...document.querySelectorAll('#u-sections input:checked')].map(x=>x.value),permissions:[...document.querySelectorAll('#u-actions input:checked')].map(x=>x.value)};}
+function renderAccessFields(){
+  if(!ACCESS_CATALOG)return;
+  const role=$('#u-role').value,admin=role==='admin',preset=$('#u-mode').value==='role'||admin;
+  if(admin)$('#u-mode').value='role';$('#u-mode').disabled=admin;
+  const draft=preset?ACCESS_CATALOG.role_defaults[role]:(USER_DRAFT||{sections:[],permissions:[]});
+  const render=(items,selected,type)=>items.map(x=>{
+    const forbidden=type==='sections'?x.id==='users'&&!admin:x.admin_only&&!admin;
+    return `<label><input type="checkbox" value="${esc(x.id)}" ${selected.includes(x.id)?'checked':''} ${preset||forbidden?'disabled':''}><span>${esc(accessName(x))}</span></label>`;
+  }).join('');
+  $('#u-sections').innerHTML=render(ACCESS_CATALOG.sections.filter(x=>!x.legacy),draft.sections,'sections');
+  $('#u-actions').innerHTML=render(ACCESS_CATALOG.permissions,draft.permissions,'permissions');
+  $('#u-access-note').textContent=tr(admin?'Администратор: полный доступ.':'Для просмотра оставьте действия выключенными.');
 }
-
-$("#u-add").onclick = async () => {
-  const login = $("#u-login").value.trim(), name = $("#u-name").value.trim(), pass = $("#u-pass").value.trim();
-  if (!login || !pass) return say("Нужны логин и временный пароль", true);
-  try {
-    await api("/api/users", { login, name: name || login, role: $("#u-role").value, password: pass });
-    $("#u-login").value = ""; $("#u-name").value = ""; $("#u-pass").value = "";
-    renderUsers(); say("Пользователь создан: " + login);
-  } catch (e) { say("Не создался: " + e.message, true); }
+$('#u-role').onchange=()=>{USER_DRAFT=null;renderAccessFields();};
+$('#u-mode').onchange=()=>{if($('#u-mode').value==='custom'&&!USER_DRAFT)USER_DRAFT=structuredClone(ACCESS_CATALOG.role_defaults[$('#u-role').value]);renderAccessFields();};
+$('#u-access').onchange=e=>{
+  USER_DRAFT=readAccessFields();
+  if(e.target.closest('#u-actions')&&e.target.checked){
+    const p=ACCESS_CATALOG.permissions.find(x=>x.id===e.target.value);
+    if(!p.sections.some(x=>USER_DRAFT.sections.includes(x)))USER_DRAFT.sections.push(p.sections[0]);
+  }
+  USER_DRAFT.permissions=USER_DRAFT.permissions.filter(id=>ACCESS_CATALOG.permissions.find(p=>p.id===id).sections.some(s=>USER_DRAFT.sections.includes(s)));
+  renderAccessFields();
+};
+function resetUserForm(){
+  USER_EDIT=null;USER_DRAFT=null;$('#u-login').value='';$('#u-name').value='';$('#u-pass').value='';
+  $('#u-login').disabled=false;$('#u-role').value='viewer';$('#u-mode').value='custom';
+  $('#u-pass-wrap').classList.remove('hidden');$('#u-cancel').classList.add('hidden');
+  $('#u-add').textContent=tr('Создать');$('#u-heading').textContent=tr('Новый пользователь');renderAccessFields();
+}
+$('#u-cancel').onclick=resetUserForm;
+async function renderUsers(){
+  if(!can('users'))return;
+  try{
+    const d=await api('/api/users');USER_ROWS=d.users;ACCESS_CATALOG=d.access_catalog||ACCESS_CATALOG;
+    $('#u-table tbody').innerHTML=USER_ROWS.map(u=>`<tr>
+      <td data-i18n-skip>${esc(u.login)}</td><td data-i18n-skip>${esc(u.name)}</td><td>${esc(tr(ROLES[u.role]||u.role))}</td>
+      <td>${tr(u.access_mode==='custom'?'Индивидуально':'По шаблону роли')} · ${(u.sections||[]).filter(x=>!['bottle','kpi'].includes(x)).length}</td>
+      <td>${tr(u.active?'Да':'Нет')}</td><td class="n">${u.last_login?esc(u.last_login.slice(0,16).replace('T',' ')):'—'}</td>
+      <td><button class="act" data-user-edit="${u.id}">${tr('Изменить доступ')}</button> <button class="act" data-off="${u.id}" ${u.id===ME.id?'disabled':''}>${tr(u.active?'Отключить':'Включить')}</button></td></tr>`).join('');
+    renderAccessFields();
+  }catch(e){say('Список пользователей не загрузился: '+e.message,true);}
+}
+$('#u-table').onclick=async e=>{
+  const edit=e.target.closest('[data-user-edit]'),off=e.target.closest('[data-off]');if(!edit&&!off)return;
+  const u=USER_ROWS.find(x=>String(x.id)===(edit?.dataset.userEdit||off.dataset.off));if(!u)return;
+  if(edit){
+    USER_EDIT=u.id;USER_DRAFT={sections:[...u.sections],permissions:[...u.permissions]};
+    $('#u-login').value=u.login;$('#u-login').disabled=true;$('#u-name').value=u.name;$('#u-role').value=u.role;$('#u-mode').value=u.access_mode;
+    $('#u-pass').value='';$('#u-pass-wrap').classList.add('hidden');$('#u-cancel').classList.remove('hidden');
+    $('#u-add').textContent=tr('Сохранить');$('#u-heading').textContent=tr('Изменить доступ');renderAccessFields();$('#u-heading').scrollIntoView({block:'start'});
+  }else try{await api('/api/users',{id:u.id,active:!u.active});await renderUsers();}catch(err){say(err.message,true);}
+};
+$('#u-add').onclick=async()=>{
+  const login=$('#u-login').value.trim(),name=$('#u-name').value.trim(),password=$('#u-pass').value,role=$('#u-role').value;
+  if(!USER_EDIT&&(!login||!password))return say('Нужны логин и временный пароль',true);
+  const access=role==='admin'||$('#u-mode').value==='role'?null:readAccessFields();
+  if(access&&!access.sections.length)return say('Выберите хотя бы один раздел',true);
+  const body=USER_EDIT?{id:USER_EDIT,name:name||login,role,access}:{login,name:name||login,password,role,access};
+  $('#u-add').disabled=true;
+  try{await api('/api/users',body);resetUserForm();await renderUsers();say('Права пользователя сохранены');}
+  catch(e){say(e.message,true);}finally{$('#u-add').disabled=false;}
 };
 
 /* --- дашборд: станок, что заправлено, кто работает, что рвётся --- */
@@ -1385,7 +1526,7 @@ async function loadPlan() {
       $("#pl-all").onclick = () => { PL_ALL = true; loadPlan(); };
     }
 
-    document.querySelectorAll("[data-assign]").forEach(b => b.onclick = async () => {
+    document.querySelectorAll("#pl-table [data-assign]").forEach(b => b.onclick = async () => {
       const inp = document.querySelector(`[data-loom-for="${b.dataset.assign}"]`);
       if (!inp.value.trim()) return say("Укажите станок", true);
       try { await api("/api/plan/assign", { order_id: Number(b.dataset.assign), loom: inp.value.trim() });
@@ -1522,7 +1663,7 @@ function lpCellHtml(l, d) {
                    : !amb ? "" : c.pick === "nomatch"
                      ? "в заказе 1С нет изделия с таким размером, GSM и дизайном — проверьте план или выберите изделие (двойной щелчок)"
                      : "подходят несколько изделий заказа — выберите нужное (двойной щелчок)"].filter(Boolean).join(" · ");
-  const yarn = c.pile_yarn ? `<span class="lp-yarn">Ворс: ${esc(c.pile_yarn)}</span>` : "";
+  const yarn = c.pile_yarn ? `<span class="lp-yarn"><span>Ворс:</span> <span data-i18n-skip>${esc(c.pile_yarn)}</span></span>` : "";
   return `<td class="${cls.join(" ")}" data-k="${esc(k)}"${lpFilled(c) ? ' draggable="true"' : ""}${c.order_no ? ` style="--h:${hueOf(c.order_no)}"` : ""} title="${esc(tip)}">${head}<span class="lp-product">${body}</span>${yarn}${note} ${fx}</td>`;
 }
 
@@ -1533,9 +1674,9 @@ function renderLP() {
     return `<th class="d${d === LP.today ? " today" : ""}${wd === 0 ? " wk" : ""}">${dmy(d)}<small>${"вс пн вт ср чт пт сб".split(" ")[wd]}${d === LP.today ? " · сегодня" : wd === 0 ? " · выходной" : ""}</small></th>`; }).join("")}</tr>`;
   $("#lp-table tbody").innerHTML = LP.looms.map(l => `<tr><td class="lm">${l}</td>${g.days.map(d => lpCellHtml(l, d)).join("")}</tr>`).join("")
     || `<tr><td class="note" colspan="${g.days.length + 1}">Станков нет.</td></tr>`;
-  $("#lp-edit").disabled = !LP.sel.size || !can("assign");
+  $("#lp-edit").disabled = !LP.sel.size || !can("plan_edit");
   $("#lp-selection").textContent = LP.sel.size === 1
-    ? (() => { const [l, d] = lpSplit([...LP.sel][0]); return `${l} · ${dmy(d)}.${d.slice(0, 4)}${can("assign") ? " — можно редактировать" : " — просмотр"}`; })()
+    ? (() => { const [l, d] = lpSplit([...LP.sel][0]); return `${l} · ${dmy(d)}.${d.slice(0, 4)}${can("plan_edit") ? " — можно редактировать" : " — просмотр"}`; })()
     : LP.sel.size ? `Выбрано ячеек: ${LP.sel.size}` : "Выберите ячейку станка для редактирования.";
 }
 
@@ -1629,6 +1770,7 @@ const lpTopLeft = keys => keys.reduce((best, k) => { const [a, b] = lpIdx(k), [x
   return a < x || (a === x && b < y) ? k : best; }, keys[0]);
 
 async function lpApply(changes, isUndo) {
+  if(!can("plan_edit"))return say("Доступен только просмотр плана",true);
   const m = new Map(); changes.forEach(c => m.set(lpKey(c.loom, c.day), c));
   changes = [...m.values()];
   if (!changes.length) return;
@@ -1644,11 +1786,12 @@ async function lpApply(changes, isUndo) {
     await loadLoomPlan();
   } catch (e) { say("Не сохранилось: " + e.message, true); }
 }
-function lpUndo() { const b = LP.undo.pop(); if (b) lpApply(b, true); $("#lp-undo").disabled = !LP.undo.length; }
+function lpUndo() { if(!can("plan_edit"))return; const b = LP.undo.pop(); if (b) lpApply(b, true); $("#lp-undo").disabled = !LP.undo.length; }
 
 /* Окно клетки: заказ, изделие заказа (если их несколько), пометка. opts.order и
    opts.keys — когда заказ бросили на станок и нужно выбрать изделие. */
 function lpOpenDialog(k, opts = {}) {
+  if(!can("plan_edit"))return;
   const [l, d] = lpSplit(k), c = lpGet(l, d) || {};
   const keys = opts.keys || (LP.sel.size > 1 && LP.sel.has(k) ? [...LP.sel] : [k]);
   const one = keys.length === 1 && !opts.order;
@@ -1701,6 +1844,7 @@ tb.addEventListener("click", e => {
 });
 tb.addEventListener("dblclick", e => { const td = lpTd(e); if (td) lpOpenDialog(td.dataset.k); });
 tb.addEventListener("dragstart", e => {
+  if(!can("plan_edit")){e.preventDefault();return;}
   const td = lpTd(e); if (!td) return;
   e.dataTransfer.setData("text/plain", JSON.stringify({ t: "cell", k: td.dataset.k }));
   e.dataTransfer.effectAllowed = "copyMove";
@@ -1708,6 +1852,7 @@ tb.addEventListener("dragstart", e => {
 tb.addEventListener("dragover", e => { const td = lpTd(e); if (!td) return; e.preventDefault(); td.classList.add("over"); });
 tb.addEventListener("dragleave", e => { const td = lpTd(e); if (td) td.classList.remove("over"); });
 tb.addEventListener("drop", e => {
+  if(!can("plan_edit")){e.preventDefault();return;}
   const td = lpTd(e); if (!td) return; e.preventDefault(); td.classList.remove("over");
   let p; try { p = JSON.parse(e.dataTransfer.getData("text/plain")); } catch { return; }
   if (p.t === "order") return lpPlace(p.o, td.dataset.k);
@@ -1760,7 +1905,8 @@ $("#lp-next").onclick = () => lpMovePeriod(7);
 $("#lp-today").onclick = () => lpMovePeriod(null);
 document.addEventListener("keydown", e => {
   if ($("#tab-plan").classList.contains("hidden") || !LP.g) return;
-  if (e.target.closest("input, textarea, select, dialog")) return;
+  if (e.target.closest("input, textarea, select, dialog, button, a, [contenteditable]")) return;
+  if(!can("plan_edit"))return;
   const ctrl = e.ctrlKey || e.metaKey, keys = [...LP.sel];
   if (ctrl && e.key.toLowerCase() === "z") { e.preventDefault(); return lpUndo(); }
   if (!keys.length) return;
@@ -2065,7 +2211,7 @@ async function loadKeys() {
       <td>${k.active ? `<button class="act" data-revoke="${k.id}">Отозвать</button>` : "отозван"}</td></tr>`).join("")
       || `<tr><td colspan="6" class="note">Ключей пока нет.</td></tr>`;
     document.querySelectorAll("[data-revoke]").forEach(b => b.onclick = async () => {
-      if (!confirm("Отозвать ключ? Программа, которая им пользуется, перестанет получать данные.")) return;
+      if (!confirmTranslated("Отозвать ключ? Программа, которая им пользуется, перестанет получать данные.")) return;
       try { await api("/api/keys/revoke", { id: Number(b.dataset.revoke) }); loadKeys(); }
       catch (e) { say("Не отозвался: " + e.message, true); }
     });
@@ -2099,8 +2245,12 @@ async function loadDashSoon() {
 async function boot() {
   try {
     if (!(await whoAmI())) return;
+    document.querySelectorAll("section").forEach(s=>s.classList.add("hidden"));
+    if(!SECTIONS.some(canSection)){ $("#empty-access").classList.remove("hidden"); return; }
     const [sh, days, ops, set] = await Promise.all([
-      api("/api/shifts"), api("/api/report_days"), api("/api/operators"), api("/api/settings")]);
+      api("/api/shifts"), api("/api/report_days"),
+      ["people","assign","salary","walk"].some(canSection)?api("/api/operators"):Promise.resolve({operators:[]}),
+      canSection("settings")?api("/api/settings"):Promise.resolve({})]);
     SHIFTS = sh.shifts; OPERATORS = ops.operators;
     const shOpts = SHIFTS.map((s,i)=>`<option value="${i}">${shiftLabel(s)}</option>`).join("");
     $("#sal-shift").innerHTML = shOpts;
@@ -2126,13 +2276,12 @@ async function boot() {
     $("#mn-from").innerHTML = dayOpts; $("#mn-to").innerHTML = dayOpts;
     $("#mn-from").value = days.days[Math.min(days.days.length-1, 29)] || days.days.at(-1);
     $("#mn-to").value = days.days[0];
-    renderOperators();
-    loadYarns();
-    loadReport(true);   // true — перескочить на последний завершённый день
+    if(canSection("people"))renderOperators();
+    if(canSection("setup"))loadYarns();
     // Открыть раздел из адреса (#setup) или тот, где работали в прошлый раз.
     let last = null;
     try { last = localStorage.getItem("tab"); } catch (e) {}
-    if (!openTab(location.hash.slice(1))) openTab(last) || openTab("report");
+    if (!openTab(location.hash.slice(1))) openTab(last) || openFirstTab();
   } catch (e) { say("Не удалось загрузить данные: " + e.message, true); }
 }
 
@@ -2208,6 +2357,7 @@ const LS_YARNS = [["pile", "Ворс (Pile)"], ["ground", "Грунт (Ground)"]
 let LS_ROW = null;
 const lsSame = r => REP_ROWS.filter(x => x.cloth && x.cloth === r.cloth && x.loom !== r.loom).map(x => x.loom);
 async function openSetup(loom) {
+  if(!can("setup_edit"))return;
   const r = REP_ROWS.find(x => x.loom === loom);
   if (!r) return;
   if (!YARNS.length) await loadYarns();      // отбор пряжи по местам нужен и в окне станка
@@ -2431,7 +2581,7 @@ const manTip = r => ` title="введено вручную: ${esc(r.setup.set_by
 
 function repCell(c, r) {
   const v = r[c.k];
-  if (c.k === "loom") return can("assign")
+  if (c.k === "loom") return can("setup_edit")
     ? `<td class="edit-loom" data-loom="${esc(v)}" title="Ввести GSM, вес штуки, PPT, пряжу и лот">`
       + `<strong>${esc(v)}</strong> <span class="pen" aria-hidden="true">✎</span></td>`
     : `<td><strong>${esc(v)}</strong></td>`;
@@ -2690,7 +2840,7 @@ document.addEventListener("keydown", e => {
 }, true);
 
 async function loadGrid(force) {
-  if (!force && SG && sgDirty() && !confirm("Есть несохранённые правки — выбросить их?")) return;
+  if (!force && SG && sgDirty() && !confirmTranslated("Есть несохранённые правки — выбросить их?")) return;
   if (!$("#sg-day").value) $("#sg-day").value = shiftNow().day;
   try {
     if (!YARNS.length) await loadYarns();
@@ -2704,7 +2854,7 @@ async function loadGrid(force) {
 }
 
 function renderGrid() {
-  const edit = can("assign"), sep = c => c.sep ? ' class="sep"' : "";
+  const edit = can("setup_edit"), sep = c => c.sep ? ' class="sep"' : "";
   // Две строки шапки: сверху — место пряжи («Ворс», «Кромка кручён.»), под ним «пряжа» и «лот».
   const grp = [`<th colspan="4"></th>`, `<th colspan="${SG_NUMS.length}" class="sep">Параметры</th>`,
     ...SG_COLS.filter(c => c.yarn).map(c => `<th colspan="2" class="sep">${c.t}</th>`)].join("");
@@ -2843,7 +2993,7 @@ $("#sg-save").onclick = async () => {
   const bad = [...document.querySelectorAll("#sg-table input.sg.bad")];
   if (bad.length) {
     const names = [...new Set(bad.map(i => yarnCanon(i.value)))];
-    if (!confirm(`Этой пряжи нет в справочнике: ${names.join(", ")}.\nДобавить её в справочник и сохранить?`)) return;
+    if (!confirmTranslated(`Этой пряжи нет в справочнике: ${names.join(", ")}.\nДобавить её в справочник и сохранить?`)) return;
     try {
       for (const name of names) await api("/api/yarns", {name});
       await loadYarns();
@@ -2870,7 +3020,7 @@ function renderYarns() {
   if (SG) SG.rows.forEach(r => SG_COLS.filter(c => c.yarn).forEach(c => {
     const v = r.values[c.k];
     if (v) uses[yarnKey(v)] = (uses[yarnKey(v)] || 0) + 1; }));
-  const edit = can("assign");
+  const edit = can("setup_edit");
   $("#yarn-table tbody").innerHTML = YARNS.map(y => `<tr class="${y.active ? "" : "note"}">
     <td>${edit ? `<input data-yn="${y.id}" value="${esc(y.name)}" size="18" autocomplete="off" aria-label="Название пряжи">` : esc(y.name)}</td>
     <td>${edit ? `<select data-yk="${y.id}" aria-label="Вид пряжи">${Object.entries(YARN_KINDS).map(([k, v]) =>
@@ -3102,7 +3252,7 @@ $("#as-confirm").onclick = async () => {
   } catch (e) { say("Не получилось: " + e.message, true); }
 };
 const asFill = how => async () => {
-  if (!confirm(how === "fact" ? "Заполнить расстановку по данным FACT? То, что на экране, заменится."
+  if (!confirmTranslated(how === "fact" ? "Заполнить расстановку по данным FACT? То, что на экране, заменится."
                               : "Взять расстановку из прошлой такой же смены? То, что на экране, заменится.")) return;
   try {
     const r = await api("/api/shift_doc/fill", {day: dash2dot($("#as-day").value), shift: AS_SH, how});
@@ -3195,7 +3345,7 @@ function renderOperators() {
     } catch (e) { s.value = o.role; say("Не сохранилось: " + e.message, true); }
   });
   document.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
-    if (!confirm("Удалить из справочника?")) return;
+    if (!confirmTranslated("Удалить из справочника?")) return;
     await api("/api/operators/delete", { id: +b.dataset.del });
     OPERATORS = (await api("/api/operators")).operators; renderOperators();
   });
@@ -3396,11 +3546,11 @@ function renderHistoryDetail() {
 }
 function showHistoryEvent(i) {
   const e=MH_ROW.events[i]; if(!e)return;
-  $('#mh-event-detail').innerHTML=`<b>${esc(e.reason)}</b> · ${mhTime(e.start,true)} — ${mhTime(e.end,true)}<br>Полная длительность: ${mhDuration(e.duration_sec)} · Реакция: ${e.response_sec==null?'нет данных':mhDuration(e.response_sec)}<br>Код Toyota: ${esc(e.code??'—')} · Смена: ${esc(e.shift??'—')} · Стиль: ${esc(e.style??'—')}<br><span class="note">Источник: журнал остановов Toyota.</span>`;
+  $('#mh-event-detail').innerHTML=`<b>${esc(e.reason)}</b> · ${mhTime(e.start,true)} — ${mhTime(e.end,true)}<br>Полная длительность: ${mhDuration(e.duration_sec)} · Реакция: ${e.response_sec==null?'нет данных':mhDuration(e.response_sec)}<br>Код Toyota: ${esc(e.code??'—')} · Смена: ${esc(e.shift??'—')} · Стиль: <span data-i18n-skip>${esc(e.style??'—')}</span><br><span class="note">Источник: журнал остановов Toyota.</span>`;
 }
 function showHistoryTicket(i) {
   const t=MH_ROW.tickets[i]; if(!t)return;
-  $('#mh-event-detail').innerHTML=`<b>Тикет № ${t.id} · ${esc(t.reason)}</b><br>${mhTime(t.start,true)} — ${t.open?'не закрыт':mhTime(t.end,true)}<br>${esc(t.comment)}<br><span class="note">Источник: журнал тикетов MES.</span>`;
+  $('#mh-event-detail').innerHTML=`<b>Тикет № ${t.id} · ${esc(t.reason)}</b><br>${mhTime(t.start,true)} — ${t.open?'не закрыт':mhTime(t.end,true)}<br><span data-i18n-skip>${esc(t.comment)}</span><br><span class="note">Источник: журнал тикетов MES.</span>`;
 }
 $('#mh-detail').onclick=e=>{
   const event=e.target.closest('[data-detail-event]'), ticket=e.target.closest('[data-detail-ticket]');
