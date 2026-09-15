@@ -34,6 +34,7 @@ import logs
 import loomplan
 import loomsetup
 import metrics
+import machinehistory
 import notify
 import people
 import payroll
@@ -330,6 +331,13 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/loom_plan":
                 return self._send(200, loomplan.grid(q.get("from") or tickets.current_shift()[:10],
                                                      q.get("to") or q.get("from") or "9999"))
+            if u.path == "/api/machine_history":
+                try:
+                    result = machinehistory.timeline(q.get("day", ""), q.get("period", "day"),
+                                                     q.get("looms", ""))
+                except ValueError as e:
+                    return self._send(400, {"error": str(e)})
+                return self._send(200, result)
             if u.path == "/api/bottlenecks":
                 return self._send(200, metrics.bottlenecks(
                     q.get("from", "0000"), q.get("to", "9999"),

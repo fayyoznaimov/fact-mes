@@ -304,6 +304,13 @@ def shop():
     return db
 
 
+def shop_readonly():
+    """Чтение истории цеха без создания таблиц и изменения настроек базы."""
+    db = sqlite3.connect(f"file:{SHOP_DB}?mode=ro", uri=True, timeout=10)
+    db.row_factory = sqlite3.Row
+    return db
+
+
 def fact():
     """База станков для отчётов — только чтение: пишет в неё один сборщик."""
     db = sqlite3.connect(f"file:{FACT_DB}?mode=ro", uri=True, timeout=10)

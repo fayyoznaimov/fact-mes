@@ -270,6 +270,29 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
 #sg-table thead .stk{z-index:3}
 #sg-table tr.cols th{top:var(--sg-h1,30px)}
 #sg-table tbody tr:hover .stk{background:var(--surface-2)}
+/* История: общая шкала времени, причины Toyota и отдельная дорожка тикетов. */
+.mh-legend{display:flex;flex-wrap:wrap;gap:8px 18px;margin:12px 0;color:var(--ink-2);font-size:12px}
+.mh-key{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.mh-scroll{overflow:auto;max-height:560px;border:1px solid var(--rule);border-radius:6px;background:var(--surface)}
+.mh-grid{min-width:960px;width:100%}
+.mh-row{display:grid;grid-template-columns:96px minmax(0,1fr) 96px;align-items:center;min-height:48px;border-bottom:1px solid var(--hair)}
+.mh-row:hover{background:var(--surface-2)}
+.mh-row>button{position:sticky;left:0;z-index:2;background:var(--surface);color:var(--ink);border:0;text-align:left;padding:12px;cursor:pointer;font:inherit;font-weight:600;height:100%}
+.mh-row>button:focus-visible,.mh-event:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.mh-row svg{display:block;width:100%;height:40px;overflow:hidden;cursor:pointer}
+.mh-row svg rect[data-event]:hover{stroke:var(--ink);stroke-width:1;vector-effect:non-scaling-stroke}
+.mh-row .mh-total{font-size:12px;text-align:right;padding:8px;white-space:nowrap}
+.mh-axis{position:sticky;top:0;z-index:3;background:var(--surface-2);min-height:34px;font-size:12px}
+.mh-axis>span:first-child{position:sticky;left:0;background:var(--surface-2);padding-left:12px;z-index:2}
+.mh-ticks{position:relative;height:32px;margin-right:1px}
+.mh-ticks span{position:absolute;top:8px;transform:translateX(-50%)}
+.mh-ticks span:first-child{transform:none}.mh-ticks span:last-child{transform:translateX(-100%)}
+.mh-detail{margin-top:14px;padding:16px;background:var(--surface);border:1px solid var(--rule);border-radius:6px}
+.mh-detail h3{margin:0 0 10px}.mh-detail h4{margin:16px 0 6px}
+.mh-detail .tbl-wrap{max-height:330px;overflow:auto}
+.mh-event{font:inherit;border:0;background:transparent;color:var(--accent);text-decoration:underline;cursor:pointer;text-align:left}
+#mh-event-detail{margin:12px 0;padding:12px;background:var(--surface-2);border-left:3px solid var(--accent);overflow-wrap:anywhere}
+#mh-status{min-height:20px}
 </style>
 
 <div class="wrap">
@@ -288,6 +311,7 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
       <div class="grp">Отчёты</div>
       <button data-tab="report" aria-current="true">Производственный отчёт</button>
       <button data-tab="explorer">Простои</button>
+      <button data-tab="history">История станков</button>
       <button data-tab="bottle">Узкие места</button>
       <button data-tab="manual">Ручные остановы</button>
       <button data-tab="kpi">KPI</button>
@@ -857,6 +881,28 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
     </div>
   </section>
 
+  <section id="tab-history" class="hidden">
+    <div class="bar">
+      <div class="f"><label for="mh-day">Дата в цехе</label><input type="date" id="mh-day"></div>
+      <div class="f"><label for="mh-period">Период</label><select id="mh-period"><option value="day">Сутки · 00–24</option><option value="A">Смена A · 07–15</option><option value="B">Смена B · 15–23</option><option value="C">Смена C · 23–07 (+1 день)</option></select></div>
+      <div class="f"><label for="mh-loom">Станки</label><select id="mh-loom"><option value="">Все станки</option></select></div>
+      <div class="f"><label for="mh-zoom">Масштаб</label><select id="mh-zoom"><option value="1">Обзор</option><option value="2">×2</option><option value="4">×4</option></select></div>
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="mh-go">Показать</button></div>
+    </div>
+    <div class="mh-legend">
+      <span><i class="mh-key" style="background:#df5656"></i>Уток</span><span><i class="mh-key" style="background:#d99829"></i>Основа</span>
+      <span><i class="mh-key" style="background:#b983db"></i>Ворс</span><span><i class="mh-key" style="background:#5f8bd1"></i>Ручной останов</span>
+      <span><i class="mh-key" style="background:#bd737c"></i>Другие остановы</span><span><i class="mh-key" style="background:#289661"></i>Работа · расчёт</span>
+      <span><i class="mh-key" style="background:repeating-linear-gradient(135deg,#77839155 0 2px,transparent 2px 6px)"></i>Нет подтверждённого состояния</span>
+      <span><i class="mh-key" style="background:#348ec1;height:5px"></i>Тикет · нижняя дорожка</span>
+      <span><i class="mh-key" style="border:1px solid var(--rule)"></i>Время ещё не наступило</span>
+    </div>
+    <p class="note" id="mh-status" role="status" aria-live="polite"></p>
+    <div class="mh-scroll"><div class="mh-grid" id="mh-grid"></div></div>
+    <p class="note">Время цеха: UTC+5. Нажмите интервал или номер станка для разбора. Короткие остановки доступны в списке. Работа рассчитана только для завершённых смен, в которых журнал согласуется со сменными итогами; серые промежутки не считаются работой. Тикеты не меняют сигналы Toyota.</p>
+    <div class="mh-detail hidden" id="mh-detail"></div>
+  </section>
+
   <!-- УЗКИЕ МЕСТА -->
   <section id="tab-bottle" class="hidden">
     <div class="bar">
@@ -1046,6 +1092,7 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   // кнопки «Показать»/«Обновить» на вкладках грузят заново всегда.
   if (t === "dash") onTab("dash", () => { loadDash(); loadDashSoon(); });
   if (t === "bottle") onTab("bottle", loadBottle);
+  if (t === "history") loadHistory();
   if (t === "plan") onTab("plan", loadPlan);
   if (t === "manual") onTab("manual", loadManual);
   if (t === "settings") onTab("settings", loadKeys);
@@ -3281,6 +3328,83 @@ $("#set-save").onclick = async () => {
     await api("/api/settings", { rate: $("#set-rate").value.trim(), rate_unit: $("#set-unit").value });
     say("Ставка сохранена");
   } catch (e) { say("Не сохранилось: " + e.message, true); }
+};
+
+/* --- История станков: только API журнала, без демонстрационных данных. --- */
+let MH = null, MH_CATALOG = [], MH_REQUEST = 0, MH_ROW = null, MH_PAGE = 0;
+const mhDuration = s => `${Math.floor(s/3600)} ч ${Math.floor(s%3600/60)} мин ${Math.floor(s%60)} с`;
+const mhTime = (s, full=false) => {
+  const d = new Date((s+18000)*1000).toISOString();
+  return (full ? d.slice(8,10)+'.'+d.slice(5,7)+' ' : '')+d.slice(11,19);
+};
+const mhColor = cause => ({Weft:'#df5656',Warp:'#d99829',Warp_top:'#b983db',Manual:'#5f8bd1'}[cause]||'#bd737c');
+$('#mh-go').onclick = loadHistory;
+$('#mh-zoom').onchange = () => { $('#mh-grid').style.width = (+$('#mh-zoom').value*100)+'%'; };
+async function loadHistory() {
+  const request = ++MH_REQUEST, selected = $('#mh-loom').value;
+  const looms = selected.startsWith('row:') ? MH_CATALOG.filter(l=>l.replace(/\d+$/,'')===selected.slice(4)).join(',') : selected;
+  $('#mh-status').textContent = 'Загружаю журнал Toyota…';
+  $('#mh-grid').innerHTML = ''; $('#mh-detail').classList.add('hidden');
+  $('#mh-go').disabled = true;
+  try {
+    const q = new URLSearchParams({day:$('#mh-day').value,period:$('#mh-period').value,looms});
+    const d = await api('/api/machine_history?'+q);
+    if (request !== MH_REQUEST) return;
+    MH = d; MH_CATALOG = d.catalog; $('#mh-day').value = d.day;
+    const groups = [...new Set(d.catalog.map(l=>l.replace(/\d+$/,'')))];
+    $('#mh-loom').innerHTML = '<option value="">Все станки</option>'+groups.map(g=>`<option value="row:${esc(g)}">Ряд ${esc(g)}</option>`).join('')+d.catalog.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('');
+    $('#mh-loom').value = selected;
+    renderHistory();
+  } catch(e) {
+    if (request === MH_REQUEST) { MH = null; $('#mh-status').textContent = 'История не загрузилась: '+e.message; }
+  } finally { if (request === MH_REQUEST) $('#mh-go').disabled = false; }
+}
+function renderHistory() {
+  const span = MH.end-MH.start, pct = s => 100*(s-MH.start)/span;
+  const rect = (a,b,fill,extra='',title='') => `<rect x="${pct(Math.max(MH.start,a))}" y="4" width="${Math.max(0,100*(Math.min(MH.end,b,MH.generated_at)-Math.max(MH.start,a))/span)}" height="24" fill="${fill}" ${extra}>${title?'<title>'+esc(title)+'</title>':''}</rect>`;
+  const hours = span/3600, step = hours===24 ? 3 : 1;
+  const ticks = Array.from({length:hours/step+1},(_,i)=>`<span style="left:${i*step/hours*100}%">${i===hours/step && hours===24?'24:00':mhTime(MH.start+i*step*3600).slice(0,5)}</span>`).join('');
+  $('#mh-grid').innerHTML = `<div class="mh-row mh-axis"><span>Станок</span><div class="mh-ticks">${ticks}</div><span class="mh-total">Простой</span></div>`+MH.rows.map((r,ri)=>{
+    const segs = r.segments.filter(s=>s.kind!=='future').map(s=>rect(s.start,s.end,s.kind==='estimated_run'?'#289661':s.kind==='stop'?'#bd737c':`url(#mh-unknown-${ri})`)).join('');
+    const events = r.events.map((e,i)=>rect(e.start,e.end,mhColor(e.cause),`data-event="${i}"`,`${e.reason} · ${mhTime(e.start,true)} — ${mhTime(e.end,true)} · ${mhDuration(e.duration_sec)}`)).join('');
+    const tickets = r.tickets.map((t,i)=>`<rect x="${pct(Math.max(MH.start,t.start))}" y="32" height="5" width="${Math.max(0,100*(Math.min(MH.end,t.end,MH.generated_at)-Math.max(MH.start,t.start))/span)}" fill="#348ec1" data-ticket="${i}"><title>Тикет ${t.id}: ${esc(t.reason)}</title></rect>`).join('');
+    return `<div class="mh-row" data-row="${ri}"><button type="button" data-loom="${ri}" aria-label="История ${esc(r.loom)}">${esc(r.loom)}</button><svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="${esc(r.loom)}: ${r.events.length} остановов. Подробности по кнопке станка."><defs><pattern id="mh-unknown-${ri}" width="0.7" height="7" patternUnits="userSpaceOnUse"><rect width="0.7" height="7" fill="var(--surface-2)"/><path d="M0 7 L0.7 0" stroke="var(--rule)" stroke-width="0.16"/></pattern></defs>${segs}${events}${tickets}</svg><span class="mh-total">${Math.floor(r.totals.stop/3600)} ч ${Math.floor(r.totals.stop%3600/60)} мин</span></div>`;
+  }).join('');
+  const events = MH.rows.reduce((s,r)=>s+r.events.length,0), unknown = MH.rows.filter(r=>r.totals.unknown>0).length;
+  $('#mh-status').textContent = `${MH.day} · Станки: ${MH.rows.length} · Остановки: ${events} · Журнал доступен по ${MH.available_to||'—'}. ${unknown ? 'Станки с промежутками без подтверждённого состояния: '+unknown+'.' : ''}`;
+  if (!MH.rows.length) $('#mh-grid').textContent = 'В локальной базе пока нет истории станков.';
+}
+$('#mh-grid').onclick = e => {
+  const row = e.target.closest('[data-row]'); if (!row || !MH) return;
+  MH_ROW = MH.rows[+row.dataset.row]; MH_PAGE = 0; renderHistoryDetail();
+  const event = e.target.closest('[data-event]'), ticket = e.target.closest('[data-ticket]');
+  if (event) showHistoryEvent(+event.dataset.event);
+  if (ticket) showHistoryTicket(+ticket.dataset.ticket);
+  $('#mh-detail').scrollIntoView({block:'nearest'});
+};
+function renderHistoryDetail() {
+  const r=MH_ROW, box=$('#mh-detail'); box.classList.remove('hidden');
+  box.innerHTML = `<h3>${esc(r.loom)} · ${MH.day}</h3><div>Остановы: <b>${mhDuration(r.totals.stop)}</b> · Работа (расчёт): ${mhDuration(r.totals.estimated_run)} · Неизвестно: ${mhDuration(r.totals.unknown)}</div>
+    ${r.overlap_sec>0?'<p class="note">В журнале есть пересечения. В сумме простой учитывается один раз; исходные события сохранены.</p>':''}
+    ${r.invalid_records?'<p class="note">Есть некорректные строки журнала: '+r.invalid_records+'. Они исключены из расчёта.</p>':''}
+    <div id="mh-event-detail" role="status">Выберите остановку в списке или на шкале.</div>
+    <h4>Остановки Toyota · ${r.events.length}</h4><div class="tbl-wrap"><table><thead><tr><th>Начало</th><th>Окончание</th><th>Причина</th><th>В выбранном периоде</th></tr></thead><tbody>${r.events.slice(MH_PAGE*50,(MH_PAGE+1)*50).map((e,j)=>`<tr><td><button class="mh-event" data-detail-event="${MH_PAGE*50+j}">${mhTime(e.start,true)}</button></td><td>${mhTime(e.end,true)}</td><td>${esc(e.reason)}</td><td>${mhDuration(Math.max(0,Math.min(e.end,MH.end,MH.generated_at)-Math.max(e.start,MH.start)))}</td></tr>`).join('')||'<tr><td colspan="4">Остановок за этот период в журнале нет.</td></tr>'}</tbody></table></div>
+    <div class="bar" style="margin-top:8px"><button class="act" id="mh-prev" ${MH_PAGE===0?'disabled':''}>← Предыдущие</button><span>${r.events.length?MH_PAGE*50+1:0}–${Math.min(r.events.length,(MH_PAGE+1)*50)} из ${r.events.length}</span><button class="act" id="mh-next" ${(MH_PAGE+1)*50>=r.events.length?'disabled':''}>Следующие →</button></div>
+    <details><summary>Сверка со сменными итогами Toyota</summary><div class="tbl-wrap"><table><thead><tr><th>Смена</th><th>Работа по итогу, мин</th><th>Простой по итогу, мин</th><th>По журналу, мин</th><th>Расчёт работы</th></tr></thead><tbody>${r.shift_checks.map(s=>`<tr><td>${esc(s.shift)}</td><td>${s.run_min??'—'}</td><td>${s.stop_min??'—'}</td><td>${nf(s.logged_stop_sec/60,1)}</td><td>${s.can_estimate?'Согласуется':'Недостаточно подтверждений'}</td></tr>`).join('')}</tbody></table></div></details>
+    <h4>Тикеты за период · ${r.tickets.length}</h4><p class="note">Время регистрации в MES. Причина относится к тикету; связь с конкретным событием Toyota не установлена.</p><div class="tbl-wrap"><table><thead><tr><th>Тикет</th><th>Начало</th><th>Причина</th><th>Статус</th></tr></thead><tbody>${r.tickets.map((t,i)=>`<tr><td><button class="mh-event" data-detail-ticket="${i}">№ ${t.id}</button></td><td>${mhTime(t.start,true)}</td><td>${esc(t.reason)}</td><td>${t.open?'Не закрыт':'Закрыт'}</td></tr>`).join('')||'<tr><td colspan="4">Тикетов за этот период нет.</td></tr>'}</tbody></table></div>`;
+  $('#mh-prev').onclick=()=>{MH_PAGE--;renderHistoryDetail();}; $('#mh-next').onclick=()=>{MH_PAGE++;renderHistoryDetail();};
+}
+function showHistoryEvent(i) {
+  const e=MH_ROW.events[i]; if(!e)return;
+  $('#mh-event-detail').innerHTML=`<b>${esc(e.reason)}</b> · ${mhTime(e.start,true)} — ${mhTime(e.end,true)}<br>Полная длительность: ${mhDuration(e.duration_sec)} · Реакция: ${e.response_sec==null?'нет данных':mhDuration(e.response_sec)}<br>Код Toyota: ${esc(e.code??'—')} · Смена: ${esc(e.shift??'—')} · Стиль: ${esc(e.style??'—')}<br><span class="note">Источник: журнал остановов Toyota.</span>`;
+}
+function showHistoryTicket(i) {
+  const t=MH_ROW.tickets[i]; if(!t)return;
+  $('#mh-event-detail').innerHTML=`<b>Тикет № ${t.id} · ${esc(t.reason)}</b><br>${mhTime(t.start,true)} — ${t.open?'не закрыт':mhTime(t.end,true)}<br>${esc(t.comment)}<br><span class="note">Источник: журнал тикетов MES.</span>`;
+}
+$('#mh-detail').onclick=e=>{
+  const event=e.target.closest('[data-detail-event]'), ticket=e.target.closest('[data-detail-ticket]');
+  if(event)showHistoryEvent(+event.dataset.detailEvent); if(ticket)showHistoryTicket(+ticket.dataset.detailTicket);
 };
 
 boot();

@@ -482,6 +482,38 @@ def extra_checks(state):
     check("скорость", "/api/plan быстрее 1,5 с", plan_fast)
 
 
+def machine_history():
+    def no_auth():
+        code, _, _, _ = req("GET", "/api/machine_history", cookie=False)
+        assert code == 401, code
+    check("история", "без входа история закрыта", no_auth)
+
+    def invalid():
+        for query in ("day=bad", "day=2026-02-30", "period=bad", "looms=bad%2Fsql"):
+            code, _, _, _ = req("GET", "/api/machine_history?" + query)
+            assert code == 400, (query, code)
+    check("история", "неверные параметры дают 400", invalid)
+
+    def chronology():
+        d = ok("/api/machine_history")
+        assert d["end"] - d["start"] == 86400
+        assert d["timezone"] == "+05:00"
+        assert d["rows"], "нет станков в копии"
+        for row in d["rows"]:
+            assert sum(row["totals"].values()) == 86400, row["loom"]
+            assert row["segments"][0]["start"] == d["start"]
+            assert row["segments"][-1]["end"] == d["end"]
+            for a, b in zip(row["segments"], row["segments"][1:]):
+                assert a["end"] == b["start"], row["loom"]
+            assert all(s["end"] > s["start"] for s in row["segments"])
+        one = ok("/api/machine_history?day=" + d["day"] + "&period=C&looms=" + d["rows"][0]["loom"])
+        assert len(one["rows"]) == 1
+        assert one["end"] - one["start"] == 28800
+        assert sum(one["rows"][0]["totals"].values()) == 28800
+        return "%d станков; сутки и ночная смена; интервалы без разрывов и двойного счёта" % len(d["rows"])
+    check("история", "журнал и фильтр ночной смены", chronology)
+
+
 def main():
     # Проверяем файлы до первого HTTP-запроса, чтобы не выполнять половину
     # пишущего теста при неполной подготовке песочницы.
@@ -498,6 +530,7 @@ def main():
     http_input()
     public()
     state = reads()
+    machine_history()
     writes(state)
     extra = globals().get("extra_checks")
     if extra:
