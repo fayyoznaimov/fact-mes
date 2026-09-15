@@ -3,11 +3,13 @@ Description=Consistent SQLite backup of FACT MES
 
 [Service]
 Type=oneshot
-User=root
+User=fact-mes
+Group=fact-mes
 ExecStart=/usr/bin/python3 /opt/fact-mes/current/_deploy/linux/backup.py
 UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/backups/fact-mes
+# SQLite mode=ro preserves DB contents, but WAL readers need the shared-memory file.
+ReadWritePaths=/var/backups/fact-mes /var/lib/fact-mes
