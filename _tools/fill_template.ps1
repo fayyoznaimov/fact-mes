@@ -6,11 +6,12 @@
 param(
   [Parameter(Mandatory = $true)][string]$Day,
   [string]$Template = "C:\Users\Asus\Downloads\Telegram Desktop\11.09,2026New oduction Report (5) 211.xlsb",
-  [string]$OutDir = "C:\Users\Asus\Documents\FACT_archive\reports",
+  [string]$OutDir,
   [string]$RowsCsv
 )
 
 $tools = Split-Path -Parent $MyInvocation.MyCommand.Path
+if (-not $OutDir) { $OutDir = Join-Path (Split-Path -Parent $tools) "reports" }
 if (-not $RowsCsv) { $RowsCsv = Join-Path $tools "_rows_$Day.csv" }
 if (-not (Test-Path $RowsCsv)) { throw "Нет файла с данными: $RowsCsv (сначала запустите make_excel_report.py $Day)" }
 if (-not (Test-Path $Template)) { throw "Не найден шаблон: $Template" }
@@ -48,7 +49,7 @@ for ($i = 0; $i -lt $data.Count; $i++) {
 # --- заполняем копию шаблона ---
 $stamp = ($Day -replace '\.', '-')
 $out = Join-Path $OutDir "Production Report $stamp.xlsx"
-$tmp = Join-Path $env:TEMP "report_tmp_$stamp$([IO.Path]::GetExtension($Template))"
+$tmp = Join-Path $env:TEMP "report_tmp_$stamp`_$([guid]::NewGuid().ToString('N'))$([IO.Path]::GetExtension($Template))"
 Copy-Item $Template $tmp -Force
 # копия наследует атрибуты оригинала: снимаем «только чтение», иначе Excel не даст писать
 Set-ItemProperty -Path $tmp -Name IsReadOnly -Value $false -ErrorAction SilentlyContinue
