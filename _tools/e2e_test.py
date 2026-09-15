@@ -7,6 +7,7 @@ import http.client
 import json
 import os
 import sqlite3
+import socket
 import sys
 import time
 import urllib.error
@@ -63,6 +64,36 @@ def ok(path, **kw):
     code, js, out, ms = req("GET", path, **kw)
     assert code == 200, "HTTP %s: %s" % (code, out[:200])
     return js if js is not None else out
+
+
+def http_input():
+    for path in ("/api/login", "/api/loom_plan/upload", "/api/yarns/import"):
+        for headers, want in (("Content-Length: -1", 400),
+                              ("Content-Length: abc", 400),
+                              ("Content-Length: 2\r\nContent-Length: 2", 400),
+                              ("Transfer-Encoding: chunked", 400),
+                              ("Content-Length: 999999999", 413)):
+            def invalid(path=path, headers=headers, want=want):
+                with socket.create_connection(("127.0.0.1", 8790), timeout=2) as sock:
+                    request = ("POST %s HTTP/1.1\r\nHost: localhost\r\n"
+                               "Cookie: sid=%s\r\n%s\r\n\r\n{}"
+                               "GET /api/me HTTP/1.1\r\nHost: localhost\r\n\r\n") % (
+                                   path, SECRETS["admin"]["token"], headers)
+                    sock.sendall(request.encode("ascii"))
+                    response = http.client.HTTPResponse(sock)
+                    response.begin()
+                    assert response.status == want, response.status
+                    assert "error" in json.loads(response.read())
+                    # Ни остаток тела, ни следующий запрос не обрабатываются.
+                    assert sock.recv(1) == b"", "соединение после отказа не закрыто"
+                    return "HTTP %d, соединение закрыто" % want
+            check("HTTP", path + " / " + headers.replace("\r\n", "; "), invalid)
+    for raw in (b"[]", b"null", b'"text"', b"42"):
+        def invalid_json(raw=raw):
+            code, js, _, _ = req("POST", "/api/login", raw=raw, cookie=False, timeout=2)
+            assert code == 400 and "error" in js, code
+            return "HTTP 400"
+        check("HTTP", "JSON без объекта: " + raw.decode(), invalid_json)
 
 
 # ---------------------------------------------------------------- открытое
@@ -408,6 +439,7 @@ def main():
         SECRETS.update(json.load(f))
     t0 = time.time()
     print("Песочница", BASE)
+    http_input()
     public()
     state = reads()
     writes(state)

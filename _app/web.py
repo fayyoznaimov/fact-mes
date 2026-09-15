@@ -156,11 +156,28 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+    def _read_body(self, limit=MAX_BODY):
+        # При отказе непрочитанное тело нельзя принять за следующий запрос
+        # HTTP/1.1. Отрицательная длина заставляла read(-1) ждать закрытия сокета.
+        was_closed = self.close_connection
+        self.close_connection = True
+        lengths = self.headers.get_all("Content-Length", [])
+        if self.headers.get("Transfer-Encoding") is not None:
+            raise ValueError("Transfer-Encoding не поддерживается; укажите Content-Length")
+        raw = lengths[0].strip() if lengths else "0"
+        if len(lengths) > 1 or not raw.isascii() or not raw.isdigit():
+            raise ValueError("некорректный Content-Length")
+        n = int(raw)
+        if n > limit:
+            raise OverflowError("тело запроса больше %d МБ" % (limit // 1024 // 1024))
+        data = self.rfile.read(n)
+        if len(data) != n:
+            raise ValueError("тело запроса получено не полностью")
+        self.close_connection = was_closed
+        return data
+
     def _body(self):
-        n = int(self.headers.get("Content-Length", 0) or 0)
-        if n > MAX_BODY:
-            raise OverflowError("тело запроса больше %d МБ" % (MAX_BODY // 1024 // 1024))
-        return json.loads(self.rfile.read(n) or b"{}")
+        return json.loads(self._read_body() or b"{}")
 
     # --- толчки на мониторы ---
 
@@ -377,12 +394,10 @@ class Handler(BaseHTTPRequestHandler):
         """Файл плана цеха (.xlsx) приходит телом запроса как есть, без формы."""
         me = current_user(self)
         if not may(me, GUARD["/api/loom_plan/upload"]):
+            self.close_connection = True
             return self._send(403, {"error": "нет прав на это действие"})
-        n = int(self.headers.get("Content-Length", 0) or 0)
-        if n > 4 * MAX_BODY:
-            return self._send(400, {"error": "файл больше 20 МБ — это не план"})
         try:
-            r = loomplan.import_xlsx(self.rfile.read(n), me["login"] if me else "")
+            r = loomplan.import_xlsx(self._read_body(4 * MAX_BODY), me["login"] if me else "")
         except ValueError as e:
             return self._send(400, {"error": str(e)})
         LOG.info("план цеха %s–%s: станков %s, клеток %s (%s)", r["from"], r["to"], r["looms"],
@@ -393,13 +408,11 @@ class Handler(BaseHTTPRequestHandler):
         """Справочник пряжи из 1С: табличный документ (.mxl) телом запроса как есть."""
         me = current_user(self)
         if not may(me, GUARD["/api/yarns/import"]):
+            self.close_connection = True
             return self._send(403, {"error": "нет прав на это действие"})
-        n = int(self.headers.get("Content-Length", 0) or 0)
-        if n > 4 * MAX_BODY:
-            return self._send(400, {"error": "файл больше 20 МБ — это не справочник пряжи"})
         try:
             import yarnref
-            r = yarnref.import_mxl(self.rfile.read(n), me["login"] if me else "")
+            r = yarnref.import_mxl(self._read_body(4 * MAX_BODY), me["login"] if me else "")
         except ValueError as e:
             return self._send(400, {"error": str(e)})
         LOG.info("справочник пряжи из 1С: %d позиций (новых %d), пряжи добавлено %d",
@@ -417,6 +430,8 @@ class Handler(BaseHTTPRequestHandler):
             if u.path.startswith("/api/v1/"):
                 return self._api("POST", u.path, {k: v[0] for k, v in parse_qs(u.query).items()},
                                  body)
+            if not isinstance(body, dict):
+                raise ValueError("ожидается JSON-объект")
             if u.path == "/api/login":
                 return self._login(body)
             if u.path == "/api/logout":
