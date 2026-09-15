@@ -26,6 +26,8 @@ _tools/report_dashboard.html
 # Секреты: живые ключи API и локальная настройка (пример — _app/config.example.json)
 _app/config.json
 _app/e2e_secrets.json
+_tools/e2e_result.json
+_tools/fixtures/
 postman/1C-to-MES.postman_collection.json
 postman/MES-local.postman_environment.json
 *.env

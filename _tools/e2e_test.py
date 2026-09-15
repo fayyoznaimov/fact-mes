@@ -14,10 +14,11 @@ import urllib.request
 
 BASE = "http://127.0.0.1:8790"
 HERE = os.path.dirname(os.path.abspath(__file__))
-SECRETS = json.load(open(os.path.join(HERE, "_app", "e2e_secrets.json"), encoding="utf-8"))
-MXL = r"C:\Users\Asus\OneDrive\Рабочий стол\13.mxl"
-ORDER_1557 = r"C:\Users\Asus\Documents\FACT_archive\postman\order_1557.json"
-SHOP = os.path.join(HERE, "_app", "shop.db")
+ROOT = os.path.dirname(HERE)
+SECRETS = {}
+MXL = os.path.join(HERE, "fixtures", "13.mxl")
+ORDER_1557 = os.path.join(ROOT, "postman", "order_1557.json")
+SHOP = os.path.join(ROOT, "_app", "shop.db")
 
 RESULTS, TIMES = [], []
 
@@ -82,7 +83,7 @@ def public():
             # В песочнице нет зеркала FACT и сборщик выключен — снимка станков нет.
             h = ok("/api/health", cookie=False)["checks"]
             assert "не работает" in str(h.get("collector")), "станков нет, а сборщик работает"
-            return "в песочнице снимка нет (сборщик выключен) — рабочий сервер проверен отдельно"
+            return "в песочнице снимка нет (сборщик выключен)"
         return "станков %d" % len(d["looms"])
     check("открыто", "живое состояние /api/live", live)
 
@@ -397,6 +398,14 @@ def extra_checks(state):
 
 
 def main():
+    # Проверяем файлы до первого HTTP-запроса, чтобы не выполнять половину
+    # пишущего теста при неполной подготовке песочницы.
+    secret_path = os.path.join(ROOT, "_app", "e2e_secrets.json")
+    for path in (secret_path, SHOP, MXL, ORDER_1557):
+        if not os.path.isfile(path):
+            raise SystemExit("Не найден файл песочницы: " + path)
+    with open(secret_path, encoding="utf-8") as f:
+        SECRETS.update(json.load(f))
     t0 = time.time()
     print("Песочница", BASE)
     public()
