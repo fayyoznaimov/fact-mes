@@ -193,21 +193,35 @@ body.rep-full #tab-report .tbl-wrap{margin-top:0 !important;max-height:calc(100v
 #rep-table th.ph,#rep-table td.ph{min-width:22px;width:22px;padding:0 4px;text-align:center;color:var(--muted)}
 #rep-table th.ph[data-g]{cursor:pointer}
 /* план цеха: станок × день, цвет клетки — заказ */
-#lp-table{font-size:12px}
-#lp-table th.d,#lp-table td.d{min-width:104px;border-left:1px solid var(--hair);vertical-align:top;padding:4px 6px;white-space:normal;line-height:1.3}
+#lp-table{font-size:13px}
+#lp-table th.d,#lp-table td.d{min-width:136px;border-left:1px solid var(--hair);vertical-align:top;padding:8px;white-space:normal;line-height:1.4}
 #lp-table td.d{cursor:pointer;user-select:none}
-#lp-table td.d.past{opacity:.8}
+#lp-table td.d.wk{background:var(--surface-2)}
+#lp-table .lp-order{display:block;font-size:12px;color:var(--ink-2);margin-bottom:3px}
+#lp-table .lp-product{display:block;font-weight:500}
+#lp-table .lp-yarn{display:block;color:var(--ink-2);font-size:12px;margin-top:4px}
+#lp-table .nt{display:block;margin-top:4px}
+#lp-table th.d small{display:block;font-weight:400;margin-top:2px}
+.lp-period,.lp-editbar{gap:10px;border-radius:6px}
+.lp-editbar{background:var(--surface-2)}
+.lp-editbar button:disabled{opacity:.5;cursor:default}
+.lp-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.lp-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.lp-heading h3{font-size:15px;margin:0}
+.lp-help summary{cursor:pointer;color:var(--ink-2);padding:8px 0}
+#lp-selection{font-size:12px;color:var(--ink-2)}
 #lp-table td.d.sel{outline:2px solid var(--accent);outline-offset:-2px}
 #lp-table td.d.hl{box-shadow:inset 0 0 0 2px hsl(var(--h) 70% 45%)}
 #lp-table td.d.over{background:color-mix(in srgb,var(--accent) 28%,transparent) !important}
 .lp-wrap{display:grid;grid-template-columns:270px minmax(0,1fr);gap:12px;align-items:start}
-@media (max-width:900px){.lp-wrap{grid-template-columns:minmax(0,1fr)}}
-.lp-pal{display:flex;flex-direction:column;gap:8px}
+@media (max-width:900px){.lp-wrap{grid-template-columns:minmax(0,1fr)}.lp-pal .lp-orders{max-height:180px}}
+.lp-pal{display:flex;flex-direction:column;gap:10px;padding:12px;background:var(--surface);border:1px solid var(--hair);border-radius:6px;min-width:0}
 .lp-pal #lp-q{width:100%}
 .lp-flt{display:flex;gap:4px;flex-wrap:wrap}
-.lp-flt button{font:inherit;font-size:12px;padding:2px 8px;border:1px solid var(--rule);background:var(--surface);color:var(--ink-2);cursor:pointer}
+.lp-flt button{font:inherit;font-size:12px;padding:5px 8px;border:1px solid var(--rule);border-radius:4px;background:var(--surface);color:var(--ink-2);cursor:pointer}
 .lp-flt button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
-.lp-orders{max-height:56vh;overflow:auto;display:flex;flex-direction:column;gap:4px;padding-right:2px}
+.lp-orders{max-height:56vh;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:2px}
+.lp-orders .oc{padding:9px;border-radius:4px}
 .oc{border:1px solid var(--hair);border-left:4px solid hsl(var(--h) 60% 50%);background:var(--surface);padding:5px 8px;cursor:grab;font-size:12px;line-height:1.35}
 .oc:hover{border-color:var(--rule)}
 .oc.on{outline:2px solid var(--accent);outline-offset:-1px}
@@ -480,19 +494,28 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
       <button role="tab" data-pane="codes" aria-selected="false">Коды ткани</button>
     </div>
     <div class="pane" data-pane="loom" role="tabpanel">
-    <div class="bar">
-      <div class="f"><label for="lp-from">С</label><input id="lp-from" size="10" autocomplete="off"></div>
+    <div class="bar lp-period">
+      <div class="f"><label for="lp-from">Период с</label><input id="lp-from" size="10" autocomplete="off"></div>
       <div class="f"><label for="lp-to">По</label><input id="lp-to" size="10" autocomplete="off"></div>
       <div class="f"><label>&nbsp;</label><button class="act" id="lp-show">Показать</button></div>
-      <div class="f"><label for="lp-span">Ставить на дней</label><input id="lp-span" size="3" value="1" inputmode="numeric" autocomplete="off"></div>
+      <div class="lp-actions" aria-label="Навигация по датам">
+        <button class="act" id="lp-prev" title="Сдвинуть показанный период на неделю назад">← 7 дней</button>
+        <button class="act" id="lp-today">Сегодня</button>
+        <button class="act" id="lp-next" title="Сдвинуть показанный период на неделю вперёд">7 дней →</button>
+      </div>
+    </div>
+    <div class="bar lp-editbar">
+      <div class="f"><label for="lp-span">Назначить на дней</label><input id="lp-span" size="3" value="1" inputmode="numeric" autocomplete="off"></div>
       <div class="f"><label>&nbsp;</label><label class="checks" style="padding-top:0"><input type="checkbox" id="lp-sun" checked> без воскресений</label></div>
-      <div class="f"><label>&nbsp;</label><button class="act" id="lp-undo" disabled>Отменить</button></div>
+      <div class="f"><label>&nbsp;</label><button class="act" id="lp-edit" disabled>Редактировать</button></div>
+      <div class="f"><label>&nbsp;</label><button class="act" id="lp-undo" disabled>Отменить правку</button></div>
       <div class="f"><label>&nbsp;</label><button class="act" id="lp-up">Загрузить план из Excel</button>
         <input type="file" id="lp-file" accept=".xlsx" class="hidden"></div>
     </div>
     <p class="note" id="lp-note"></p>
     <div class="lp-wrap">
       <aside class="lp-pal">
+        <div class="lp-heading"><h3>Заказы</h3><span class="note" id="lp-order-count"></span></div>
         <input id="lp-q" placeholder="Поиск: заказ, дизайн, клиент" autocomplete="off" aria-label="Поиск заказа">
         <div class="lp-flt" id="lp-flt">
           <button data-f="all" aria-pressed="true">Все</button><button data-f="1c" aria-pressed="false">Из 1С</button><button data-f="no1c" aria-pressed="false">Нет в 1С</button><button data-f="short" aria-pressed="false">Не хватает</button><button data-f="free" aria-pressed="false">Не в плане</button>
@@ -504,8 +527,10 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
         <table id="lp-table"><thead></thead><tbody></tbody></table>
       </div>
     </div>
-    <p class="note">Как составлять: перетащите заказ из списка слева на клетку станка — он встанет на
-      столько дней, сколько указано в «Ставить на дней». Клетку можно перетащить на другую (с Ctrl —
+    <div class="lp-actions"><span id="lp-selection" role="status">Выберите ячейку станка для редактирования.</span><span class="note">Цвет — заказ · серый день — воскресенье · пунктир — уточните изделие</span></div>
+    <details class="lp-help"><summary>Как назначать заказы и читать план / факт</summary>
+    <p class="note">Перетащите заказ из списка слева на клетку станка — он встанет на
+      столько дней, сколько указано в «Назначить на дней». Клетку можно перетащить на другую (с Ctrl —
       копия). Щелчок выделяет клетку, Shift+щелчок — прямоугольник, Ctrl+щелчок — добавить; бросьте
       заказ на выделение — встанет во все выделенные клетки. Delete — очистить, Ctrl+C / Ctrl+V —
       копировать, Ctrl+Z — отменить, двойной щелчок — ввести заказ или пометку руками. Каждая правка
@@ -516,6 +541,7 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
       1С, вместо нормы — КПД станка по времени: работа ÷ (работа + простой); красным — ниже 60%. Отчёт за день
       сам берёт PPT, вес, GSM, пряжу и лот из техкарты 1С заказа, стоящего на станке по плану;
       введённое в «Заправке» главнее.</p>
+    </details>
     <datalist id="lp-order-list"></datalist>
     <dialog id="lp-dlg" class="lp-dlg">
       <form method="dialog">
@@ -1424,6 +1450,7 @@ function lpCellHtml(l, d) {
   const cls = ["d"];
   if (d === LP.today) cls.push("today");
   if (d < LP.today) cls.push("past");
+  if (new Date(d.replace(/\./g, "-") + "T00:00").getDay() === 0) cls.push("wk");
   if (LP.sel.has(k)) cls.push("sel");
   if (c && c.order_no && c.order_no === LP.focus) cls.push("hl");
   if (!c) return `<td class="${cls.join(" ")}" data-k="${esc(k)}"></td>`;
@@ -1439,25 +1466,30 @@ function lpCellHtml(l, d) {
   const fx = f && d <= LP.g.last_fact_day ? `<span class="fx${low ? " lo" : ""}" title="по FACT: ${esc(f.cloth || "")} · КПД по времени ${nf(f.eff)}%${
       f.norm != null ? ` · выполнение нормы 1С ${nf(f.norm)}%` : ""}">${nf(f.towels)} шт · ${
       f.norm != null ? "норма " + nf(f.norm) + "%" : nf(f.eff) + "%"}</span>` : "";
-  const head = c.order_no ? `<b>${esc(c.order_no)}</b> ` : "";
-  const body = c.design ? `${esc(c.size || "")} ${esc(c.design)}${c.client ? "/" + esc(c.client) : ""}${c.gsm ? " · " + c.gsm : ""}`
-             : c.product ? esc(c.product) : "";
+  const head = c.order_no ? `<span class="lp-order">Заказ <b>${esc(c.order_no)}</b></span>` : "";
+  const body = c.design ? `${esc(c.size || "")} ${esc(c.design)}${c.client ? "/" + esc(c.client) : ""}${c.gsm ? " · " + c.gsm + " GSM" : ""}`
+             : c.product && c.product !== c.note ? esc(c.product) : "";
   const note = c.note ? ` <span class="nt">${esc(c.note)}</span>` : "";
   const tip = [c.product, c.pile_yarn && "ворс " + c.pile_yarn, c.note,
     c.product_code ? "1С: " + c.product_code + (c.pick === "manual" ? " (выбрано вручную)" : "")
                    : !amb ? "" : c.pick === "nomatch"
                      ? "в заказе 1С нет изделия с таким размером, GSM и дизайном — проверьте план или выберите изделие (двойной щелчок)"
                      : "подходят несколько изделий заказа — выберите нужное (двойной щелчок)"].filter(Boolean).join(" · ");
-  return `<td class="${cls.join(" ")}" data-k="${esc(k)}"${lpFilled(c) ? ' draggable="true"' : ""}${c.order_no ? ` style="--h:${hueOf(c.order_no)}"` : ""} title="${esc(tip)}">${head}${body}${note} ${fx}</td>`;
+  const yarn = c.pile_yarn ? `<span class="lp-yarn">Ворс: ${esc(c.pile_yarn)}</span>` : "";
+  return `<td class="${cls.join(" ")}" data-k="${esc(k)}"${lpFilled(c) ? ' draggable="true"' : ""}${c.order_no ? ` style="--h:${hueOf(c.order_no)}"` : ""} title="${esc(tip)}">${head}<span class="lp-product">${body}</span>${yarn}${note} ${fx}</td>`;
 }
 
 function renderLP() {
   const g = LP.g; if (!g) return;
   $("#lp-table thead").innerHTML = `<tr><th>Станок</th>${g.days.map(d => {
-    const wd = new Date(d.replace(/\./g, "-")).getDay();
-    return `<th class="d${d === LP.today ? " today" : ""}${wd === 0 ? " wk" : ""}">${dmy(d)} ${"вс пн вт ср чт пт сб".split(" ")[wd]}</th>`; }).join("")}</tr>`;
+    const wd = new Date(d.replace(/\./g, "-") + "T00:00").getDay();
+    return `<th class="d${d === LP.today ? " today" : ""}${wd === 0 ? " wk" : ""}">${dmy(d)}<small>${"вс пн вт ср чт пт сб".split(" ")[wd]}${d === LP.today ? " · сегодня" : wd === 0 ? " · выходной" : ""}</small></th>`; }).join("")}</tr>`;
   $("#lp-table tbody").innerHTML = LP.looms.map(l => `<tr><td class="lm">${l}</td>${g.days.map(d => lpCellHtml(l, d)).join("")}</tr>`).join("")
     || `<tr><td class="note" colspan="${g.days.length + 1}">Станков нет.</td></tr>`;
+  $("#lp-edit").disabled = !LP.sel.size || !can("assign");
+  $("#lp-selection").textContent = LP.sel.size === 1
+    ? (() => { const [l, d] = lpSplit([...LP.sel][0]); return `${l} · ${dmy(d)}.${d.slice(0, 4)}${can("assign") ? " — можно редактировать" : " — просмотр"}`; })()
+    : LP.sel.size ? `Выбрано ячеек: ${LP.sel.size}` : "Выберите ячейку станка для редактирования.";
 }
 
 function renderOrders() {
@@ -1471,6 +1503,7 @@ function renderOrders() {
     return !q || [o.order_no, o.product, o.design, o.client && "/" + o.client,
                   ...o.products.map(p => p.product_code)].join(" ").toLowerCase().includes(q);
   });
+  $("#lp-order-count").textContent = `Найдено: ${list.length}`;
   $("#lp-orders").innerHTML = list.map(o => {
     const done = o.qty ? Math.min(100, 100 * o.done / o.qty) : 0, exp = o.qty ? Math.min(100, 100 * o.expected / o.qty) : 0;
     const multi = o.products.length > 1, open = multi && LP.open.has(o.order_no);
@@ -1665,6 +1698,19 @@ $("#lp-q").oninput = renderOrders;
 $("#lp-flt").onclick = e => { const b = e.target.closest("button"); if (!b) return;
   LP.flt = b.dataset.f; $("#lp-flt").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b)); renderOrders(); };
 $("#lp-undo").onclick = lpUndo;
+$("#lp-edit").onclick = () => { const k = [...LP.sel][0]; if (k) lpOpenDialog(k); };
+function lpMovePeriod(offset) {
+  if (offset !== null && !LP.g?.days.length) return;
+  const a = offset === null ? new Date() : new Date(LP.g.days[0].replace(/\./g, "-") + "T00:00");
+  const b = offset === null ? new Date() : new Date(LP.g.days.at(-1).replace(/\./g, "-") + "T00:00");
+  a.setDate(a.getDate() + (offset === null ? -3 : offset));
+  b.setDate(b.getDate() + (offset === null ? 10 : offset));
+  $("#lp-from").value = ymd(a); $("#lp-to").value = ymd(b);
+  loadLoomPlan();
+}
+$("#lp-prev").onclick = () => lpMovePeriod(-7);
+$("#lp-next").onclick = () => lpMovePeriod(7);
+$("#lp-today").onclick = () => lpMovePeriod(null);
 document.addEventListener("keydown", e => {
   if ($("#tab-plan").classList.contains("hidden") || !LP.g) return;
   if (e.target.closest("input, textarea, select, dialog")) return;
