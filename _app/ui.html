@@ -1862,6 +1862,10 @@ tb.addEventListener("click", e => {
   const c = lpGet(...lpSplit(k));
   LP.focus = c && c.order_no ? c.order_no : null;
   renderLP(); renderOrders(); renderCard();
+  // На узком экране карточка заказа находится над сеткой и меняет её высоту.
+  // После обновления подробностей выбранная клетка должна остаться видимой.
+  const selectedCell = [...tb.querySelectorAll("td.d")].find(cell => cell.dataset.k === k);
+  selectedCell?.scrollIntoView({block: "nearest", inline: "nearest"});
 });
 tb.addEventListener("dblclick", e => { const td = lpTd(e); if (td) lpOpenDialog(td.dataset.k); });
 tb.addEventListener("dragstart", e => {
