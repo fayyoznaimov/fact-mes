@@ -848,6 +848,8 @@ class Server(ThreadingHTTPServer):
 def main():
     cfg = storage.config()
     ap = argparse.ArgumentParser()
+    ap.add_argument("--host", default=cfg.get("host", "0.0.0.0"),
+                    help="адрес прослушивания; 127.0.0.1 — только локальный доступ")
     ap.add_argument("--port", type=int, default=cfg.get("port", 8780))
     ap.add_argument("--fact", metavar="URL", default=cfg.get("fact"),
                     help="брать живое состояние станков прямо с FACT, например http://172.0.30.9")
@@ -904,4 +906,4 @@ def main():
         print("  телеграм: сводка после смены, тревога, станки без причины")
     else:
         print("  телеграм: не настроен (token и chat_id в config.json)")
-    Server(("0.0.0.0", args.port), Handler).serve_forever()
+    Server((args.host, args.port), Handler).serve_forever()
