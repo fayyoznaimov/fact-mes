@@ -1,0 +1,177 @@
+<title>Карточки станков</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --bg:#3a3a3a; --card:#414141; --rule:#4e4e4e; --ink:#f2f2f2; --muted:#a9a9a9;
+  --run:#4caf50; --stop:#e05b52; --warn:#e8a33d; --accent:#f2d13c; --link:#6fb7ff;
+  --font:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font)}
+header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:10px 16px;
+       border-bottom:1px solid var(--rule);background:#333}
+h1{margin:0;font-size:17px;font-weight:600}
+.sub{color:var(--muted);font-size:13px}
+.counts{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+.count{border:1px solid var(--rule);border-radius:3px;padding:4px 10px;min-width:86px;background:#383838}
+.count b{display:block;font-family:var(--mono);font-size:19px;line-height:1.1;font-variant-numeric:tabular-nums}
+.count span{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.count.run b{color:var(--run)} .count.stop b{color:var(--stop)}
+main{padding:12px 16px 30px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(330px,1fr))}
+.card{background:var(--card);border:1px solid var(--rule);border-left:5px solid var(--rule);
+      padding:10px 12px 11px;display:flex;flex-direction:column;gap:3px}
+.card.run{border-left-color:var(--run)}
+.card.stop{border-left-color:var(--stop)}
+.card.none{border-left-color:var(--muted)}
+.top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:2px}
+.name{font-size:25px;font-weight:600;line-height:1;letter-spacing:-.01em}
+.model{font-size:11px;color:var(--muted)}
+.status{margin-left:auto;font-size:13px;font-weight:600}
+.card.run .status{color:var(--run)} .card.stop .status{color:var(--stop)}
+.row{display:flex;gap:8px;align-items:baseline;font-size:13px;line-height:1.35}
+.row .k{color:var(--ink)}
+.row .v{color:var(--muted);font-family:var(--mono);font-variant-numeric:tabular-nums}
+.row .v.big{color:var(--ink)}
+.row.dim{color:var(--muted)} .row.dim .k{color:var(--muted)}
+.row.tick .k,.row.tick .v{color:var(--warn)}
+.stops{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin-top:2px}
+.stops span b{font-family:var(--mono);color:var(--muted);font-weight:500;margin-left:4px}
+.gold{color:var(--accent);font-weight:600;font-size:13px}
+.gold .v{font-family:var(--mono);color:var(--accent)}
+.shifts{display:flex;gap:12px;flex-wrap:wrap;color:var(--accent);font-weight:600;font-size:13px}
+.shifts b{font-family:var(--mono);font-weight:500}
+.sep{border-top:1px solid var(--rule);margin:4px 0 2px}
+footer{padding:8px 16px 18px;color:var(--muted);font-size:12px}
+a{color:var(--link)}
+</style>
+
+<header>
+  <h1>Карточки станков</h1>
+  <div class="sub" id="head-sub">—</div>
+  <div class="counts">
+    <div class="count run"><b id="c-run">—</b><span>работает</span></div>
+    <div class="count stop"><b id="c-stop">—</b><span>стоит</span></div>
+    <div class="count"><b id="c-op">—</b><span>с оператором</span></div>
+    <div class="count"><b id="c-picks">—</b><span>тыс. пиков</span></div>
+  </div>
+</header>
+
+<main><div class="grid" id="grid"></div></main>
+<footer id="foot"></footer>
+
+<script>
+const $ = s => document.querySelector(s);
+const REFRESH = 20000;
+const Q = new URLSearchParams(location.search);
+const DAY = (Q.get("day") || "").trim();
+const SHIFT = (Q.get("shift") || "").trim().toUpperCase();
+const ZONE = (Q.get("zone") || "").trim().toUpperCase();
+const PICK = (Q.get("looms") || "").trim().toUpperCase();
+
+const parts = s => s.match(/^([A-Z]+)(\d+)$/) || [];
+function inZone(loom) {
+  const name = (loom || "").toUpperCase();
+  if (ZONE && !name.startsWith(ZONE)) return false;
+  if (!PICK) return true;
+  return PICK.split(",").some(item => {
+    const [from, to] = item.split("-").map(x => x.trim());
+    if (!to) return name === from;
+    const a = parts(from), b = parts(to), c = parts(name);
+    return a[1] && c[1] === a[1] && b[1] === a[1] && +c[2] >= +a[2] && +c[2] <= +b[2];
+  });
+}
+
+const nf = (x, d = 0) => (x == null || x === "") ? "-"
+  : Number(x).toLocaleString("ru-RU", {minimumFractionDigits: d, maximumFractionDigits: d});
+const dash = v => (v == null || v === "") ? "-" : v;
+
+function card(r) {
+  const st = r.state === "run" ? "run" : r.state === "stop" ? "stop" : "none";
+  const status = r.state === "run" ? "Работает"
+    : r.state === "stop" ? `Стоит ${r.state_min != null ? r.state_min + " мин" : ""}`
+    : "Не определено";
+  const op = r.operator;
+  return `<div class="card ${st}">
+    <div class="top">
+      <span class="name">${r.label}</span>
+      <span class="model">${r.model || ""}</span>
+      <span class="status">${status}</span>
+    </div>
+
+    <div class="row"><span class="k">Reason</span>
+      <span class="v big">${r.cause_en} | ${r.cause_ru}</span></div>
+    <div class="row"><span class="k">Operator</span>
+      <span class="v big">${op ? `${op.name}${op.code ? " " + op.code : ""}` : "-"}</span>
+      ${op && op.source === "FACT" ? '<span class="v" style="font-size:11px">из FACT</span>' : ""}</div>
+    <div class="row"><span class="k">OEE shift</span><span class="v big">${nf(r.oee_shift,1)}%</span>
+      <span class="k">24h</span><span class="v">${nf(r.oee_24h,1)}%</span></div>
+    <div class="row"><span class="k">RPM</span><span class="v big">${nf(r.rpm)}</span></div>
+    <div class="row"><span class="k">Design</span><span class="v">${dash(r.design)}</span></div>
+    <div class="row"><span class="k">Cloth_name</span><span class="v">${dash(r.cloth_name)}</span></div>
+    <div class="row ${r.ticket ? "tick" : "dim"}"><span class="k">Tiket:</span>
+      <span class="v">${r.ticket ? `${r.ticket.ru} | ${r.ticket.en}` : "-"}</span></div>
+
+    <div class="stops">
+      <span>WeftStop<b>${nf(r.weft_ct)}</b></span>
+      <span>WarpStopP<b>${nf(r.warp_p_ct)}</b></span>
+      <span>WarpStopG<b>${nf(r.warp_g_ct)}</b></span>
+    </div>
+    <div class="row"><span class="k">Remaining Length</span>
+      <span class="v big">${nf(r.remaining_m)}</span><span class="k">м</span>
+      ${r.beam_length_m ? `<span class="v" style="font-size:11px">из ${nf(r.beam_length_m)}</span>` : ""}</div>
+
+    <div class="sep"></div>
+    <div class="row gold"><span>Manufacture, pick</span><span class="v">${nf(r.picks_total,1)} тыс.</span></div>
+    <div class="row gold"><span>Полотенец</span><span class="v">${nf(r.towels)}</span>
+      ${r.panels > 1 ? `<span class="v" style="font-size:11px">${nf(r.rows_woven)} рядов × ${r.panels}</span>` : ""}</div>
+    <div class="shifts">
+      <span>shift A <b>${nf(r.shift_a,1)}</b></span>
+      <span>shift B <b>${nf(r.shift_b,1)}</b></span>
+      <span>shift C <b>${nf(r.shift_c,1)}</b></span>
+    </div>
+  </div>`;
+}
+
+async function load() {
+  try {
+    const url = "/api/cards" + (DAY ? `?day=${encodeURIComponent(DAY)}` : "?")
+      + (SHIFT ? `&shift=${encodeURIComponent(SHIFT)}` : "");
+    const d = await fetch(url).then(r => r.json());
+    const rows = d.rows.filter(r => inZone(r.loom));
+    $("#grid").innerHTML = rows.map(card).join("");
+
+    const run = rows.filter(r => r.state === "run").length;
+    $("#c-run").textContent = run;
+    $("#c-stop").textContent = rows.filter(r => r.state === "stop").length;
+    $("#c-op").textContent = rows.filter(r => r.operator).length;
+    $("#c-picks").textContent = Math.round(rows.reduce((s, r) => s + (r.picks_total || 0), 0));
+    $("#head-sub").textContent = `${d.day.replace(/\./g,"/")}`
+      + (d.shift ? ` · смена ${d.shift}` : "") + ` · станков ${rows.length}`;
+    $("#foot").textContent = `Обновлено ${new Date().toLocaleTimeString("ru-RU")}`
+      + ` · выработка и обрывы за ${d.day.replace(/\./g,"/")}`
+      + (d.operators_from_fact ? ` · операторов из FACT: ${d.operators_from_fact}` : "");
+  } catch (e) {
+    $("#foot").textContent = "Сервер не ответил: " + e.message;
+  }
+}
+
+load();
+/* Толчки с сервера: карточки перечитываются, как только поменялось состояние
+   станков, а не раз в 20 секунд. Если поток оборвался — работаем опросом, пока
+   браузер сам не переподключится. При разборе за прошлый день толкать нечего. */
+let poll = null, pending = null;
+const startPoll = () => { if (!poll) poll = setInterval(load, REFRESH); };
+const stopPoll = () => { if (poll) { clearInterval(poll); poll = null; } };
+if (!DAY && window.EventSource) {
+  const es = new EventSource("/api/stream");
+  es.addEventListener("board", () => {
+    stopPoll();
+    if (!pending) pending = setTimeout(() => { pending = null; load(); }, 600);
+  });
+  es.onerror = startPoll;
+} else {
+  startPoll();
+}
+</script>

@@ -1,0 +1,110 @@
+{
+  "info": {
+    "name": "MES цеха — обмен с 1С",
+    "description": "Проверка обмена 1С ↔ MES ткацкого цеха.\n\nПеременные: baseUrl — адрес сервера MES (http://172.0.30.107:8780), apiKey — ключ API с правами read и write (выдаёт администратор MES во вкладке «Пользователи»).\n\nПорядок: 1 → 2 → 3. В каждом запросе есть автотесты — результат во вкладке Test Results.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{apiKey}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://172.0.30.107:8780" },
+    { "key": "orderNumber", "value": "1708" }
+  ],
+  "item": [
+    {
+      "name": "1. Связь с MES (без ключа)",
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/api/v1/health", "host": ["{{baseUrl}}"], "path": ["api", "v1", "health"] },
+        "description": "Живо ли приложение. Ключ не нужен."
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('сервер отвечает 200', () => pm.response.to.have.status(200));",
+        "pm.test('ok = true', () => pm.expect(pm.response.json().ok).to.eql(true));"
+      ] } }]
+    },
+    {
+      "name": "2. 1С → MES: производственный заказ",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+        "url": { "raw": "{{baseUrl}}/api/v1/1c", "host": ["{{baseUrl}}"], "path": ["api", "v1", "1c"] },
+        "description": "Так 1С отправляет заказы: конверт CreateOrUpdateProductionOrderAPI как есть. Ответ приходит сразу; 1С проверяет поле success. Повторная отправка того же заказа обновляет его (versions в запросе 3 увеличится).",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"actionType\": \"CreateOrUpdateProductionOrderAPI\",\n  \"wait\": true,\n  \"waitTimeout\": 60000,\n  \"data\": {\n    \"productionOrders\": [\n      {\n        \"uuid\": \"cb049ee0-b805-4ee6-88d7-2c4f48799600\",\n        \"orderNumber\": 1708,\n        \"productCode\": \"220100 TerryCloth 390\",\n        \"gsm\": 390,\n        \"sizeInfo\": { \"size\": \"220*100\", \"numberLines\": 1 },\n        \"weight\": 0.858,\n        \"totalQuantity\": 3120,\n        \"totalNumberRolls\": 39,\n        \"secondsPerRow\": 233,\n        \"weftPerOneRow\": 1459,\n        \"secondsPerPcs\": 233,\n        \"technologies\": {\n          \"components\": [\n            { \"productCode\": \"16/1 Ring Иштихан Суровый Ворс 630 Лот №41\", \"type\": \"Pile yarn\", \"quantity\": 597.52, \"measurement\": \"в граммах\" },\n            { \"productCode\": \"20/2 OE Навои Суровый Основа 550 Лот №107\", \"type\": \"Ground yarn\", \"quantity\": 187.27, \"measurement\": \"в граммах\" },\n            { \"productCode\": \"14/1 OE Навои Суровый Уток 700 Лот №103\", \"type\": \"Weft yarn\", \"quantity\": 159.01, \"measurement\": \"в граммах\" }\n          ],\n          \"workCenters\": [\"D-01\", \"D-02\", \"D-03\", \"D-04\", \"D-05\", \"D-06\", \"D-07\", \"D-08\", \"D-09\", \"D-10\", \"D-11\", \"D-12\", \"J-09\", \"J-10\"]\n        }\n      }\n    ]\n  }\n}",
+          "options": { "raw": { "language": "json" } }
+        }
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "const j = pm.response.json();",
+        "pm.test('принято: код 200', () => pm.response.to.have.status(200));",
+        "pm.test('success = true', () => pm.expect(j.success).to.eql(true));",
+        "pm.test('техкарт разобрано > 0', () => pm.expect(j.cards).to.be.above(0));",
+        "pm.test('пряжа разобрана', () => pm.expect(j.yarns).to.be.above(0));",
+        "if (j.success) { const n = JSON.parse(pm.request.body.raw).data.productionOrders[0].orderNumber; pm.collectionVariables.set('orderNumber', String(n)); }"
+      ] } }]
+    },
+    {
+      "name": "3. MES → нам: что сохранилось по заказу",
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/api/v1/1c?order={{orderNumber}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "1c"],
+                 "query": [{ "key": "order", "value": "{{orderNumber}}" }] },
+        "description": "Заказ последней версией — ровно в том виде, в каком его прислала 1С, плюс received: когда пришёл и сколько раз присылали."
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "const j = pm.response.json();",
+        "pm.test('код 200', () => pm.response.to.have.status(200));",
+        "pm.test('заказ найден', () => pm.expect(j.count).to.be.above(0));",
+        "pm.test('формат как у 1С', () => pm.expect(j.data.productionOrders[0]).to.have.property('technologies'));",
+        "pm.test('GSM сохранён', () => pm.expect(j.data.productionOrders[0].gsm).to.be.a('number'));"
+      ] } }]
+    },
+    {
+      "name": "4. MES → нам: все заказы за период",
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/api/v1/1c?from=2026.09.01&limit=100", "host": ["{{baseUrl}}"], "path": ["api", "v1", "1c"],
+                 "query": [{ "key": "from", "value": "2026.09.01" }, { "key": "limit", "value": "100" }] },
+        "description": "Все заказы, полученные с этого дня."
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('код 200', () => pm.response.to.have.status(200));",
+        "pm.test('есть список productionOrders', () => pm.expect(pm.response.json().data.productionOrders).to.be.an('array'));"
+      ] } }]
+    },
+    {
+      "name": "5. Проверка ошибок: без ключа",
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/api/v1/1c", "host": ["{{baseUrl}}"], "path": ["api", "v1", "1c"] },
+        "body": { "mode": "raw", "raw": "{\"actionType\": \"CreateOrUpdateProductionOrderAPI\", \"data\": {\"productionOrders\": []}}", "options": { "raw": { "language": "json" } } },
+        "description": "Без ключа MES ничего не принимает."
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('отказ 401', () => pm.response.to.have.status(401));",
+        "pm.test('success = false', () => pm.expect(pm.response.json().success).to.eql(false));"
+      ] } }]
+    },
+    {
+      "name": "6. Проверка ошибок: неизвестный actionType",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/api/v1/1c", "host": ["{{baseUrl}}"], "path": ["api", "v1", "1c"] },
+        "body": { "mode": "raw", "raw": "{\"actionType\": \"SomethingElse\", \"data\": {}}", "options": { "raw": { "language": "json" } } },
+        "description": "Ошибка в запросе — код 400 и понятный текст в error."
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('отказ 400', () => pm.response.to.have.status(400));",
+        "pm.test('есть текст ошибки', () => pm.expect(pm.response.json().error).to.be.a('string'));"
+      ] } }]
+    }
+  ]
+}

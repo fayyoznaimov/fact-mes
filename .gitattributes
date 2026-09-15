@@ -1,0 +1,5 @@
+# Единые окончания строк для всех агентов и редакторов: иначе смена CRLF/LF даёт дифф на весь файл.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary

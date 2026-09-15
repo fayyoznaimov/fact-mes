@@ -1,0 +1,18 @@
+{
+  "port": 8780,
+  "fact": "http://172.0.30.9",
+  "looms": 40,
+  "onec": {
+    "url": "",
+    "token": "",
+    "every_min": 30
+  },
+  "telegram": {
+    "token": "123456789:AAExampleTokenFromBotFather",
+    "chat_id": "-1001234567890",
+    "shift_report": true,
+    "daily_digest": true,
+    "alerts": true,
+    "after_shift_min": 15
+  }
+}

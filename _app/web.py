@@ -1,0 +1,798 @@
+"""HTTP: маршруты, права, отдача страниц и толчки на мониторы.
+
+Здесь только приём запроса, проверка прав и вызов нужного модуля — никаких
+расчётов и никакого SQL. Расчёты живут в reports.py, metrics.py, payroll.py,
+people.py, planning.py и tickets.py, доступ к базам — в storage.py.
+
+Три вида адресов:
+
+    /api/…        внутренние, для страниц приложения; вход по cookie;
+    /api/v1/…     внешний API для 1С и других программ; вход по ключу (api.py);
+    /api/stream   толчки на мониторы: соединение держится, данные приходят,
+                  как только поменялись (Server-Sent Events).
+"""
+import argparse
+import gzip
+import http.cookies
+import json
+import os
+import time
+from datetime import datetime
+
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlparse, parse_qs
+
+import api
+import cache
+import collector
+import dashboard
+import hub
+import integration
+import livestate
+import logs
+import loomplan
+import loomsetup
+import metrics
+import notify
+import people
+import payroll
+import planning
+import reports
+import storage
+import tickets
+import yarns
+
+LOG = logs.get("web")
+STARTED_AT = time.time()
+MAX_BODY = 5 * 1024 * 1024      # больше пяти мегабайт от 1С не бывает — это ошибка
+PING_SEC = 15                   # пустая строка в поток, чтобы соединение не рвали
+
+try:
+    import auth
+except ImportError:      # приложение работает и без модуля прав
+    auth = None
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+# Право, которое нужно, чтобы выполнить запрос, меняющий данные.
+GUARD = {
+    "/api/assignments": "assign",
+    "/api/operators": "people",
+    "/api/operators/delete": "people",
+    "/api/operators/import_fact": "people",
+    "/api/operators/import": "people",  # список людей из другой системы или Excel
+    "/api/settings": "settings",
+    "/api/export_excel": "export",
+    "/api/loom_article": "assign",      # что заправлено на станке — ставит мастер
+    "/api/assign_one": "assign",        # оператор на один станок
+    "/api/assign_copy": "assign",       # повторить расстановку прошлой смены
+    "/api/assign_from_fact": "assign",  # взять расстановку из данных FACT
+    "/api/plan/order": "assign",        # заказы и сроки
+    "/api/plan/assign": "assign",
+    "/api/plan/drop": "assign",
+    "/api/plan/close": "assign",
+    "/api/plan/import_1c": "assign",
+    "/api/plan/ppt": "assign",          # пиков на изделие: из 1С или вручную
+    "/api/plan/cloth_map": "assign",    # код ткани на станке = артикул 1С
+    "/api/keys": "users",               # ключи внешнего API
+    "/api/keys/revoke": "users",
+    "/api/shift_doc": "assign",         # расстановка на смену
+    "/api/shift_doc/confirm": "assign",
+    "/api/shift_doc/fill": "assign",
+    "/api/loom_setup": "assign",        # заправка станка: GSM, вес, PPT, пряжа, лот
+    "/api/loom_setup/bulk": "assign",   # то же таблицей на все станки
+    "/api/yarns": "assign",             # справочник пряжи
+    "/api/yarns/update": "assign",
+    "/api/loom_plan/upload": "assign",  # план цеха из Excel
+    "/api/yarns/import": "assign",      # справочник пряжи файлом из 1С (.mxl)
+    "/api/loom_plan/cells": "assign",   # план цеха: перетаскивание и правка клеток
+}
+
+# Что можно читать без входа: мониторы в цехе не логинятся, проверка живости
+# нужна дежурному. Всё остальное — зарплата, KPI, отчёты — только после входа
+# (или по ключу API с правом чтения).
+PUBLIC_GET = {"/", "/index.html", "/wall", "/cards", "/api/me", "/api/live", "/api/stream",
+              "/api/forecast", "/api/cards", "/api/health", "/api/docs"}
+
+
+def current_user(handler):
+    """Пользователь текущей сессии по cookie, либо None."""
+    if not auth:
+        return None
+    raw = handler.headers.get("Cookie")
+    if not raw:
+        return None
+    try:
+        jar = http.cookies.SimpleCookie(raw)
+    except http.cookies.CookieError:
+        return None
+    token = jar["sid"].value if "sid" in jar else None
+    return auth.user_by_token(token)
+
+
+def may(user, permission):
+    """Права выключены, пока не заведён ни один пользователь — иначе можно
+    запереть себя снаружи на первом же запуске."""
+    if not auth:
+        return True
+    return auth.can(user, permission)
+
+
+_page_cache = {}
+
+
+def page_bytes(name):
+    """Страница из памяти; перечитывается только если файл изменился."""
+    path = os.path.join(HERE, name)
+    mtime = os.path.getmtime(path)
+    c = _page_cache.get(name)
+    if not c or c["mtime"] != mtime:
+        c = {"mtime": mtime, "data": open(path, "rb").read()}
+        _page_cache[name] = c
+    return c["data"]
+
+
+class Handler(BaseHTTPRequestHandler):
+    # Keep-alive: монитор в цехе держит одно соединение вместо нового на каждый
+    # запрос. Content-Length мы ставим всегда, так что это безопасно.
+    protocol_version = "HTTP/1.1"
+
+    def _send(self, code, body, ctype="application/json; charset=utf-8"):
+        data = body if isinstance(body, bytes) else json.dumps(body, ensure_ascii=False).encode()
+        # Сжатие: страница и ответы по сети цеха идут в разы легче, а на десяти
+        # одновременных пользователях это заметно снимает нагрузку.
+        encoding = None
+        if len(data) > 1024 and "gzip" in (self.headers.get("Accept-Encoding") or ""):
+            data = gzip.compress(data, 6)
+            encoding = "gzip"
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        if encoding:
+            self.send_header("Content-Encoding", encoding)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def log_message(self, *a):
+        pass
+
+    def _body(self):
+        n = int(self.headers.get("Content-Length", 0) or 0)
+        if n > MAX_BODY:
+            raise OverflowError("тело запроса больше %d МБ" % (MAX_BODY // 1024 // 1024))
+        return json.loads(self.rfile.read(n) or b"{}")
+
+    # --- толчки на мониторы ---
+
+    def _stream(self):
+        """Server-Sent Events: монитор держит соединение, мы пишем в него доску,
+        как только она поменялась, а в тишине — пустую строку раз в 15 секунд."""
+        self.close_connection = True
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("X-Accel-Buffering", "no")
+        self.end_headers()
+        hub.HUB.join()
+        seen = None
+        try:
+            self.wfile.write(b"retry: 3000\n\n")
+            while True:
+                ver = hub.HUB.version if seen is None else hub.HUB.wait(seen, PING_SEC)
+                if ver != seen:
+                    data = LIVE_EVENT.get(ver)
+                    self.wfile.write(b"id: %d\nevent: board\ndata: " % ver + data + b"\n\n")
+                    seen = ver
+                else:
+                    self.wfile.write(b": ping\n\n")
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
+            pass            # монитор выключили или перезагрузили — это нормально
+        finally:
+            hub.HUB.leave()
+
+    # --- внешний API ---
+
+    def _api(self, method, path, q, body):
+        if path == "/api/v1/health":
+            return self._send(200, health())
+        if path == "/api/v1/openapi.json":
+            return self._send(200, api.openapi())
+        key = api.check(self.headers)
+        user = None if key else current_user(self)
+        can = (lambda p: may(user, p)) if user else None
+        code, obj = api.handle(method, path, q, body, key, can, user["login"] if user else "")
+        # Каждая попытка записи — в журнал, и отказ тоже: «отправили, а ничего не
+        # пришло» иначе не разобрать (ключ не подошёл, не тот адрес, пустой список).
+        if method == "POST":
+            nums = ""
+            try:
+                nums = " ".join(sorted({str(o.get("orderNumber")) for o in integration.orders_of(body or {})
+                                        if isinstance(o, dict) and o.get("orderNumber")}))
+            except Exception:
+                pass
+            LOG.info("API %s %s от %s: %s%s%s%s", method, path, self.client_address[0], code,
+                     " (ключ %s)" % key["name"] if key else (" (вход)" if user else " (без ключа или ключ не подошёл)"),
+                     " заказы %s" % nums if nums else " заказов в теле нет",
+                     "" if code == 200 else " — " + str(obj.get("error", "")))
+        return self._send(code, obj)
+
+    # --- чтение ---
+
+    def do_GET(self):
+        u = urlparse(self.path)
+        q = {k: v[0] for k, v in parse_qs(u.query).items()}
+        try:
+            if u.path in ("/", "/index.html"):
+                return self._send(200, page_bytes("ui.html"), "text/html; charset=utf-8")
+            if u.path.startswith("/api/v1/"):
+                return self._api("GET", u.path, q, None)
+            if u.path.startswith("/api/") and u.path not in PUBLIC_GET:
+                key = api.check(self.headers)
+                if not (may(current_user(self), "view")
+                        or (key and "read" in (key.get("scopes") or "").split())):
+                    return self._send(401, {"error": "нужно войти"})
+            if u.path == "/api/stream":
+                return self._stream()
+            if u.path == "/api/me":
+                user = current_user(self)
+                perms = sorted(p for p in (auth.PERMISSIONS if auth else {}) if may(user, p))
+                return self._send(200, {"user": user, "permissions": perms,
+                                        "roles": auth.ROLES if auth else {}})
+            if u.path == "/api/users":
+                if not may(current_user(self), "users"):
+                    return self._send(403, {"error": "нет прав"})
+                return self._send(200, {"users": auth.list_users()})
+            # Доска для мониторов в цехе: смотреть можно без входа — экран на
+            # стене не логинится. Заводить и разбирать тикеты — только по правам.
+            if u.path == "/wall":
+                return self._send(200, page_bytes("wall.html"), "text/html; charset=utf-8")
+            if u.path == "/api/live":
+                return self._send(200, live_payload(q))
+            if u.path == "/api/forecast":
+                return self._send(200, dashboard.forecast(int(q.get("hours", 12)) * 60))
+            if u.path == "/api/tickets":
+                return self._send(200, {
+                    "tickets": tickets.ticket_list(limit=int(q.get("limit", 80)),
+                                                   only_open=q.get("open") == "1",
+                                                   day=q.get("day")),
+                    "categories": tickets.CATEGORIES,
+                    "summary": tickets.summary(int(q.get("hours", 24))),
+                    "can_edit": may(current_user(self), "tickets")})
+            if u.path == "/api/shifts":
+                return self._send(200, {"shifts": [{"day": d, "shift": s}
+                                                   for d, s in reports.available_shifts()]})
+            if u.path == "/api/report":
+                return self._send(200, {"day": q.get("day"),
+                                        "rows": reports.report_day(q.get("day", ""))})
+            if u.path == "/api/report_days":
+                return self._send(200, {"days": reports.report_days()})
+            if u.path == "/api/days":
+                return self._send(200, {"days": reports.all_days()})
+            if u.path == "/api/operators":
+                return self._send(200, {"operators": people.list_operators()})
+            if u.path == "/api/assignments":
+                return self._send(200, people.get_assignments(q.get("day"), q.get("shift")))
+            if u.path == "/api/shift_doc":
+                return self._send(200, people.get_shift_doc(q.get("day", ""), q.get("shift", "A")))
+            if u.path == "/api/setup_grid":
+                return self._send(200, loomsetup.grid(q.get("day") or tickets.current_shift()[:10]))
+            if u.path == "/api/yarns":
+                return self._send(200, {"yarns": yarns.all_yarns(), "by_slot": yarns.by_slot()})
+            if u.path == "/api/shift_docs":
+                return self._send(200, {"docs": people.list_shift_docs(q.get("from", ""),
+                                                                      q.get("to", "9999"))})
+            if u.path == "/api/salary":
+                return self._send(200, payroll.salary_for_shift(q.get("day", ""),
+                                                                q.get("shift", "")))
+            if u.path == "/api/kpi":
+                return self._send(200, payroll.kpi(q.get("from", ""), q.get("to", "9999"),
+                                                   q.get("role", "operator")))
+            if u.path == "/api/settings":
+                return self._send(200, storage.all_settings())
+            if u.path == "/api/dashboard":
+                # День не задан — текущий (раньше пустой день ронял ответ в 500).
+                return self._send(200, dashboard.rows(q.get("day") or tickets.current_shift()[:10],
+                                                      q.get("shift", "")))
+            if u.path == "/cards":
+                return self._send(200, page_bytes("cards.html"), "text/html; charset=utf-8")
+            if u.path == "/api/cards":
+                return self._send(200, dashboard.cards(q.get("day") or tickets.current_shift()[:10],
+                                                       q.get("shift", "")))
+            if u.path == "/api/plan":
+                return self._send(200, {"orders": planning.orders(q.get("closed") == "1"),
+                                        "plan_only": planning.plan_only_orders(),
+                                        "products": planning.products(),
+                                        "cloth_map": planning.cloth_map_list(),
+                                        "unmapped": planning.unmapped_cloths()})
+            if u.path == "/api/loom_plan/catalog":
+                return self._send(200, {"orders": loomplan.catalog()})
+            if u.path == "/api/ppt_check":
+                import pptcheck
+                frm, to = pptcheck.default_period()
+                return self._send(200, pptcheck.check(q.get("from") or frm, q.get("to") or to))
+            if u.path == "/api/onec/messages":
+                return self._send(200, {"messages": integration.messages(int(q.get("limit", 100)))})
+            if u.path == "/api/onec/message":
+                return self._send(200, integration.message(int(q.get("id", 0))))
+            if u.path == "/api/loom_plan":
+                return self._send(200, loomplan.grid(q.get("from") or tickets.current_shift()[:10],
+                                                     q.get("to") or q.get("from") or "9999"))
+            if u.path == "/api/bottlenecks":
+                return self._send(200, metrics.bottlenecks(
+                    q.get("from", "0000"), q.get("to", "9999"),
+                    [l for l in (q.get("looms") or "").split(",") if l] or None,
+                    [c for c in (q.get("shifts") or "") if c in "ABC"] or None))
+            if u.path == "/api/manual_stops":
+                return self._send(200, reports.lds_manual(q.get("from", "0000"),
+                                                          q.get("to", "9999"),
+                                                          q.get("group", "day")))
+            if u.path == "/api/production":
+                return self._send(200, {"rows": metrics.production(q.get("from", "0000"),
+                                                                   q.get("to", "9999"))})
+            if u.path == "/api/stop_days":
+                return self._send(200, {"days": metrics.available_days()})
+            if u.path == "/api/explorer":
+                return self._send(200, reports.explorer(q))
+            if u.path == "/api/walk":
+                return self._send(200, reports.walk(q.get("day", ""), q.get("shift", "")))
+            if u.path == "/api/excel":
+                return self._send_excel(q.get("day", ""))
+            if u.path == "/api/health":
+                return self._send(200, health())
+            if u.path == "/api/docs":
+                return self._send(200, api.docs_html(), "text/html; charset=utf-8")
+            if u.path == "/api/keys":
+                if not may(current_user(self), "users"):
+                    return self._send(403, {"error": "нет прав"})
+                return self._send(200, {"keys": api.list_keys(), "scopes": api.SCOPES})
+            if u.path == "/api/logs":
+                if not may(current_user(self), "settings"):
+                    return self._send(403, {"error": "нет прав"})
+                return self._send(200, {"lines": logs.tail(int(q.get("lines", 200)))})
+        except (ConnectionAbortedError, BrokenPipeError, ConnectionResetError):
+            return          # браузер ушёл, не дождавшись ответа, — отвечать некому
+        except Exception as e:
+            LOG.exception("GET %s: %s", self.path, e)
+            return self._send(500, {"error": f"{type(e).__name__}: {e}"})
+        self._send(404, {"error": "нет такого адреса"})
+
+    def _send_excel(self, day):
+        path = reports.excel_path(day)
+        if not os.path.exists(path):
+            return self._send(404, {"error": "файл ещё не собран"})
+        data = open(path, "rb").read()
+        self.send_response(200)
+        self.send_header("Content-Type",
+                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        self.send_header("Content-Disposition",
+                         f'attachment; filename="ProductionReport_{day.replace(".", "-")}.xlsx"')
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    # --- запись ---
+
+    def _plan_upload(self):
+        """Файл плана цеха (.xlsx) приходит телом запроса как есть, без формы."""
+        me = current_user(self)
+        if not may(me, GUARD["/api/loom_plan/upload"]):
+            return self._send(403, {"error": "нет прав на это действие"})
+        n = int(self.headers.get("Content-Length", 0) or 0)
+        if n > 4 * MAX_BODY:
+            return self._send(400, {"error": "файл больше 20 МБ — это не план"})
+        try:
+            r = loomplan.import_xlsx(self.rfile.read(n), me["login"] if me else "")
+        except ValueError as e:
+            return self._send(400, {"error": str(e)})
+        LOG.info("план цеха %s–%s: станков %s, клеток %s (%s)", r["from"], r["to"], r["looms"],
+                 r["cells"], me["login"] if me else "")
+        return self._send(200, r)
+
+    def _yarn_import(self):
+        """Справочник пряжи из 1С: табличный документ (.mxl) телом запроса как есть."""
+        me = current_user(self)
+        if not may(me, GUARD["/api/yarns/import"]):
+            return self._send(403, {"error": "нет прав на это действие"})
+        n = int(self.headers.get("Content-Length", 0) or 0)
+        if n > 4 * MAX_BODY:
+            return self._send(400, {"error": "файл больше 20 МБ — это не справочник пряжи"})
+        try:
+            import yarnref
+            r = yarnref.import_mxl(self.rfile.read(n), me["login"] if me else "")
+        except ValueError as e:
+            return self._send(400, {"error": str(e)})
+        LOG.info("справочник пряжи из 1С: %d позиций (новых %d), пряжи добавлено %d",
+                 r["items"], r["new"], len(r["yarns_added"]))
+        return self._send(200, r)
+
+    def do_POST(self):
+        u = urlparse(self.path)
+        try:
+            if u.path == "/api/loom_plan/upload":
+                return self._plan_upload()
+            if u.path == "/api/yarns/import":
+                return self._yarn_import()
+            body = self._body()
+            if u.path.startswith("/api/v1/"):
+                return self._api("POST", u.path, {k: v[0] for k, v in parse_qs(u.query).items()},
+                                 body)
+            if u.path == "/api/login":
+                return self._login(body)
+            if u.path == "/api/logout":
+                return self._logout()
+            if u.path == "/api/password":
+                me = current_user(self)
+                if not me:
+                    return self._send(401, {"error": "нужно войти"})
+                target = body.get("user_id") or me["id"]
+                if target != me["id"] and not may(me, "users"):
+                    return self._send(403, {"error": "нет прав"})
+                auth.set_password(target, body.get("password", ""), must_change=False)
+                return self._send(200, {"ok": True})
+            if u.path == "/api/users":
+                if not may(current_user(self), "users"):
+                    return self._send(403, {"error": "нет прав"})
+                if body.get("id"):
+                    auth.update_user(body["id"], body.get("name"), body.get("role"),
+                                     body.get("active"))
+                else:
+                    auth.create_user(body.get("login"), body.get("name"),
+                                     body.get("role", "viewer"), body.get("password", ""))
+                return self._send(200, {"ok": True})
+            if u.path.startswith("/api/tickets/"):
+                return self._tickets(u.path, body)
+
+            # Всё, что меняет данные, требует права.
+            need = GUARD.get(u.path)
+            me = current_user(self)
+            if need and not may(me, need):
+                return self._send(403, {"error": "нет прав на это действие"})
+            who = me["login"] if me else ""
+
+            if u.path == "/api/operators":
+                people.save_operator(body)
+                return self._send(200, {"ok": True})
+            if u.path == "/api/operators/delete":
+                people.delete_operator(body["id"])
+                return self._send(200, {"ok": True})
+            if u.path == "/api/operators/import_fact":
+                return self._send(200, people.import_operators_from_fact())
+            if u.path == "/api/operators/import":
+                r = people.import_people(body.get("text", ""))
+                LOG.info("список людей загрузил %s: добавлено %s, обновлено %s",
+                         who, r["added"], r["updated"])
+                return self._send(200, r)
+            if u.path == "/api/export_excel":
+                return self._send(200, reports.export_excel(body.get("day", "")))
+            if u.path == "/api/assignments":
+                people.save_assignments(body)
+                return self._send(200, {"ok": True})
+            if u.path == "/api/assign_one":
+                people.assign_one(body["day"], body["shift"], body["loom"],
+                                  body.get("operator_id"))
+                return self._send(200, {"ok": True})
+            if u.path == "/api/assign_copy":
+                return self._send(200, people.copy_assignments(body["day"], body["shift"]))
+            if u.path == "/api/shift_doc":
+                d = people.save_shift_doc(body["day"], body["shift"], body, who)
+                LOG.info("расстановка смены %s за %s сохранена (%s)", body["shift"], body["day"], who)
+                return self._send(200, d)
+            if u.path == "/api/shift_doc/confirm":
+                d = people.confirm_shift_doc(body["day"], body["shift"], who,
+                                             bool(body.get("confirmed", True)))
+                LOG.info("расстановка смены %s за %s: %s (%s)", body["shift"], body["day"],
+                         d["doc"]["status"], who)
+                return self._send(200, d)
+            if u.path == "/api/shift_doc/fill":
+                return self._send(200, people.fill_shift_doc(body["day"], body["shift"],
+                                                             body.get("how", "prev"), who))
+            if u.path == "/api/loom_setup":
+                r = loomsetup.save(body.get("looms") or [], body.get("from_day", ""),
+                                   body.get("values") or {}, who)
+                LOG.info("заправка %s с %s ввёл %s", ", ".join(r["looms"]), r["from_day"], who)
+                return self._send(200, r)
+            if u.path == "/api/loom_setup/bulk":
+                r = loomsetup.save_many(body.get("rows") or [], body.get("from_day", ""), who)
+                LOG.info("заправка таблицей: %d станков с %s ввёл %s", len(r["looms"]),
+                         r["from_day"], who)
+                return self._send(200, r)
+            if u.path == "/api/yarns":
+                r = yarns.add(body.get("name", ""), body.get("kind", ""))
+                LOG.info("пряжа «%s» в справочник (%s)", r["name"], who)
+                return self._send(200, r)
+            if u.path == "/api/yarns/update":
+                return self._send(200, yarns.update(int(body["id"]), body.get("name"),
+                                                    body.get("kind"), body.get("active")))
+            if u.path == "/api/assign_from_fact":
+                r = people.import_assignments_from_fact(
+                    body["day"], body.get("shifts") or ("A", "B", "C"),
+                    bool(body.get("overwrite")))
+                LOG.info("расстановка из FACT за %s: станков %s, записей %s",
+                         body.get("day"), r.get("found"), r.get("assigned"))
+                return self._send(200, r)
+            if u.path == "/api/keys":
+                k = api.create_key(body.get("name", ""), body.get("scopes") or [], who)
+                LOG.info("ключ API «%s» (%s) выдал %s", k["name"], " ".join(k["scopes"]), who)
+                return self._send(200, k)
+            if u.path == "/api/keys/revoke":
+                api.revoke_key(int(body["id"]))
+                LOG.info("ключ API №%s отозвал %s", body.get("id"), who)
+                return self._send(200, {"ok": True})
+            if u.path == "/api/loom_plan/cells":
+                r = loomplan.set_cells(body.get("changes") or [], who)
+                LOG.info("план цеха: клеток %d изменил %s", r["ok"], who)
+                return self._send(200, r)
+            if u.path.startswith("/api/plan/"):
+                if u.path == "/api/plan/order":
+                    oid = planning.add_order(body["order_no"], body["product_code"],
+                                             body["qty_towels"], body.get("due_day"),
+                                             body.get("source", "вручную"), body.get("note", ""))
+                    LOG.info("заказ %s (%s) на %s полотенец добавил %s",
+                             body.get("order_no"), body.get("product_code"),
+                             body.get("qty_towels"), who)
+                    return self._send(200, {"ok": True, "id": oid})
+                if u.path == "/api/plan/assign":
+                    planning.assign_loom(body["order_id"], body["loom"],
+                                         body.get("from_day"), body.get("qty_towels"))
+                    return self._send(200, {"ok": True})
+                if u.path == "/api/plan/drop":
+                    planning.drop_loom(body["order_id"], body["loom"])
+                    return self._send(200, {"ok": True})
+                if u.path == "/api/plan/close":
+                    planning.close_order(body["order_id"], bool(body.get("closed", True)))
+                    return self._send(200, {"ok": True})
+                if u.path == "/api/plan/import_1c":
+                    r = planning.import_from_1c()
+                    LOG.info("заказы из 1С: %s", r)
+                    return self._send(200, r)
+                if u.path == "/api/plan/ppt":
+                    planning.set_ppt(body["key"], body["ppt"], body.get("panels"),
+                                     body.get("source", "вручную"), who)
+                    return self._send(200, {"ok": True})
+                if u.path == "/api/plan/cloth_map":
+                    planning.set_cloth_map(body.get("cloth_code", ""),
+                                           body.get("product_code", ""), who)
+                    LOG.info("код ткани «%s» = артикул «%s» (%s)", body.get("cloth_code"),
+                             body.get("product_code") or "—", who)
+                    return self._send(200, {"ok": True})
+                return self._send(404, {"error": "нет такого адреса"})
+            if u.path == "/api/loom_article":
+                if body.get("product_code"):
+                    dashboard.set_article(body["loom"], body["product_code"],
+                                          body.get("day"), who, body.get("note", ""))
+                else:
+                    dashboard.clear_article(body["loom"], body.get("day"))
+                LOG.info("станок %s: заправлено «%s» (поставил %s)",
+                         body.get("loom"), body.get("product_code") or "—", who)
+                return self._send(200, {"ok": True})
+            if u.path == "/api/settings":
+                storage.save_settings(body)
+                LOG.info("настройки изменены: %s", body)
+                tickets.invalidate()        # пороги андона видны на досках сразу
+                return self._send(200, {"ok": True})
+        except (ConnectionAbortedError, BrokenPipeError, ConnectionResetError):
+            return
+        except OverflowError as e:
+            return self._send(413, {"error": str(e)})
+        except (ValueError, KeyError) as e:
+            # Ошибка в том, что прислали: пустое поле, неверная дата. Это не
+            # сбой сервера — отвечаем понятно и не пишем трассировку в журнал.
+            LOG.warning("POST %s: %s", u.path, e)
+            return self._send(400, {"error": str(e) if isinstance(e, ValueError)
+                                    else "не хватает поля %s" % e})
+        except Exception as e:
+            LOG.exception("POST %s: %s", self.path, e)
+            return self._send(500, {"error": f"{type(e).__name__}: {e}"})
+        self._send(404, {"error": "нет такого адреса"})
+
+    def _login(self, body):
+        name = (body.get("login") or "").strip().lower()
+        ip = self.client_address[0]
+        wait = auth.locked_for(name, ip) if auth else 0
+        if wait:
+            LOG.warning("вход закрыт на %d с: логин «%s», адрес %s", wait, name, ip)
+            return self._send(429, {"error": "слишком много неудачных попыток, "
+                                             "подождите %d секунд" % wait})
+        token = auth.login(body.get("login"), body.get("password"), ip) if auth else None
+        if not token:
+            LOG.warning("неудачный вход: логин «%s», адрес %s", name, ip)
+            return self._send(401, {"error": "неверный логин или пароль"})
+        LOG.info("вход: «%s» с адреса %s", name, ip)
+        user = auth.user_by_token(token)
+        data = json.dumps({"ok": True, "user": user}, ensure_ascii=False).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Set-Cookie",
+                         f"sid={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _logout(self):
+        raw = self.headers.get("Cookie")
+        if auth and raw and "sid=" in raw:
+            jar = http.cookies.SimpleCookie(raw)
+            if "sid" in jar:
+                auth.logout(jar["sid"].value)
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Set-Cookie", "sid=; Path=/; Max-Age=0")
+        self.send_header("Content-Length", "15")
+        self.end_headers()
+        self.wfile.write(b'{"ok": true}   ')
+
+    def _tickets(self, path, body):
+        me = current_user(self)
+        if not may(me, "tickets"):
+            return self._send(403, {"error": "нет прав на тикеты"})
+        who = me["login"] if me else "—"
+        if path == "/api/tickets/new":
+            tid = tickets.open_ticket(body["loom"], who, body.get("category_id"),
+                                      body.get("comment", ""))
+            return self._send(200, {"ok": True, "id": tid})
+        if path == "/api/tickets/classify":
+            tickets.classify(body["id"], body.get("category_id"), who, body.get("comment", ""))
+            return self._send(200, {"ok": True})
+        if path == "/api/tickets/close":
+            tickets.close_ticket(body["id"], who)
+            return self._send(200, {"ok": True})
+        return self._send(404, {"error": "нет такого адреса"})
+
+
+def live_payload(q):
+    """Живое состояние станков плюс обрывы за день — то, что показывает доска цеха.
+
+    Ответ доски кэшируется, поэтому копируем его, прежде чем дописывать: иначе
+    числа за один день осели бы в кэше и уехали на все мониторы.
+    """
+    board = tickets.board()
+    data = dict(board)
+    data["looms"] = [dict(r) for r in board["looms"]]
+
+    day = q.get("day") or reports.latest_day()
+    letter = q.get("shift", "")
+    stats, totals = reports.loom_day_stats(day, letter)
+    for row in data["looms"]:
+        row["breaks"] = stats.get(row["loom"])
+    data["stats_day"] = day
+    data["stats_shift"] = letter
+    data["stats_totals"] = totals
+    return data
+
+
+# То, что уходит в поток на мониторы: собирается один раз на версию доски,
+# двадцать мониторов получают одни и те же готовые байты.
+LIVE_EVENT = hub.PerVersion(lambda: json.dumps(
+    live_payload({}), ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+
+
+def _age_sec(iso):
+    try:
+        return int(time.time() - datetime.fromisoformat(iso).timestamp())
+    except (TypeError, ValueError):
+        return None
+
+
+def health():
+    """Живо ли приложение — для мониторинга и для дежурного по цеху.
+
+    Отвечает без входа: это не данные, а состояние службы.
+    """
+    out = {"ok": True, "uptime_sec": int(time.time() - STARTED_AT),
+           "source": tickets.SOURCE["mode"], "monitors_connected": hub.HUB.listeners,
+           "checks": {}}
+    try:
+        db = storage.shop()
+        db.execute("SELECT COUNT(*) FROM setting").fetchone()
+        db.close()
+        out["checks"]["shop_db"] = "ок"
+    except Exception as e:
+        out["ok"] = False
+        out["checks"]["shop_db"] = f"{type(e).__name__}: {e}"
+    try:
+        with storage.fact() as db:
+            n = db.execute("SELECT COUNT(*) c FROM shift_full").fetchone()["c"]
+            last = db.execute("SELECT MAX(day) d FROM stop_day").fetchone()["d"]
+        out["checks"]["fact_db"] = f"ок, смен {n}, остановы по {last}"
+    except Exception as e:
+        out["ok"] = False
+        out["checks"]["fact_db"] = f"{type(e).__name__}: {e}"
+
+    s = collector.read_status()
+    live_mode = tickets.SOURCE["mode"] == "fact"
+    if s and collector.alive(s):
+        live = s.get("live") or {}
+        ing = s.get("ingest") or {}
+        age = _age_sec(live.get("at"))
+        out["checks"]["collector"] = "ок: pid %s, снимок FACT %s, станков %s, стоит %s" % (
+            s.get("pid"), live.get("dir", "—"), live.get("looms", "—"), live.get("stopped", "—"))
+        out["checks"]["ingest"] = ("ок: %s, остановов за проход %s, %s мс" % (
+            (ing.get("at") or "—")[11:19], ing.get("stop_rows", 0), ing.get("ms", 0))
+            if ing else "ещё не было прохода")
+        # Снимок обновляется, только когда FACT выложил новый (раз в минуту).
+        if live_mode and (age is None or age > tickets.STALE_SEC):
+            out["ok"] = False
+            out["checks"]["fact"] = "нет свежих данных %s с: %s" % (
+                age if age is not None else "—", s.get("last_error") or "FACT молчит")
+        elif live_mode:
+            out["checks"]["fact"] = "ок, снимок %d с назад" % age
+    else:
+        out["checks"]["collector"] = "не работает"
+        if live_mode:
+            out["ok"] = False
+    if not live_mode:
+        out["checks"]["fact"] = "не нужен: работаем по зеркалу"
+    out["collector"] = ({k: s.get(k) for k in ("pid", "host", "source", "url", "started_at",
+                                               "live", "ingest", "onec", "fact_http", "last_error",
+                                               "last_error_at")} if s else None)
+    return out
+
+
+class Server(ThreadingHTTPServer):
+    # Очередь соединений: после перезапуска сервера 30 мониторов и десяток
+    # людей переподключаются разом, а по умолчанию очередь — пять мест.
+    request_queue_size = 128
+    daemon_threads = True
+
+
+def main():
+    cfg = storage.config()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--port", type=int, default=cfg.get("port", 8780))
+    ap.add_argument("--fact", metavar="URL", default=cfg.get("fact"),
+                    help="брать живое состояние станков прямо с FACT, например http://172.0.30.9")
+    ap.add_argument("--mirror", action="store_true",
+                    help="работать по зеркалу, даже если адрес FACT задан в config.json")
+    ap.add_argument("--no-collector", action="store_true",
+                    help="не запускать сборщик внутри приложения (он работает отдельно)")
+    args = ap.parse_args()
+
+    logs.setup()
+    if not os.path.exists(storage.FACT_DB):
+        raise SystemExit(f"Не найдена база станков: {storage.FACT_DB}")
+    t0 = time.time()
+    info = storage.prepare()
+    if info["rollup_built"]:
+        LOG.info("свёртка остановов построена за %.1f с", time.time() - t0)
+    if info["tech_cards_moved"]:
+        LOG.info("техкарты 1С перенесены в цеховую базу: %d", info["tech_cards_moved"])
+    if auth:
+        auth.cleanup_sessions()
+        temp = auth.ensure_admin()
+        if temp:
+            LOG.info("создан администратор admin, временный пароль напечатан в консоль")
+            print(f"  создан администратор: admin / {temp} (пароль сменить при первом входе)")
+
+    if args.fact and not args.mirror:
+        tickets.SOURCE.update(mode="fact", url=args.fact.rstrip("/"))
+    src = livestate.source_from(tickets.SOURCE["mode"], tickets.SOURCE["url"])
+    # Снимок станков поменялся (сборщик здесь или отдельным процессом) —
+    # доску пересобрать и толкнуть все мониторы. Файл проверяется четыре раза
+    # в секунду: это один вызов stat, а толчок доходит за четверть секунды.
+    hub.watch_file(storage.LIVE_FILE, tickets.invalidate, every=0.25)
+
+    def fresh_data():
+        cache.clear()           # дописаны смены и остановы — отчёты пересчитать
+        tickets.invalidate()
+    running = None if args.no_collector else collector.start_in_app(src, on_ingest=fresh_data)
+
+    LOG.info("запуск: порт %s, источник %s", args.port,
+             tickets.SOURCE["url"] if tickets.SOURCE["mode"] == "fact" else "зеркало")
+    print(f"Приложение цеха: http://localhost:{args.port}")
+    print(f"  доска для мониторов: http://localhost:{args.port}/wall")
+    print(f"  описание API:        http://localhost:{args.port}/api/docs")
+    print(f"  проверка живости:    http://localhost:{args.port}/api/health")
+    print(f"  журнал:              {logs.LOG_FILE}")
+    if tickets.SOURCE["mode"] == "fact":
+        print(f"  живое состояние: {tickets.SOURCE['url']} — тикеты и андон автоматически")
+    else:
+        print("  живое состояние: зеркало factdata (тикеты вручную; для живых данных — --fact)")
+    print("  сборщик данных: " + ("в приложении" if running else "отдельным процессом"
+                                  if not args.no_collector else "выключен ключом --no-collector"))
+    if notify.start():
+        LOG.info("телеграм подключён: сводки, тревога при молчании FACT, андон")
+        print("  телеграм: сводка после смены, тревога, станки без причины")
+    else:
+        print("  телеграм: не настроен (token и chat_id в config.json)")
+    Server(("0.0.0.0", args.port), Handler).serve_forever()

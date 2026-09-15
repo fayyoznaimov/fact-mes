@@ -1,0 +1,456 @@
+<title>Доска цеха</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* Доска висит в цехе и смотрится с трёх метров: одна тёмная тема, крупные
+   цифры, цвет говорит о состоянии. Андон: фиолетовый — стоит без тикета,
+   мигающий красный — без тикета дольше порога тревоги. */
+:root{
+  --bg:#0b0f14; --panel:#131a22; --panel-2:#1a232d; --rule:#25313d;
+  --ink:#e8eef5; --muted:#8fa3b6;
+  --run:#2f9e63; --tech:#c9922b; --off:#c4443b; --ticket:#3a7bd5; --none:#8a4fc4;
+  --alarm:#e5484d; --wait:#56697a; --stale:#b7791f;
+  --font:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);
+     -webkit-font-smoothing:antialiased}
+header{display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+       padding:14px 20px;border-bottom:1px solid var(--rule);background:var(--panel)}
+h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em}
+.shift{font-family:var(--mono);font-size:20px;color:var(--muted)}
+.counts{display:flex;gap:10px;margin-left:auto;flex-wrap:wrap}
+.count{background:var(--panel-2);border:1px solid var(--rule);border-radius:4px;
+       padding:6px 12px;min-width:96px}
+.count b{display:block;font-family:var(--mono);font-size:24px;line-height:1.1;
+         font-variant-numeric:tabular-nums}
+.count span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.count.off b{color:var(--off)} .count.run b{color:var(--run)} .count.none b{color:#c39bf0}
+.count.alarm b{color:var(--alarm)}
+.count.alarm.on{border-color:var(--alarm);background:#2a1215}
+.banner{padding:12px 20px;font-size:18px;font-weight:600;line-height:1.35}
+.banner.alarm{background:var(--alarm);color:#fff}
+.banner.stale{background:var(--stale);color:#111}
+main{padding:16px 20px 28px}
+.grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.tile{position:relative;background:var(--panel);border:1px solid var(--rule);
+      border-left:5px solid var(--rule);border-radius:5px;padding:11px 13px;cursor:pointer;
+      display:flex;flex-direction:column;gap:5px;min-height:112px}
+.tile:hover{background:var(--panel-2)}
+.tile:focus-visible{outline:2px solid var(--ticket);outline-offset:2px}
+.tile.run{border-left-color:var(--run);opacity:.72}
+.tile.tech{border-left-color:var(--tech)}
+.tile.off{border-left-color:var(--off)}
+.tile.wait{border-left-color:var(--wait)}
+.tile.has-ticket{border-left-color:var(--ticket)}
+.tile.noticket{border-left-color:var(--none);background:#1d1526}
+.tile.alarm{border-left-color:var(--alarm);background:#2a1215;animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:inset 0 0 0 3px var(--alarm)}}
+@media (prefers-reduced-motion:reduce){
+  .tile.alarm{animation:none;box-shadow:inset 0 0 0 3px var(--alarm)} }
+body.stale .tile{opacity:.55}
+.tile-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.loom{font-family:var(--mono);font-size:26px;font-weight:600;line-height:1}
+.clock{font-family:var(--mono);font-size:19px;font-variant-numeric:tabular-nums;color:var(--muted)}
+.tile.off .clock,.tile.noticket .clock,.tile.alarm .clock{color:var(--ink)}
+.tile.alarm .clock{font-weight:600}
+.reason{font-size:15px;line-height:1.25;font-weight:500}
+.sub{font-size:12px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
+.badge{font-size:11px;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;
+       border-radius:999px;border:1px solid var(--rule);color:var(--muted)}
+.badge.t{border-color:var(--ticket);color:#9cc2ff}
+.badge.m{border-color:var(--none);color:#d3b4f5}
+.badge.a{border-color:var(--alarm);background:var(--alarm);color:#fff}
+/* обрывы за день: строки под причиной */
+.brk{display:flex;flex-direction:column;gap:1px;font-size:12px;color:var(--muted);
+     border-top:1px solid var(--rule);padding-top:5px;margin-top:2px}
+.brk div{display:flex;justify-content:space-between;gap:8px}
+.brk i{font-style:normal;letter-spacing:.03em}
+.brk b{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--ink);font-weight:500}
+.brk .hot b{color:#e8a33d}
+.soon{padding:10px 20px;border-top:1px solid var(--rule);display:flex;gap:10px 18px;
+      flex-wrap:wrap;align-items:baseline;font-size:15px}
+.soon h2{margin:0;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.soon span b{font-family:var(--mono);font-weight:600}
+.soon .near b{color:#e8a33d}
+footer{padding:10px 20px;color:var(--muted);font-size:12px;border-top:1px solid var(--rule);
+       display:flex;gap:16px;flex-wrap:wrap}
+.legend{display:flex;gap:14px;flex-wrap:wrap}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}
+.link{color:var(--run)} .link.off{color:var(--stale)}
+dialog{background:var(--panel);color:var(--ink);border:1px solid var(--rule);border-radius:6px;
+       padding:0;width:min(520px,92vw)}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+.dlg{padding:18px 20px;display:flex;flex-direction:column;gap:14px}
+.dlg h2{margin:0;font-size:18px}
+.cats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cats button{font:inherit;font-size:14px;text-align:left;padding:10px 12px;cursor:pointer;
+             background:var(--panel-2);color:var(--ink);border:1px solid var(--rule);border-radius:4px}
+.cats button:hover,.cats button:focus-visible{border-color:var(--ticket);outline:none}
+.cats button.call{border-left:3px solid var(--ticket)}
+.row{display:flex;gap:10px;align-items:center;justify-content:space-between}
+.row .act{font:inherit;padding:8px 14px;background:transparent;color:var(--muted);
+          border:1px solid var(--rule);border-radius:4px;cursor:pointer}
+.note{color:var(--muted);font-size:13px;line-height:1.45;margin:0}
+a{color:#9cc2ff}
+@media (min-width:1800px){ .grid{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+  .loom{font-size:32px} .reason{font-size:17px} .banner{font-size:22px} }
+</style>
+
+<header>
+  <h1>Доска цеха</h1>
+  <div class="shift" id="shift">—</div>
+  <div class="counts">
+    <div class="count run"><b id="c-run">—</b><span>работает</span></div>
+    <div class="count"><b id="c-stop">—</b><span>стоит</span></div>
+    <div class="count none"><b id="c-none">—</b><span>без тикета</span></div>
+    <div class="count alarm" id="c-alarm-box"><b id="c-alarm">—</b><span>тревога</span></div>
+    <div class="count"><b id="c-brk">—</b><span>обрывов</span></div>
+    <div class="count"><b id="c-brkh">—</b><span>часов на обрывы</span></div>
+  </div>
+</header>
+<div class="banner stale" id="stale" hidden></div>
+<div class="banner alarm" id="banner" hidden></div>
+
+<main><div class="grid" id="grid"></div></main>
+
+<div class="soon" id="soon" hidden></div>
+<footer>
+  <div class="legend">
+    <span><i style="background:var(--run)"></i>работает</span>
+    <span><i style="background:var(--tech)"></i>обрыв, станок знает причину</span>
+    <span><i style="background:var(--wait)"></i>только что встал</span>
+    <span><i style="background:var(--none)"></i>стоит без тикета</span>
+    <span><i style="background:var(--alarm)"></i>без тикета дольше порога</span>
+    <span><i style="background:var(--ticket)"></i>причина по тикету</span>
+  </div>
+  <div id="foot"></div>
+</footer>
+
+<dialog id="dlg"><form method="dialog" class="dlg">
+  <h2 id="d-title">Станок</h2>
+  <p class="note" id="d-state"></p>
+  <div class="cats" id="d-cats"></div>
+  <p class="note" id="d-hint"></p>
+  <div class="row">
+    <button class="act" value="cancel">Закрыть</button>
+    <span class="note" id="d-msg"></span>
+  </div>
+</form></dialog>
+
+<script>
+const $ = s => document.querySelector(s);
+const REFRESH = 15000;            // опрос — только если поток толчков оборвался
+let DATA = null, CAN_EDIT = false, CURRENT = null, LINK = "опрос";
+
+/* Зона монитора: 80 плиток с трёх метров не прочитать, поэтому каждый экран
+   показывает свой ряд или участок.
+      /wall?zone=D          — весь ряд D
+      /wall?looms=D1-D20    — участок
+      /wall?looms=D1,D5,J7  — перечисление  */
+const Q = new URLSearchParams(location.search);
+const ZONE = (Q.get("zone") || "").toUpperCase().trim();
+const PICK = (Q.get("looms") || "").toUpperCase().trim();
+const parts = s => s.match(/^([A-Z]+)(\d+)$/) || [];
+
+function inZone(name) {
+  name = (name || "").toUpperCase();
+  if (ZONE && !name.startsWith(ZONE)) return false;
+  if (!PICK) return true;
+  return PICK.split(",").some(item => {
+    const [from, to] = item.split("-").map(s => s.trim());
+    if (!to) return name === from;
+    const a = parts(from), b = parts(to), c = parts(name);
+    return a[1] && c[1] === a[1] && b[1] === a[1]
+        && +c[2] >= +a[2] && +c[2] <= +b[2];
+  });
+}
+
+const zoneLabel = ZONE ? "ряд " + ZONE : (PICK ? "участок " + PICK : "");
+
+/* Обрывы показываем за день (или за смену): /wall?day=2026.09.12&shift=B.
+   Без параметра берётся последний день, который есть в данных. Когда день задан
+   руками — значит, смотрят разбор, и плитки сортируются по потерям. */
+const DAY = (Q.get("day") || "").trim();
+const SHIFT = (Q.get("shift") || "").trim().toUpperCase();
+const REVIEW = !!DAY;
+const statsQuery = () => "/api/live"
+  + (DAY ? `?day=${encodeURIComponent(DAY)}` : "?")
+  + (SHIFT ? `&shift=${encodeURIComponent(SHIFT)}` : "");
+
+const hhmm = sec => {
+  sec = Math.max(0, sec|0);
+  const h = Math.floor(sec/3600), m = Math.floor(sec%3600/60), s = sec%60;
+  return h ? `${h}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`
+           : `${m}:${String(s).padStart(2,"0")}`;
+};
+
+/* Уровень андона. Сервер присылает его, но секунды тикают здесь: станок
+   должен покраснеть ровно на десятой минуте, а не при следующем снимке. */
+const RANK = {alarm: 0, noticket: 1, wait: 2, ticket: 3, tech: 4, run: 5};
+function level(l) {
+  if (l.running) return "run";
+  if (l.andon === "ticket") return "ticket";
+  const an = (DATA && DATA.andon) || {warn_min: 2, alarm_min: 10};
+  if (l.andon === "tech" && l.state_sec < 900) return "tech";
+  if (l.state_sec >= an.alarm_min * 60) return "alarm";
+  if (l.state_sec >= an.warn_min * 60) return "noticket";
+  return "wait";
+}
+
+const tileClass = l => {
+  // При разборе за прошлый день цвет говорит о КПД за этот день, а не о том,
+  // что со станком прямо сейчас: сейчас — это уже другая смена.
+  if (REVIEW && l.breaks) {
+    return l.breaks.effic < 60 ? "off" : l.breaks.effic < 75 ? "tech" : "run";
+  }
+  const lv = level(l);
+  if (lv === "ticket") return "has-ticket";
+  if (lv === "tech") return l.machine === "off" ? "off" : "tech";
+  return lv;
+};
+
+const times = n => {           // 21 раз, 23 раза, 25 раз
+  const a = Math.abs(n) % 100, b = a % 10;
+  if (a > 10 && a < 20) return "раз";
+  return (b > 1 && b < 5) ? "раза" : "раз";
+};
+
+const worstCause = b => {
+  const all = [["уток", b.weft_min], ["основа", b.warp_min], ["ворс", b.top_min],
+               ["ручные остановы", b.manual_min]].sort((x, y) => y[1] - x[1]);
+  return all[0][1] ? `Больше всего: ${all[0][0]}, ${all[0][1]} мин` : "Простоев почти не было";
+};
+
+const brkLine = (name, ct, min, hot) => `<div class="${hot ? "hot" : ""}">
+  <i>${name}</i><span><b>${ct}</b> ${times(ct)} · <b>${min}</b> мин</span></div>`;
+
+const breaksBlock = l => {
+  const b = l.breaks;
+  if (!b) return "";
+  const worst = Math.max(b.weft_min, b.warp_min, b.top_min);
+  return `<div class="brk">
+    ${brkLine("уток", b.weft_ct, b.weft_min, b.weft_min === worst && worst > 0)}
+    ${brkLine("основа", b.warp_ct, b.warp_min, b.warp_min === worst && worst > 0)}
+    ${brkLine("ворс", b.top_ct, b.top_min, b.top_min === worst && worst > 0)}
+    <div><i>ожидание оператора</i><span><b>${b.wait_min}</b> мин</span></div>
+  </div>`;
+};
+
+function reasonText(l, lv) {
+  if (REVIEW && l.breaks) return worstCause(l.breaks);
+  if (l.running) return "Работает";
+  if (lv === "noticket" || lv === "alarm") return `${l.cause_ru} — нет тикета`;
+  return l.reason || l.cause_ru;
+}
+
+function render() {
+  const d = DATA;
+  if (!d) return;
+  let looms = d.looms.filter(l => inZone(l.loom));
+  const lv = new Map(looms.map(l => [l.loom, level(l)]));
+  looms = REVIEW
+    // При разборе важно не «что сейчас», а «где больше всего потеряли».
+    ? [...looms].sort((a, b) => ((b.breaks || {}).stop_min || 0) - ((a.breaks || {}).stop_min || 0))
+    : [...looms].sort((a, b) => RANK[lv.get(a.loom)] - RANK[lv.get(b.loom)] || b.state_sec - a.state_sec);
+  const stopped = looms.filter(l => !l.running);
+  const noTicket = looms.filter(l => ["noticket", "alarm"].includes(lv.get(l.loom)));
+  const alarms = looms.filter(l => lv.get(l.loom) === "alarm");
+
+  const st = d.stats_totals || {};
+  const dayLabel = (d.stats_day || "").replace(/\./g, "/")
+    + (d.stats_shift ? " · смена " + d.stats_shift : "");
+  $("#shift").textContent = (REVIEW ? "разбор за " + dayLabel
+      : "смена " + (d.shift || "").replace(/\./g,"/"))
+    + (zoneLabel ? " · " + zoneLabel : "");
+  $("#c-run").textContent = looms.length - stopped.length;
+  $("#c-stop").textContent = stopped.length;
+  $("#c-none").textContent = REVIEW ? "—" : noTicket.length;
+  $("#c-alarm").textContent = REVIEW ? "—" : alarms.length;
+  $("#c-alarm-box").classList.toggle("on", !REVIEW && alarms.length > 0);
+  $("#c-brk").textContent = st.breaks_ct != null ? st.breaks_ct.toLocaleString("ru-RU") : "—";
+  $("#c-brkh").textContent = st.breaks_min != null ? Math.round(st.breaks_min / 60) : "—";
+
+  // Тревога крупно наверху: кого и сколько времени никто не объяснил.
+  const an = d.andon || {alarm_min: 10};
+  const ban = $("#banner");
+  ban.hidden = REVIEW || !alarms.length;
+  if (!ban.hidden) {
+    ban.textContent = `Стоят без тикета дольше ${an.alarm_min} мин: `
+      + alarms.slice(0, 8).map(l => `${l.loom} · ${hhmm(l.state_sec)}`).join(", ")
+      + (alarms.length > 8 ? ` и ещё ${alarms.length - 8}` : "")
+      + " — нажмите на станок и выберите, кого вызвали";
+  }
+  const stale = $("#stale");
+  const bad = !REVIEW && (d.stale || d.error);
+  stale.hidden = !bad;
+  document.body.classList.toggle("stale", !!bad);
+  if (bad) {
+    stale.textContent = d.error ? "Нет данных от FACT: " + d.error
+      : `Данные не живые: FACT не присылал снимок ${Math.round((d.snapshot_age_sec || 0) / 60)} мин. `
+        + "Доска показывает последнее известное состояние.";
+  }
+
+  $("#grid").innerHTML = looms.map(l => {
+    const lvl = lv.get(l.loom);
+    return `<div class="tile ${tileClass(l)}" data-loom="${l.loom}" tabindex="0" role="button"
+        aria-label="Станок ${l.loom}">
+      <div class="tile-top"><span class="loom">${l.loom}</span>
+        <span class="clock">${REVIEW && l.breaks ? l.breaks.stop_min + " мин"
+                                                 : hhmm(l.state_sec)}</span></div>
+      <div class="reason">${reasonText(l, lvl)}</div>
+      <div class="sub">
+        <span>${l.style}</span>
+        ${l.running ? `<span>${l.rpm} об/мин</span>` : ""}
+        <span>КПД ${(l.breaks ? l.breaks.effic : l.effic_shift).toFixed(1)}%</span>
+        ${l.reason_from === "тикет" ? '<span class="badge t">тикет</span>' : ""}
+        ${!REVIEW && lvl === "noticket" ? '<span class="badge m">нет тикета</span>' : ""}
+        ${!REVIEW && lvl === "alarm" ? `<span class="badge a">${l.escalated ? "мастеру сообщено" : "тревога"}</span>` : ""}
+      </div>
+      ${breaksBlock(l)}
+    </div>`;
+  }).join("");
+  setFoot();
+
+  document.querySelectorAll(".tile").forEach(t => {
+    const open = () => openDialog(d.looms.find(l => l.loom === t.dataset.loom));
+    t.onclick = open;
+    t.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } };
+  });
+}
+
+function setFoot() {
+  const d = DATA;
+  if (!d) return;
+  const shown = d.looms.filter(l => inZone(l.loom)).length;
+  const when = (d.updated_at || "").slice(11,19);
+  const src = d.source === "fact" ? "живые данные FACT" : "зеркало (данные не живые)";
+  $("#foot").innerHTML = `Обновлено ${when} · ${src} · `
+    + (REVIEW ? "разбор" : `<span class="link ${LINK === "онлайн" ? "" : "off"}">связь: ${LINK}</span>`)
+    + ` · станков ${shown}` + (shown !== d.totals.looms ? ` из ${d.totals.looms}` : "")
+    + ` · открытых тикетов ${d.totals.open_tickets}`
+    + ` · обрывы и простои за ${(d.stats_day || "").replace(/\./g, "/")}`;
+}
+
+function openDialog(loom) {
+  CURRENT = loom;
+  const lv = level(loom);
+  $("#d-title").textContent = "Станок " + loom.loom + " · " + loom.style;
+  $("#d-state").textContent = loom.running
+    ? `Работает ${hhmm(loom.state_sec)}, ${loom.rpm} об/мин.`
+    : `Стоит ${hhmm(loom.state_sec)}. Станок сообщает: ${loom.cause_ru}. `
+      + `Причина простоя: ${loom.reason} (${loom.reason_from}).`;
+
+  const techLocked = !loom.running && lv === "tech";
+  $("#d-cats").innerHTML = (techLocked || loom.running) ? "" :
+    DATA.categories.map(c =>
+      `<button type="button" class="${c.call ? "call" : ""}" data-cat="${c.id}"
+        ${loom.ticket_category === c.id ? 'style="border-color:var(--ticket)"' : ""}>${c.name}</button>`
+    ).join("");
+
+  $("#d-hint").textContent = loom.running
+    ? "Станок работает — тикет не нужен."
+    : techLocked
+      ? "Станок сам назвал причину (обрыв) — она и остаётся в отчёте, тикет её не перебивает."
+      : CAN_EDIT
+        ? "Выберите, кого вызвали. Всё время этого простоя уйдёт в эту причину."
+        : "Чтобы завести тикет, войдите в систему на главной странице.";
+  $("#d-msg").textContent = "";
+
+  document.querySelectorAll("#d-cats button").forEach(b => b.onclick = async () => {
+    if (!CAN_EDIT) return ($("#d-msg").textContent = "Нужен вход в систему");
+    try {
+      if (CURRENT.ticket_id) {
+        await post("/api/tickets/classify", { id: CURRENT.ticket_id, category_id: b.dataset.cat });
+      } else {
+        await post("/api/tickets/new", { loom: CURRENT.loom, category_id: b.dataset.cat });
+      }
+      $("#d-msg").textContent = "Записано: " + b.textContent;
+      if (LINK !== "онлайн") await load();     // по потоку доска обновится сама
+      setTimeout(() => $("#dlg").close(), 700);
+    } catch (e) { $("#d-msg").textContent = "Не записалось: " + e.message; }
+  });
+  $("#dlg").showModal();
+}
+
+async function post(path, body) {
+  const r = await fetch(path, {method:"POST", headers:{"Content-Type":"application/json"},
+                              body: JSON.stringify(body)});
+  const j = await r.json();
+  if (j.error) throw new Error(j.error);
+  return j;
+}
+
+async function load() {
+  try {
+    DATA = await fetch(statsQuery()).then(r => r.json());
+    render();
+  } catch (e) { $("#foot").textContent = "Сервер не ответил: " + e.message; }
+}
+
+async function whoAmI() {
+  try {
+    const me = await fetch("/api/me").then(r => r.json());
+    CAN_EDIT = (me.permissions || []).includes("tickets");
+  } catch (e) { CAN_EDIT = false; }
+}
+
+/* Скоро на станках: съём ткани и сход навоев в ближайшие два часа — чтобы
+   съёмщик и бригада узловязки подошли заранее, а не когда станок уже стоит. */
+async function loadSoon() {
+  if (REVIEW) return;
+  try {
+    const f = await fetch("/api/forecast?hours=2").then(r => r.json());
+    const ev = (f.events || []).filter(e => inZone(e.loom)).slice(0, 10);
+    const box = $("#soon");
+    box.hidden = !ev.length;
+    // Нет связи с FACT — сроки посчитаны от последнего снимка, говорим от какого.
+    box.innerHTML = `<h2>Скоро${f.stale ? ` <small>(данные FACT от ${f.snapshot_at})</small>` : ""}</h2>` + ev.map(e =>
+      `<span class="${e.in_min <= 15 ? "near" : ""}"><b>${e.loom}</b> ${e.what} через `
+      + `<b>${e.in_min < 60 ? e.in_min + " мин" : Math.floor(e.in_min / 60) + " ч " + (e.in_min % 60) + " мин"}</b></span>`
+    ).join("");
+  } catch (e) { /* прогноз — не главное, доска работает и без него */ }
+}
+
+/* Связь: сервер сам присылает доску, как только поменялось состояние станков
+   или кто-то завёл тикет. Если поток оборвался — опрос раз в 15 секунд, пока
+   браузер не переподключится (он делает это сам). */
+let poll = null;
+const startPoll = () => { if (!poll) { poll = setInterval(load, REFRESH); load(); } };
+const stopPoll = () => { if (poll) { clearInterval(poll); poll = null; } };
+
+whoAmI();
+setInterval(whoAmI, 5 * 60000);
+if (REVIEW || !window.EventSource) {
+  load();
+  setInterval(load, REFRESH);
+} else {
+  const es = new EventSource("/api/stream");
+  es.addEventListener("board", e => {
+    LINK = "онлайн";
+    stopPoll();
+    try { DATA = JSON.parse(e.data); render(); } catch (err) { /* битый кадр — ждём следующий */ }
+  });
+  es.onerror = () => { LINK = "переподключение"; setFoot(); startPoll(); };
+  setTimeout(() => { if (!DATA) load(); }, 3000);
+}
+loadSoon();
+setInterval(loadSoon, 60000);
+
+// Секунды простоя тикают между толчками — на мониторе это видно издалека.
+// Если станок перешёл порог андона, доска перерисовывается сразу.
+setInterval(() => {
+  if (!DATA || REVIEW) return;
+  let changed = false;
+  DATA.looms.forEach(l => {
+    const before = level(l);
+    l.state_sec += 1;
+    if (level(l) !== before) changed = true;
+  });
+  if (changed) return render();
+  document.querySelectorAll(".tile").forEach(t => {
+    const l = DATA.looms.find(x => x.loom === t.dataset.loom);
+    if (l) t.querySelector(".clock").textContent = hhmm(l.state_sec);
+  });
+}, 1000);
+</script>

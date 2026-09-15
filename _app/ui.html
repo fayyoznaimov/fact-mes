@@ -1,0 +1,3115 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Цех: отчёты и зарплата</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --page:#f4f3ef; --surface:#fcfcfb; --surface-2:#efeee9; --ink:#14130f; --ink-2:#52514e;
+  --muted:#898781; --hair:#e1e0d9; --rule:#c3c2b7; --accent:#2a78d6;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --good:#0ca30c; --critical:#d03b3b;
+}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --page:#0d0d0d; --surface:#1a1a19; --surface-2:#232321; --ink:#fff; --ink-2:#c3c2b7;
+  --muted:#898781; --hair:#2c2c2a; --rule:#383835; --accent:#3987e5;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70;
+}}
+:root[data-theme="dark"]{
+  --page:#0d0d0d; --surface:#1a1a19; --surface-2:#232321; --ink:#fff; --ink-2:#c3c2b7;
+  --muted:#898781; --hair:#2c2c2a; --rule:#383835; --accent:#3987e5;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);font-family:"IBM Plex Sans",system-ui,"Segoe UI",sans-serif;font-size:14px;line-height:1.45}
+.wrap{max-width:none;margin:0 auto;padding:16px 16px 60px;display:flex;flex-direction:column;gap:16px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--rule);padding-bottom:10px}
+h1{margin:0;font-size:19px;font-weight:600;letter-spacing:-.01em}
+nav{display:flex;gap:6px;flex-wrap:wrap}
+nav button{font:inherit;padding:7px 14px;background:var(--surface);color:var(--ink);border:1px solid var(--rule);border-radius:3px;cursor:pointer}
+nav button[aria-current="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+/* На телефоне 15 вкладок занимали пять рядов (250 px) — одна прокручиваемая строка */
+@media (max-width:640px){
+  nav{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;padding-bottom:4px;margin:0 -16px;padding-inline:16px}
+  nav button{flex:0 0 auto;padding:7px 12px}
+  header{align-items:stretch}
+}
+.bar{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;background:var(--surface);border:1px solid var(--hair);padding:11px}
+.f{display:flex;flex-direction:column;gap:4px}
+.f label{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+select,input,button.act{font:inherit;padding:6px 9px;background:var(--surface);color:var(--ink);border:1px solid var(--rule);border-radius:3px}
+button.act{cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(146px,1fr));gap:1px;background:var(--hair);border:1px solid var(--hair)}
+.tile{background:var(--surface);padding:11px 13px;display:flex;flex-direction:column;gap:2px}
+.tile .l{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.tile .v{font-size:24px;font-weight:600;line-height:1.05}
+.tile .v small{font-size:12px;font-weight:500;color:var(--ink-2)}
+.tbl-wrap{overflow:auto;border:1px solid var(--hair);background:var(--surface);max-height:72vh}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:6px 8px;text-align:left;border-bottom:1px solid var(--hair);white-space:nowrap}
+th{position:sticky;top:0;background:var(--surface);font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:600;z-index:1}
+thead tr.grp th{top:0;background:var(--surface-2);text-align:center;color:var(--ink-2);border-bottom:1px solid var(--rule)}
+thead tr.cols th{top:26px}
+th.n,td.n{text-align:right;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+td.sep,th.sep{border-left:1px solid var(--rule)}
+tbody tr:hover{background:var(--surface-2)}
+tfoot td{position:sticky;bottom:0;font-weight:600;background:var(--surface-2);border-top:2px solid var(--rule)}
+.bad{color:var(--critical);font-weight:600}
+.ok{color:var(--good)}
+.note{color:var(--muted);font-size:12px;max-width:78ch}
+.msg{padding:8px 11px;border:1px solid var(--rule);background:var(--surface-2);font-size:13px;overflow-wrap:anywhere}
+.msg.err{border-color:var(--critical);color:var(--critical)}
+/* !important: иначе класс проигрывает стилю, прописанному прямо в теге, и
+   форма входа остаётся поверх приложения даже после успешного входа */
+.hidden{display:none !important}
+#gate{position:fixed;inset:0;background:var(--page);z-index:50;
+      display:flex;align-items:center;justify-content:center}
+/* ссылка, которая выглядит кнопкой (переход на доску мониторов) */
+a.act{display:inline-flex;align-items:center;justify-content:center;padding:7px 14px;
+      border:1px solid var(--rule);border-radius:3px;background:var(--surface);
+      color:var(--ink);text-decoration:none;font:inherit}
+a.act.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+/* состояние станка на дашборде: зелёный работает, красный стоит */
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:baseline}
+.dot.run{background:#2f9e63}
+.dot.stop{background:#c4443b}
+.dot.none{background:var(--muted)}
+tr.is-stop td:first-child{box-shadow:inset 3px 0 0 #c4443b}
+tr.is-run td:first-child{box-shadow:inset 3px 0 0 #2f9e63}
+select.art{font:inherit;font-size:12px;max-width:190px}
+/* Окраска отчёта — те же правила и цвета, что в шаблоне Excel (381 правило
+   свелось к семи порогам). Цвета заданы явно: это цвета цеха, а не темы. */
+.c-red{background:#FF0000;color:#fff;font-weight:600}
+.c-yel{background:#FFFF00;color:#111;font-weight:600}
+.c-rpm{background:#FFD966;color:#111}
+.c-rpm2{background:#F4B084;color:#111}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:8px}
+.legend i{display:inline-block;width:22px;height:11px;border:1px solid var(--hair);margin-right:5px;vertical-align:-1px}
+/* до входа показываем только форму входа: она лежит внутри .wrap, поэтому
+   скрываем соседей, а не весь блок */
+body.locked .wrap > *:not(#gate){display:none}
+.grid2{display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:start}
+@media (max-width:900px){ .grid2{grid-template-columns:1fr} }
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:5px 10px;border:1px solid var(--rule);background:var(--surface);color:var(--ink);font:inherit;border-radius:999px;font-size:12px;cursor:pointer}
+.chip:disabled{opacity:.6;cursor:default}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.sect{margin:18px 0 6px;font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.keybox{font-family:"IBM Plex Mono",monospace;padding:9px 11px;border:1px dashed var(--accent);
+        background:var(--surface-2);word-break:break-all;font-size:13px}
+th.none-col,td.none-col{background:color-mix(in srgb,var(--critical) 8%,transparent)}
+.checks{display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding-top:6px}
+.checks label{display:flex;gap:5px;align-items:center;font-size:13px}
+/* производственный отчёт: сортировка по щелчку на колонке, фильтр под каждой */
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover,th.sortable:focus-visible{color:var(--ink)}
+th.sortable .ar{display:inline-block;min-width:10px;margin-left:3px;color:var(--accent)}
+thead tr.flt th{top:53px;padding:3px 4px;background:var(--surface)}
+input.flt{width:100%;min-width:40px;font:12px "IBM Plex Mono",monospace;padding:2px 4px;
+          border:1px solid var(--hair);border-radius:2px;background:var(--surface);color:var(--ink)}
+input.flt.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--surface))}
+input.flt.bad-in{border-color:var(--critical);color:var(--critical)}
+/* заправка станка, введённая вручную: подчёркнута, номер станка открывает ввод */
+td.man{box-shadow:inset 0 -2px 0 var(--accent)}
+td.edit-loom{cursor:pointer;white-space:nowrap}
+td.edit-loom .pen{color:var(--muted);font-size:12px}
+td.edit-loom:hover strong{text-decoration:underline}
+dialog.ls{border:1px solid var(--rule);background:var(--surface);color:var(--ink);padding:0;width:min(600px,94vw)}
+dialog.ls::backdrop{background:rgba(0,0,0,.45)}
+dialog.ls form{padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+dialog.ls h3{margin:0;font-size:16px}
+.ls-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.ls-yarn th,.ls-yarn td{padding:4px 6px;border-bottom:1px solid var(--hair);white-space:normal}
+.ls-yarn th[scope=row]{position:static;text-align:left;font-size:13px;color:var(--ink-2);text-transform:none;letter-spacing:0}
+.ls-yarn input{width:100%}
+dialog.ls .btns{display:flex;gap:8px;justify-content:flex-end}
+/* таблица заправки: ячейки-поля, как в Excel */
+#sg-table td{padding:2px 3px}
+#sg-table input.sg{width:100%;min-width:66px;font:13px "IBM Plex Mono",monospace;padding:4px 5px;
+  border:1px solid transparent;background:transparent;color:var(--ink);border-radius:2px}
+#sg-table input.sg.num{text-align:right;min-width:58px}
+#sg-table input.sg:focus{border-color:var(--accent);background:var(--surface);outline:none}
+#sg-table input.sg.ref{color:var(--muted);font-style:italic}
+#sg-table input.sg.chg{background:color-mix(in srgb,#f2c94c 32%,var(--surface));color:var(--ink);font-style:normal}
+#sg-table input.sg.bad{border-color:var(--critical);color:var(--critical)}
+#sg-table input.sg[readonly]{cursor:default}
+#sg-table input.sg.yw{min-width:112px}
+/* выпадающий отбор пряжи и лота: весь список места, фильтр — по набранному */
+.pick{position:fixed;z-index:1000;max-height:300px;overflow:auto;min-width:200px;padding:4px 0;
+  background:var(--surface);color:var(--ink);border:1px solid color-mix(in srgb,var(--muted) 45%,transparent);
+  border-radius:6px;box-shadow:0 10px 28px rgba(0,0,0,.35);font-size:13px}
+.pick-o{display:flex;justify-content:space-between;gap:14px;padding:6px 10px;cursor:pointer;white-space:nowrap}
+.pick-o b{font:600 13px "IBM Plex Mono",monospace}
+.pick-o span{color:var(--muted);font-size:12px}
+.pick-o.hi{background:color-mix(in srgb,var(--accent) 24%,transparent)}
+.pick-o.cur b{color:var(--accent)}
+.pick-h{padding:6px 10px 2px;color:var(--muted);font-size:11px;letter-spacing:.04em;text-transform:uppercase}
+.pick-empty{padding:6px 10px;color:var(--muted)}
+/* производственный отчёт: группы колонок сворачиваются щелчком по заголовку */
+/* Колонки по содержимому, а не поровну: таблица не растягивается на лишнее место,
+   а если места мало — заголовки и пряжа/лот переносятся на вторую строку. */
+#rep-table{width:auto;font-size:12px}
+#rep-table th,#rep-table td{padding:4px 4px}
+#rep-table tr.cols th{white-space:normal;line-height:1.15;vertical-align:bottom;top:var(--rep-h1,26px)}
+#rep-table tr.flt th{top:var(--rep-h2,53px);padding:2px 3px}
+#rep-table input.flt{min-width:28px;padding:2px 3px;font-size:11px}
+#rep-table td.tx{white-space:normal;min-width:7ch;line-height:1.25}
+#rep-table tr.grp th.tg{cursor:pointer;user-select:none;white-space:normal;line-height:1.15}
+/* «Развернуть отчёт»: шапка, вкладки, панель и плитки уходят — остаётся таблица на весь экран */
+.rep-strip{display:none}
+body.rep-full .wrap{padding:6px 10px 8px;gap:6px}
+body.rep-full .wrap > *:not(#tab-report){display:none !important}
+body.rep-full #tab-report > *:not(.tbl-wrap):not(.rep-strip){display:none !important}
+body.rep-full .rep-strip{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;color:var(--ink-2)}
+body.rep-full .rep-strip .act{padding:3px 10px}
+body.rep-full #tab-report .tbl-wrap{margin-top:0 !important;max-height:calc(100vh - 50px)}
+#rep-table tr.grp th.tg:hover,#rep-table tr.grp th.tg:focus-visible{color:var(--ink)}
+#rep-table .car{display:inline-block;width:12px;color:var(--accent)}
+#rep-table th.ph,#rep-table td.ph{min-width:22px;width:22px;padding:0 4px;text-align:center;color:var(--muted)}
+#rep-table th.ph[data-g]{cursor:pointer}
+/* план цеха: станок × день, цвет клетки — заказ */
+#lp-table{font-size:12px}
+#lp-table th.d,#lp-table td.d{min-width:104px;border-left:1px solid var(--hair);vertical-align:top;padding:4px 6px;white-space:normal;line-height:1.3}
+#lp-table td.d{cursor:pointer;user-select:none}
+#lp-table td.d.past{opacity:.8}
+#lp-table td.d.sel{outline:2px solid var(--accent);outline-offset:-2px}
+#lp-table td.d.hl{box-shadow:inset 0 0 0 2px hsl(var(--h) 70% 45%)}
+#lp-table td.d.over{background:color-mix(in srgb,var(--accent) 28%,transparent) !important}
+.lp-wrap{display:grid;grid-template-columns:270px minmax(0,1fr);gap:12px;align-items:start}
+@media (max-width:900px){.lp-wrap{grid-template-columns:minmax(0,1fr)}}
+.lp-pal{display:flex;flex-direction:column;gap:8px}
+.lp-pal #lp-q{width:100%}
+.lp-flt{display:flex;gap:4px;flex-wrap:wrap}
+.lp-flt button{font:inherit;font-size:12px;padding:2px 8px;border:1px solid var(--rule);background:var(--surface);color:var(--ink-2);cursor:pointer}
+.lp-flt button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.lp-orders{max-height:56vh;overflow:auto;display:flex;flex-direction:column;gap:4px;padding-right:2px}
+.oc{border:1px solid var(--hair);border-left:4px solid hsl(var(--h) 60% 50%);background:var(--surface);padding:5px 8px;cursor:grab;font-size:12px;line-height:1.35}
+.oc:hover{border-color:var(--rule)}
+.oc.on{outline:2px solid var(--accent);outline-offset:-1px}
+.oc .t{display:flex;justify-content:space-between;gap:6px}
+.oc b{font-family:"IBM Plex Mono",monospace}
+.oc .m{color:var(--muted)}
+.oc .b2{height:4px;background:var(--hair);margin-top:4px;position:relative}
+.oc .b2 i{position:absolute;left:0;top:0;bottom:0;background:var(--good)}
+.oc .b2 i.p{background:hsl(var(--h) 60% 50% / .45)}
+.oc .tg{font:inherit;font-size:13px;border:0;background:none;color:var(--accent);cursor:pointer;padding:0 2px}
+.oc .pls{display:flex;flex-direction:column;gap:2px;margin-top:5px}
+.oc .pl{display:flex;justify-content:space-between;gap:6px;padding:3px 6px;border:1px solid var(--hair);background:var(--surface-2);cursor:grab}
+.oc .pl:hover{border-color:var(--accent)}
+#lp-table td.d.amb{outline:2px dashed var(--critical);outline-offset:-3px}
+.lp-prods{font-size:11px}
+.lp-prods th,.lp-prods td{padding:2px 4px}
+.lp-prods tr.ys td{color:var(--muted);white-space:normal;border-bottom:1px solid var(--rule)}
+.lp-card{font-size:12px;border:1px solid var(--hair);background:var(--surface-2);padding:8px 10px}
+.lp-card dl{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:6px 0 0}
+.lp-card dt{color:var(--muted)}
+.lp-card dd{margin:0}
+dialog.lp-dlg{border:1px solid var(--rule);background:var(--surface);color:var(--ink);padding:16px;max-width:min(92vw,720px)}
+dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
+#oc-json{max-height:60vh;overflow:auto;font-size:12px;background:var(--surface-2);padding:10px;margin:0}
+#lp-table th.today,#lp-table td.today{box-shadow:inset 2px 0 0 var(--accent),inset -2px 0 0 var(--accent)}
+#lp-table th.wk{color:var(--critical)}
+#lp-table td.d[style*="--h"]{background:hsl(var(--h) 65% 50% / .13)}
+#lp-table td.d b{font-family:"IBM Plex Mono",monospace;font-weight:600}
+#lp-table td.d .fx{display:block;margin-top:2px;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-size:11px;white-space:nowrap;color:var(--ink-2)}
+#lp-table td.d .fx.lo{color:var(--critical)}
+#lp-table td.d .nt{color:var(--muted);font-style:italic}
+#lp-table td.lm{position:sticky;left:0;background:var(--surface);font-weight:600;z-index:1}
+#lp-table th:first-child{left:0;z-index:2}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Цех: отчёты и зарплата</h1>
+    <nav>
+      <button data-tab="report" aria-current="true">Производственный отчёт</button>
+      <button data-tab="setup">Заправка</button>
+      <button data-tab="dash">Дашборд</button>
+      <button data-tab="plan">План</button>
+      <button data-tab="salary">Зарплата</button>
+      <button data-tab="assign">Расстановка</button>
+      <button data-tab="people">Операторы</button>
+      <button data-tab="kpi">KPI</button>
+      <button data-tab="explorer">Простои</button>
+      <button data-tab="bottle">Узкие места</button>
+      <button data-tab="manual">Ручные остановы</button>
+      <button data-tab="tickets">Тикеты</button>
+      <button data-tab="walk">Обход цеха</button>
+      <button data-tab="settings">Настройки</button>
+      <button data-tab="users">Пользователи</button>
+    </nav>
+    <div class="meta" id="whoami"></div>
+  </header>
+  <div id="msg" class="msg hidden"></div>
+
+  <!-- ВХОД -->
+  <div id="gate" class="hidden">
+    <form id="login-form" style="background:var(--surface);border:1px solid var(--rule);padding:22px;width:320px;display:flex;flex-direction:column;gap:12px">
+      <h2 style="margin:0;font-size:16px;text-transform:none;letter-spacing:0;color:var(--ink)">Вход в систему цеха</h2>
+      <label class="f"><span>Логин</span><input id="login-user" autocomplete="username" required></label>
+      <label class="f"><span>Пароль</span><input id="login-pass" type="password" autocomplete="current-password" required></label>
+      <div id="login-new" class="hidden f"><span>Новый пароль</span>
+        <input id="login-newpass" type="password" autocomplete="new-password" minlength="6">
+        <span class="note">Временный пароль нужно сменить</span></div>
+      <button class="act primary" type="submit">Войти</button>
+      <div id="login-err" class="note" style="color:var(--critical)"></div>
+    </form>
+  </div>
+
+  <!-- ПОЛЬЗОВАТЕЛИ -->
+  <section id="tab-users" class="hidden">
+    <div class="bar">
+      <div class="f"><label for="u-login">Логин</label><input id="u-login" size="12" autocomplete="off"></div>
+      <div class="f"><label for="u-name">Имя</label><input id="u-name" size="20" autocomplete="off"></div>
+      <div class="f"><label for="u-role">Роль</label><select id="u-role"></select></div>
+      <div class="f"><label for="u-pass">Временный пароль</label><input id="u-pass" size="14" autocomplete="off"></div>
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="u-add">Создать</button></div>
+    </div>
+    <div class="tbl-wrap" style="margin-top:14px">
+      <table id="u-table">
+        <thead><tr><th>Логин</th><th>Имя</th><th>Роль</th><th>Активен</th><th>Последний вход</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="note">Пароли хранятся только хэшем — посмотреть их нельзя, можно задать новый. Роли: администратор — всё; мастер — назначения, тикеты, выгрузка; оператор — тикеты и просмотр; наблюдатель — только просмотр.</p>
+  </section>
+
+  <!-- ОТЧЁТ -->
+  <section id="tab-report">
+    <div class="bar">
+      <div class="f"><label for="rep-day">День</label><select id="rep-day"></select></div>
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="rep-full" title="Только таблица, на весь экран. Выход — Esc">Развернуть отчёт</button></div>
+      <div class="f"><label>&nbsp;</label><button class="act" id="rep-excel">Скачать Excel</button></div>
+      <div class="f"><label for="rep-flag">Показывать</label><select id="rep-flag">
+        <option value="all">все станки</option><option value="red">только с красным</option>
+        <option value="warn">с жёлтым или красным</option></select></div>
+      <div class="f"><label>&nbsp;</label><button class="act" id="rep-reset">Сбросить фильтры и сортировку</button></div>
+      <div class="f"><label>Раскрыть колонки</label><div class="checks" style="padding-top:4px">
+        <label><input type="checkbox" id="rg-setup"> Заправка</label>
+        <label><input type="checkbox" id="rg-mend"> Mending time</label>
+        <label title="Свёрнутая смена показывает только итог"><input type="checkbox" id="rg-shift"> Смены A / B / C</label>
+      </div></div>
+      <div class="f"><label>&nbsp;</label><span class="note" id="rep-count" style="padding:7px 0"></span></div>
+    </div>
+    <div class="tiles" id="rep-tiles" style="margin-top:14px"></div>
+    <div class="rep-strip" id="rep-strip">
+      <span><b>Производственный отчёт</b> · <span id="rep-strip-day"></span> <span id="rep-strip-info" class="note"></span></span>
+      <button class="act" id="rep-strip-exit">Свернуть <span class="note">(Esc)</span></button>
+    </div>
+    <div class="tbl-wrap" style="margin-top:14px">
+      <table id="rep-table">
+        <thead></thead>
+        <tbody></tbody><tfoot></tfoot>
+      </table>
+    </div>
+    <p class="note" style="margin-top:6px">Щелчок по названию колонки — сортировка (ещё раз — в обратную
+      сторону, третий — как было). Фильтр под колонкой: <code>&gt;60</code>, <code>&lt;70</code>,
+      <code>50-80</code>, <code>=0</code>; для станков — <code>D</code>, <code>J1-J14</code>,
+      <code>D1,D5</code>. Итоги и плитки сверху считаются по тому, что осталось на экране.
+      Нажмите на номер станка, чтобы ввести GSM, вес штуки, PPT, пряжу и её лот; введённое
+      вручную подчёркнуто.</p>
+
+    <dialog id="ls-dlg" class="ls"><form method="dialog">
+      <h3 id="ls-title">Заправка станка</h3>
+      <p class="note" id="ls-note"></p>
+      <div class="ls-grid">
+        <label class="f"><span>С какого дня</span><input id="ls-from" type="date"></label>
+        <label class="f"><span>GSM</span><input id="ls-gsm" inputmode="decimal" autocomplete="off"></label>
+        <label class="f"><span>Вес штуки, кг</span><input id="ls-weight_kg" inputmode="decimal"
+          placeholder="0,635 или 635 г" autocomplete="off"></label>
+        <label class="f"><span>PPT, пиков на изделие</span><input id="ls-ppt" inputmode="numeric" autocomplete="off"></label>
+        <label class="f"><span>Панелей</span><input id="ls-panels" inputmode="numeric" autocomplete="off"></label>
+      </div>
+      <table class="ls-yarn"><thead><tr><th></th><th>Пряжа</th><th>Лот</th></tr></thead>
+        <tbody id="ls-yarns"></tbody></table>
+      <label class="checks" id="ls-same-wrap"><input type="checkbox" id="ls-same"> <span id="ls-same-text"></span></label>
+      <p class="note">Запись действует с указанного дня, пока станок не перезаправят. Пустое поле —
+        значение берётся из справочника артикулов и техкарты 1С.</p>
+      <div class="btns"><button class="act" value="cancel" formnovalidate>Отмена</button>
+        <button class="act primary" id="ls-save" type="button">Сохранить</button></div>
+    </form></dialog>
+    <div class="legend">
+      <span><i style="background:#FF0000"></i>плохо: КПД 1–69, ворс 41+, уток и основа 61+, прочие 21+, «Итого» 121+</span>
+      <span><i style="background:#FFFF00"></i>внимание: КПД 70–79, ворс 30–40, уток и основа 50–60, прочие 16–20, «Итого» 91–120</span>
+      <span><i style="background:#FFD966"></i>об/мин 250–519</span>
+      <span><i style="background:#F4B084"></i>об/мин ниже 500</span>
+    </div>
+  </section>
+
+  <!-- ЗАПРАВКА ТАБЛИЦЕЙ: все станки сразу, как в Excel -->
+  <section id="tab-setup" class="hidden">
+    <div class="bar">
+      <div class="f"><label for="sg-day">Заправка с дня</label><input id="sg-day" type="date"></div>
+      <div class="f"><label for="sg-filter">Станки</label><input id="sg-filter" size="10"
+        placeholder="D, J1-J14" autocomplete="off"></div>
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="sg-save">Сохранить изменения</button></div>
+      <div class="f"><label>&nbsp;</label><button class="act" id="sg-fill">Значение — на отмеченные</button></div>
+      <div class="f"><label>&nbsp;</label><button class="act" id="sg-row">Строку — на отмеченные</button></div>
+      <div class="f"><label>&nbsp;</label><button class="act" id="sg-same">Отметить с тем же кодом ткани</button></div>
+      <div class="f"><label>&nbsp;</label><button class="act" id="sg-undo">Отменить правки</button></div>
+      <div class="f"><label>&nbsp;</label><span class="note" id="sg-state" style="padding:7px 0"></span></div>
+    </div>
+    <p class="note" style="max-width:none;margin-top:8px">Как в Excel: <b>Enter</b> — вниз по колонке,
+      <b>Ctrl+D</b> — взять значение сверху, блок из Excel вставляется целиком (<b>Ctrl+V</b> в верхнюю
+      левую ячейку). Отметьте станки галочками и протяните значение или всю строку. Серым курсивом —
+      из справочника, обычным — введено вручную, жёлтым — изменено и ещё не сохранено, красным —
+      пряжи нет в справочнике. <span id="sg-note-day"></span></p>
+    <div class="tbl-wrap" style="margin-top:8px">
+      <table id="sg-table"><thead></thead><tbody></tbody></table>
+    </div>
+
+    <h3 class="sect">Справочник пряжи</h3>
+    <div class="bar">
+      <div class="f"><label for="yarn-new">Пряжа</label><input id="yarn-new" size="16" placeholder="16/1 SPUN" autocomplete="off"></div>
+      <div class="f"><label for="yarn-kind">Вид</label><select id="yarn-kind">
+        <option value="">—</option><option value="pile">ворс</option><option value="ground">грунт</option>
+        <option value="weft">уток</option></select></div>
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="yarn-add">Добавить</button></div>
+      <div class="f"><label>&nbsp;</label><button class="act" id="yarn-imp">Загрузить из 1С (.mxl)</button>
+        <input type="file" id="yarn-file" accept=".mxl" class="hidden"></div>
+    </div>
+    <p class="note">Из 1С: номенклатура вида «ПРЯЖА» — сохранить список как табличный документ (.mxl).
+      Каждая партия — пряжа, вид (ворс, основа, уток), лот и поставщик; по ним строятся списки в заправке.</p>
+    <p class="note">Одна пряжа — одно написание. При вводе «16/1spun», «16/1 SPUN» и «16/1 spun» —
+      одна и та же пряжа из справочника. Переименование исправит и уже введённые заправки.</p>
+    <div class="tbl-wrap" style="max-height:40vh;margin-top:8px">
+      <table id="yarn-table"><thead><tr><th>Пряжа</th><th>Вид</th><th class="n">На станках</th><th></th></tr></thead>
+        <tbody></tbody></table>
+    </div>
+  </section>
+  <datalist id="yarn-list"></datalist>
+
+  <!-- ДАШБОРД -->
+  <section id="tab-dash" class="hidden">
+    <div class="bar">
+      <div class="f"><label for="dash-day">День</label><select id="dash-day"></select></div>
+      <div class="f"><label for="dash-shift">Смена</label><select id="dash-shift">
+        <option value="">весь день</option><option value="A">A</option>
+        <option value="B">B</option><option value="C">C</option></select></div>
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="dash-go">Показать</button></div>
+      <div class="f"><label>Для монитора</label>
+        <a class="act" id="dash-cards" href="/cards" target="_blank" style="text-decoration:none">Карточки станков</a></div>
+      <div class="f"><label for="dash-only">Показывать</label><select id="dash-only">
+        <option value="all">все станки</option><option value="stop">только стоящие</option>
+        <option value="ticket">только с тикетом</option></select></div>
+    </div>
+    <div class="tiles" id="dash-tiles" style="margin-top:14px"></div>
+    <p class="note" id="dash-note"></p>
+    <details id="dash-warn" class="msg err hidden" open>
+      <summary></summary>
+      <ul style="margin:6px 0 0;padding-left:18px"></ul>
+    </details>
+    <p class="note" id="dash-soon"></p>
+    <div class="tbl-wrap">
+      <table id="dash-table">
+        <thead>
+          <tr class="grp"><th colspan="4"></th><th colspan="4" class="sep">Что заправлено</th>
+            <th colspan="4" class="sep">Наработка</th><th class="sep"></th>
+            <th colspan="4" class="sep">Обрывы</th></tr>
+          <tr class="cols"><th>Станок</th><th>Состояние</th><th>Тикет</th><th class="n">Об/мин</th>
+            <th class="sep">Дизайн</th><th>Размер</th><th class="n">Плотн.</th><th>Пряжа</th>
+            <th class="n sep">Тыс. пиков</th><th class="n">Метры</th><th class="n">Полотенец</th><th class="n">КПД</th>
+            <th class="sep">Оператор</th>
+            <th class="n sep">Уток</th><th class="n">Основа</th><th class="n">Ворс</th>
+            <th class="n">Ручные</th></tr>
+        </thead>
+        <tbody></tbody><tfoot></tfoot>
+      </table>
+    </div>
+    <p class="note">Зелёный — станок работает, красный — стоит. Дизайн и пряжа берутся
+      из техкарты 1С по заправленному изделию: 1С знает только «изделие делается на этих
+      станках», поэтому артикул ставит мастер — выберите его в колонке «Дизайн».</p>
+  </section>
+
+  <!-- ПЛАН -->
+  <section id="tab-plan" class="hidden">
+    <h3 class="sect" style="margin-top:0">План цеха по станкам</h3>
+    <div class="bar">
+      <div class="f"><label for="lp-from">С</label><input id="lp-from" size="10" autocomplete="off"></div>
+      <div class="f"><label for="lp-to">По</label><input id="lp-to" size="10" autocomplete="off"></div>
+      <div class="f"><label>&nbsp;</label><button class="act" id="lp-show">Показать</button></div>
+      <div class="f"><label for="lp-span">Ставить на дней</label><input id="lp-span" size="3" value="1" inputmode="numeric" autocomplete="off"></div>
+      <div class="f"><label>&nbsp;</label><label class="checks" style="padding-top:0"><input type="checkbox" id="lp-sun" checked> без воскресений</label></div>
+      <div class="f"><label>&nbsp;</label><button class="act" id="lp-undo" disabled>Отменить</button></div>
+      <div class="f"><label>&nbsp;</label><button class="act" id="lp-up">Загрузить план из Excel</button>
+        <input type="file" id="lp-file" accept=".xlsx" class="hidden"></div>
+    </div>
+    <p class="note" id="lp-note"></p>
+    <div class="lp-wrap">
+      <aside class="lp-pal">
+        <input id="lp-q" placeholder="Поиск: заказ, дизайн, клиент" autocomplete="off" aria-label="Поиск заказа">
+        <div class="lp-flt" id="lp-flt">
+          <button data-f="all" aria-pressed="true">Все</button><button data-f="1c" aria-pressed="false">Из 1С</button><button data-f="no1c" aria-pressed="false">Нет в 1С</button><button data-f="short" aria-pressed="false">Не хватает</button><button data-f="free" aria-pressed="false">Не в плане</button>
+        </div>
+        <div id="lp-orders" class="lp-orders"></div>
+        <div id="lp-card" class="lp-card hidden"></div>
+      </aside>
+      <div class="tbl-wrap" style="max-height:72vh">
+        <table id="lp-table"><thead></thead><tbody></tbody></table>
+      </div>
+    </div>
+    <p class="note">Как составлять: перетащите заказ из списка слева на клетку станка — он встанет на
+      столько дней, сколько указано в «Ставить на дней». Клетку можно перетащить на другую (с Ctrl —
+      копия). Щелчок выделяет клетку, Shift+щелчок — прямоугольник, Ctrl+щелчок — добавить; бросьте
+      заказ на выделение — встанет во все выделенные клетки. Delete — очистить, Ctrl+C / Ctrl+V —
+      копировать, Ctrl+Z — отменить, двойной щелчок — ввести заказ или пометку руками. Каждая правка
+      записывается: кто и когда.</p>
+    <p class="note">Под заказом в прошедшие дни — факт FACT за сутки: полотенец (ряды × панели) и
+      выполнение нормы 1С — ряды × секунды 1С на ряд ÷ время смен (в секундах 1С уже заложена
+      эффективность 75%, 100% — станок выдал норму). Красным — ниже 90%. Если у изделия нет секунд из
+      1С, вместо нормы — КПД станка по времени: работа ÷ (работа + простой); красным — ниже 60%. Отчёт за день
+      сам берёт PPT, вес, GSM, пряжу и лот из техкарты 1С заказа, стоящего на станке по плану;
+      введённое в «Заправке» главнее.</p>
+    <datalist id="lp-order-list"></datalist>
+    <dialog id="lp-dlg" class="lp-dlg">
+      <form method="dialog">
+        <h3 id="lp-dlg-t" style="margin:0 0 12px;font-size:15px"></h3>
+        <div class="bar" style="padding:0;border:0;background:none">
+          <div class="f"><label for="lp-d-order">Заказ</label><input id="lp-d-order" list="lp-order-list" size="10" autocomplete="off"></div>
+          <div class="f"><label for="lp-d-prod">Изделие заказа</label><select id="lp-d-prod"></select></div>
+          <div class="f"><label for="lp-d-note">Пометка</label><input id="lp-d-note" size="28" placeholder="Praborka 35 sm, рулон…" autocomplete="off"></div>
+        </div>
+        <p class="note" id="lp-d-hint"></p>
+        <div style="display:flex;gap:6px;margin-top:10px">
+          <button class="act primary" value="save">Сохранить</button>
+          <button class="act" value="clear">Очистить клетку</button>
+          <button class="act" value="cancel">Отмена</button>
+        </div>
+      </form>
+    </dialog>
+
+    <h3 class="sect">Сверка PPT: 1С и счётчики станков</h3>
+    <p class="note">PPT по счётчикам — пики ÷ ряды станка за день, где в плане стоит изделие с
+      техкартой 1С (дни, где соткано меньше 50 рядов, не считаются). Расхождение больше 5% отмечено.
+      «Проверьте PPT в 1С» — расхождение повторяется не меньше трёх дней, когда код ткани на станке
+      совпадал с планом. На количество полотенец PPT не влияет — они считаются по рядам; влияет на кг
+      в производственном отчёте.</p>
+    <div class="tbl-wrap" style="max-height:40vh">
+      <table id="ppt-prod"><thead><tr><th>Изделие</th><th>Заказы</th><th class="n">PPT 1С</th>
+        <th class="n">По счётчикам</th><th class="n">Разница</th><th class="n">Сек/ряд 1С</th>
+        <th class="n">Норма 1С</th><th class="n">Дней</th><th>Станки</th>
+        <th>Вывод</th></tr></thead><tbody></tbody></table>
+    </div>
+    <details style="margin-top:6px" id="ppt-days-box">
+      <summary class="note" id="ppt-days-sum">По станкам и дням</summary>
+      <div class="tbl-wrap" style="max-height:45vh">
+        <table id="ppt-days"><thead><tr><th>День</th><th>Станок</th><th>Заказ</th><th>Изделие</th>
+          <th class="n">PPT 1С</th><th class="n">По счётчикам</th><th class="n">Разница</th><th class="n">Рядов</th>
+          <th class="n">Норма 1С</th><th class="n">Об/мин</th>
+          <th>Код на станке</th><th>Вывод</th></tr></thead><tbody></tbody></table>
+      </div>
+    </details>
+
+    <h3 class="sect">Сообщения из 1С</h3>
+    <p class="note">Каждое сообщение 1С хранится целиком, как пришло (последние 5000), вместе с нашим
+      ответом. Разобранное лежит в техкартах: изделие, GSM, вес, PPT, панели, пряжа с лотами и граммами,
+      количество и срок — это список заказов слева.</p>
+    <div class="tbl-wrap" style="max-height:32vh">
+      <table id="oc-msgs"><thead><tr><th>Когда</th><th>Кто</th><th>Действие</th><th>Заказы</th>
+        <th>Итог</th><th></th></tr></thead><tbody></tbody></table>
+    </div>
+    <dialog id="oc-dlg" class="lp-dlg">
+      <form method="dialog">
+        <h3 id="oc-dlg-t" style="margin:0 0 10px;font-size:15px"></h3>
+        <pre id="oc-json"></pre>
+        <div style="margin-top:10px"><button class="act" value="close">Закрыть</button></div>
+      </form>
+    </dialog>
+
+    <h3 class="sect">Заказы</h3>
+    <div class="bar">
+      <div class="f"><label for="pl-order">Заказ</label><input id="pl-order" size="10" autocomplete="off"></div>
+      <div class="f"><label for="pl-product">Изделие</label><input id="pl-product" size="20" list="pl-products" autocomplete="off">
+        <datalist id="pl-products"></datalist></div>
+      <div class="f"><label for="pl-qty">Полотенец</label><input id="pl-qty" size="8" autocomplete="off"></div>
+      <div class="f"><label for="pl-due">Срок</label><input id="pl-due" size="10"
+        placeholder="2026.10.01" autocomplete="off"></div>
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="pl-add">Поставить в план</button></div>
+      <div class="f"><label>&nbsp;</label><button class="act" id="pl-1c">Взять заказы из 1С</button></div>
+      <div class="f"><label>&nbsp;</label><button class="act" id="pl-closed">Показать закрытые</button></div>
+    </div>
+    <div class="tiles" id="pl-tiles" style="margin-top:14px"></div>
+    <p class="note">Факт берётся со счётчиков станка: ряды × панели, с того дня, как заказ
+      поставили на станок. Темп — среднее за последние семь рабочих дней этого станка.</p>
+    <div class="tbl-wrap">
+      <table id="pl-table">
+        <thead><tr>
+          <th>Заказ</th><th>Изделие</th><th class="n">План</th><th class="n">Сделано</th>
+          <th>Готовность</th><th class="n">Темп в сутки</th><th class="n">Осталось дней</th>
+          <th>Прогноз</th><th>Срок</th><th>Станки</th><th></th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="note" id="pl-ppt-note"></p>
+
+    <h3 class="sect">Пики на изделие</h3>
+    <div class="bar">
+      <div class="f"><label for="ppt-key">Артикул 1С или код ткани</label>
+        <input id="ppt-key" size="24" list="pl-products" autocomplete="off"></div>
+      <div class="f"><label for="ppt-val">Пиков на изделие</label><input id="ppt-val" size="7" inputmode="numeric"></div>
+      <div class="f"><label for="ppt-panels">Панелей</label><input id="ppt-panels" size="4" inputmode="numeric"></div>
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="ppt-save">Сохранить</button></div>
+    </div>
+    <p class="note">Введённое здесь главнее техкарты и расчёта по счётчикам. Когда 1С начнёт
+      присылать weftPerOneRow, заполнять вручную не придётся.</p>
+
+    <h3 class="sect">Коды ткани на станках, которые не опознаны как артикул 1С</h3>
+    <p class="note">Код ткани набирают на станке руками, артикул живёт в 1С. Пока их не связать,
+      заказ из 1С не видит, что станок уже ткёт его. Связать нужно один раз.</p>
+    <div class="tbl-wrap" style="max-height:40vh">
+      <table id="cm-unmapped">
+        <thead><tr><th>Код на станке</th><th>Станки</th><th class="n">Рядов за 2 недели</th>
+          <th>Последний день</th><th>Артикул 1С</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <h3 class="sect">Связанные коды</h3>
+    <div class="tbl-wrap" style="max-height:30vh">
+      <table id="cm-map">
+        <thead><tr><th>Код на станке</th><th>Артикул 1С</th><th>Кто связал</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ЗАРПЛАТА -->
+  <section id="tab-salary" class="hidden">
+    <div class="bar">
+      <div class="f"><label for="sal-shift">Смена</label><select id="sal-shift"></select></div>
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="sal-go">Посчитать</button></div>
+      <div class="f"><label>&nbsp;</label><button class="act" id="sal-copy">Повторить расстановку прошлой смены</button></div>
+    </div>
+    <div class="tiles" id="sal-tiles" style="margin-top:14px"></div>
+    <p class="note" id="sal-note"></p>
+    <div class="tbl-wrap">
+      <table id="sal-table">
+        <thead><tr>
+          <th>Код</th><th>Оператор</th><th>Станки</th><th class="n">Станков</th>
+          <th class="n">Тыс. пиков</th><th class="n">Зарплата, сум</th>
+          <th class="n">КПД</th><th class="n">Уток /cmpx</th><th class="n">Основа /cmpx</th>
+          <th class="n">Ожидание, мин</th>
+        </tr></thead>
+        <tbody></tbody><tfoot></tfoot>
+      </table>
+    </div>
+
+    <h3 style="margin:18px 0 0;font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)">
+      Выработка по станкам</h3>
+    <p class="note">Пики станок даёт независимо от того, назначен на него кто-то или нет.
+      Выберите оператора прямо здесь — деньги сразу перейдут на него.</p>
+    <div class="tbl-wrap">
+      <table id="sal-looms">
+        <thead><tr>
+          <th>Станок</th><th>Артикул</th><th class="n">Тыс. пиков</th>
+          <th class="n">К начислению, сум</th><th class="n">КПД</th>
+          <th class="n">Уток</th><th class="n">Основа и ворс</th><th class="n">Ожидание, мин</th>
+          <th>Оператор</th>
+        </tr></thead>
+        <tbody></tbody><tfoot></tfoot>
+      </table>
+    </div>
+  </section>
+
+  <!-- РАССТАНОВКА НА СМЕНУ: три документа на каждый день -->
+  <section id="tab-assign" class="hidden">
+    <div class="bar">
+      <div class="f"><label for="as-day">День</label><input id="as-day" type="date"></div>
+      <div class="f"><label>Смена</label><div class="chips" id="as-shifts">
+        <button class="chip" data-sh="A">A · 07–15</button><button class="chip" data-sh="B">B · 15–23</button>
+        <button class="chip" data-sh="C">C · 23–07</button></div></div>
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="as-save">Сохранить</button></div>
+      <div class="f"><label>&nbsp;</label><button class="act" id="as-confirm">Утвердить</button></div>
+      <div class="f"><label>&nbsp;</label><button class="act" id="as-print">Печать</button></div>
+    </div>
+    <p class="note" id="as-status" style="margin-top:10px;max-width:none"></p>
+    <div class="grid2" style="margin-top:10px">
+      <div>
+        <div class="bar" style="margin-bottom:8px">
+          <div class="f"><label for="as-bulk">Оператор для отмеченных станков</label><select id="as-bulk"></select></div>
+          <div class="f"><label>&nbsp;</label><button class="act" id="as-apply">Назначить</button></div>
+          <div class="f"><label>&nbsp;</label><button class="act" id="as-prev">Как в прошлую такую смену</button></div>
+          <div class="f"><label>&nbsp;</label><button class="act" id="as-fact">Из FACT</button></div>
+        </div>
+        <div class="tbl-wrap">
+          <table id="as-table">
+            <thead><tr><th><input type="checkbox" id="as-all" aria-label="Отметить все станки"></th>
+              <th>Станок</th><th>Оператор</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="bar" style="flex-direction:column;align-items:stretch;gap:12px">
+        <div class="f"><label for="as-foreman">Мастер смены</label><select id="as-foreman"></select>
+          <span class="note" id="as-foreman-note"></span></div>
+        <div class="f"><label>Мастерицы смены</label><div class="chips" id="as-masters"></div></div>
+        <div class="f"><label for="as-note">Примечание</label><input id="as-note" autocomplete="off"></div>
+        <p class="note" id="as-summary"></p>
+        <p class="note">Документы на смены A, B и C заводятся сами каждое утро и заполняются
+          расстановкой прошлой такой же смены. Мастер правит, сохраняет и утверждает;
+          утверждённый документ меняется только после «Открыть для правки».</p>
+      </div>
+    </div>
+    <h3 class="sect">Документы за неделю</h3>
+    <div class="tbl-wrap" style="max-height:36vh">
+      <table id="as-docs"><thead><tr><th>День</th><th>Смена A</th><th>Смена B</th><th>Смена C</th></tr></thead>
+        <tbody></tbody></table>
+    </div>
+  </section>
+
+  <!-- ОПЕРАТОРЫ -->
+  <section id="tab-people" class="hidden">
+    <div class="bar">
+      <div class="f"><label for="op-code">Код</label><input id="op-code" size="8" autocomplete="off"></div>
+      <div class="f"><label for="op-name">Имя</label><input id="op-name" size="22" autocomplete="off"></div>
+      <div class="f"><label for="op-role">Роль</label><select id="op-role">
+        <option value="operator">оператор</option><option value="master">мастерица</option>
+        <option value="foreman">мастер</option></select></div>
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="op-add">Добавить</button></div>
+      <div class="f"><label>&nbsp;</label><button class="act" id="op-import">Взять имена из FACT</button></div>
+    </div>
+    <details style="margin-top:14px" id="op-paste-box">
+      <summary style="cursor:pointer">Загрузить список из другой системы или Excel</summary>
+      <div class="bar" style="flex-direction:column;align-items:stretch;gap:8px;margin-top:8px">
+        <p class="note">Выделите строки в таблице пользователей (удобнее — вместе с заголовком) или в
+          Excel, скопируйте и вставьте сюда. Человек ищется по табельному номеру — это тот же код, что
+          у оператора в FACT: знакомым обновятся имя, должность и блокировка, новые добавятся.
+          Должность «Мастер» и «Мастерица» — это мастерица, «Мастер смены» — мастер смены;
+          поправить роль можно прямо в таблице ниже. Повторы считаются один раз.</p>
+        <textarea id="op-paste" rows="7" style="font:12px 'IBM Plex Mono',monospace;width:100%"
+          placeholder="Отображаемое имя	Фамилия	Имя	Отчество	Табельный номер	Должность"></textarea>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="act primary" id="op-paste-go">Загрузить</button>
+          <span class="note" id="op-paste-res"></span></div>
+      </div>
+    </details>
+    <div class="tbl-wrap" style="margin-top:14px">
+      <table id="op-table">
+        <thead><tr><th>Код</th><th>Имя</th><th>Роль</th><th>Активен</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- KPI -->
+  <section id="tab-kpi" class="hidden">
+    <div class="bar">
+      <div class="f"><label for="kpi-from">С</label><select id="kpi-from"></select></div>
+      <div class="f"><label for="kpi-to">По</label><select id="kpi-to"></select></div>
+      <div class="f"><label>Кого</label>
+        <div class="chips" id="kpi-role">
+          <button class="chip" data-role="operator" aria-pressed="true">операторы</button>
+          <button class="chip" data-role="master" aria-pressed="false">мастерицы</button>
+        </div></div>
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="kpi-go">Показать</button></div>
+    </div>
+    <div class="tbl-wrap" style="margin-top:14px">
+      <table id="kpi-table">
+        <thead><tr>
+          <th>Код</th><th>Имя</th><th class="n">Смен</th><th class="n">Станков</th>
+          <th class="n">Тыс. пиков</th><th class="n">КПД</th>
+          <th class="n">Уток /cmpx</th><th class="n">Основа /cmpx</th>
+          <th class="n">Ожидание за смену, мин</th><th class="n">Ручных за смену</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="note">«Уток /cmpx» и «основа /cmpx» — обрывы на 100 000 уточин: не зависят от скорости станка, поэтому людей можно сравнивать. «Ожидание» — сколько станок простоял, пока к нему не подошли.</p>
+  </section>
+
+  <!-- ПРОСТОИ -->
+  <section id="tab-explorer" class="hidden">
+    <div class="bar">
+      <div class="f"><label for="ex-from">С</label><select id="ex-from"></select></div>
+      <div class="f"><label for="ex-to">По</label><select id="ex-to"></select></div>
+      <div class="f"><label>Смены</label>
+        <div class="chips" id="ex-shifts">
+          <button class="chip" data-s="A" aria-pressed="true">A</button>
+          <button class="chip" data-s="B" aria-pressed="true">B</button>
+          <button class="chip" data-s="C" aria-pressed="true">C</button>
+        </div></div>
+      <div class="f"><label>Группа</label>
+        <div class="chips" id="ex-group">
+          <button class="chip" data-g="all" aria-pressed="true">все</button>
+          <button class="chip" data-g="D" aria-pressed="false">махровые D</button>
+          <button class="chip" data-g="J" aria-pressed="false">жаккард J</button>
+        </div></div>
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="ex-go">Показать</button></div>
+    </div>
+    <div class="tiles" id="ex-tiles" style="margin-top:14px"></div>
+    <div class="card" style="margin-top:14px;background:var(--surface);border:1px solid var(--hair);padding:14px">
+      <div style="display:flex;width:100%;height:24px;gap:2px" id="ex-stack"></div>
+      <div class="chips" id="ex-legend" style="margin-top:9px;font-size:12px"></div>
+    </div>
+    <div class="tbl-wrap" style="margin-top:14px">
+      <table id="ex-table">
+        <thead><tr><th>Станок</th><th class="n">КПД</th><th class="n">Тыс. пиков</th>
+          <th class="n">Уток</th><th class="n">Уток /cmpx</th><th class="n">Основа</th><th class="n">Ворс</th>
+          <th class="n">Ручных</th><th class="n">Ручные, ч</th><th class="n">Ожидание, ч</th><th class="n">Смен</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ОБХОД ЦЕХА -->
+  <section id="tab-walk" class="hidden">
+    <div class="bar">
+      <div class="f"><label for="wk-shift">Смена</label><select id="wk-shift"></select></div>
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="wk-go">Показать</button></div>
+    </div>
+    <p class="note" style="margin-top:10px">Станки отсортированы по простою: сверху те, к которым идти в первую очередь. «Главная потеря» — на что ушло больше всего времени за смену.</p>
+    <div class="tbl-wrap">
+      <table id="wk-table">
+        <thead><tr><th>Станок</th><th>Артикул</th><th>Главная потеря</th><th class="n">мин</th>
+          <th class="n">КПД</th><th class="n">Простой, мин</th>
+          <th class="n">Уток</th><th class="n">Ворс</th><th class="n">Основа</th>
+          <th class="n">Ручных</th><th class="n">Ожидание, мин</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- УЗКИЕ МЕСТА -->
+  <section id="tab-bottle" class="hidden">
+    <div class="bar">
+      <div class="f"><label for="bt-from">С</label><select id="bt-from"></select></div>
+      <div class="f"><label for="bt-to">По</label><select id="bt-to"></select></div>
+      <div class="f"><label>Смены</label><div class="chips" id="bt-shifts">
+        <button class="chip" data-sh="A" aria-pressed="true">A</button>
+        <button class="chip" data-sh="B" aria-pressed="true">B</button>
+        <button class="chip" data-sh="C" aria-pressed="true">C</button></div></div>
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="bt-go">Показать</button></div>
+    </div>
+    <div class="tiles" id="bt-tiles" style="margin-top:14px"></div>
+
+    <div class="grid2" style="margin-top:14px">
+      <div class="tbl-wrap">
+        <table id="bt-cause">
+          <thead><tr><th>Причина</th><th class="n">Остановов</th><th class="n">Потеряно, мин</th>
+            <th class="n">Доля</th><th class="n">MTTR, сек</th><th class="n">Реакция, сек</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="tbl-wrap">
+        <table id="bt-shift">
+          <thead><tr><th>Смена</th><th class="n">Остановов</th><th class="n">Потеряно, мин</th>
+            <th class="n">Реакция, сек</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <h3 style="margin:18px 0 0;font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)">
+      Станки: где теряем больше всего</h3>
+    <p class="note">Обрывность приведена к 100 тысячам пиков — только так станки сравнимы
+      между собой. Красным — те, кто хуже медианы по цеху в полтора раза. Время ручного
+      останова здесь — от останова до пуска, вместе с ночами и выходными, когда станок
+      стоял без работы; потери внутри рабочих смен — во вкладке «Ручные остановы».</p>
+    <div class="tbl-wrap">
+      <table id="bt-loom">
+        <thead><tr><th>Станок</th><th class="n">Потеряно, мин</th><th class="n">Остановов</th>
+          <th class="n">Уток /100k</th><th class="n">Основа и ворс /100k</th>
+          <th class="n">Ручные, мин</th><th class="n">Реакция, сек</th><th class="n">Реакция 90 %</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <h3 style="margin:18px 0 0;font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)">
+      Операторы: как быстро подходят к станку</h3>
+    <p class="note" id="bt-op-note"></p>
+    <div class="tbl-wrap">
+      <table id="bt-op">
+        <thead><tr><th>Код</th><th>Оператор</th><th class="n">Станков</th><th class="n">Остановов</th>
+          <th class="n">Потеряно, мин</th><th class="n">Реакция, сек</th><th class="n">Реакция 90 %</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- РУЧНЫЕ ОСТАНОВЫ: как Manual Stoppages Summary в LDS -->
+  <section id="tab-manual" class="hidden">
+    <div class="bar">
+      <div class="f"><label for="mn-from">С</label><select id="mn-from"></select></div>
+      <div class="f"><label for="mn-to">По</label><select id="mn-to"></select></div>
+      <div class="f"><label for="mn-group">Строка</label><select id="mn-group">
+        <option value="day">день</option><option value="shift">смена</option>
+        <option value="loom">станок</option></select></div>
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="mn-go">Показать</button></div>
+    </div>
+    <div class="tiles" id="mn-tiles" style="margin-top:14px"></div>
+    <p class="note">Shed Eff — работа всего парка к календарному времени, включая станки без
+      работы. Time Eff — наш КПД. Tot. Stop — длинные остановы (ручные, конец навоя, съём, по
+      тикетам). Prod Eff = Time Eff + Tot. Stop: КПД, если бы длинных остановов не было и
+      остались только обрывы. «Без причины» — станок стоял молча, а тикета не было: эту
+      колонку закрывают тикеты. «Обесточен» FACT простоем не считает — колонка справочная.</p>
+    <div class="tbl-wrap">
+      <table id="mn-table"><thead></thead><tbody></tbody><tfoot></tfoot></table>
+    </div>
+  </section>
+
+  <!-- ТИКЕТЫ -->
+  <section id="tab-tickets" class="hidden">
+    <div class="bar">
+      <div class="f"><label>Монитор в цехе</label>
+        <a class="act primary" href="/wall" target="_blank" style="text-decoration:none">Открыть доску</a></div>
+      <div class="f"><label for="tk-filter">Показывать</label><select id="tk-filter">
+        <option value="open">открытые</option><option value="all">все</option></select></div>
+      <div class="f"><label>&nbsp;</label><button class="act" id="tk-reload">Обновить</button></div>
+    </div>
+    <div class="tiles" id="tk-tiles" style="margin-top:14px"></div>
+    <p class="note" id="tk-need"></p>
+    <div class="tbl-wrap" style="margin-top:8px">
+      <table id="tk-table">
+        <thead><tr><th>Станок</th><th>Начало</th><th class="n">Простой</th><th>Сигнал станка</th>
+          <th>Причина в отчёте</th><th>Откуда</th><th>Категория</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="note">Станок сам называет причину только по датчику — уток, основа, ворс, кромка;
+      её тикет не перебивает. Всё остальное (обесточен, ручной останов, «прочее») объясняет тикет:
+      вызвали электрика — весь этот простой уходит в электрическую проблему.</p>
+  </section>
+
+  <!-- НАСТРОЙКИ -->
+  <section id="tab-settings" class="hidden">
+    <div class="bar">
+      <div class="f"><label for="set-rate">Ставка, сум</label><input id="set-rate" size="10"></div>
+      <div class="f"><label for="set-unit">За что</label><select id="set-unit">
+        <option value="kpick">за 1000 пиков</option><option value="pick">за один пик</option></select></div>
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="set-save">Сохранить</button></div>
+    </div>
+    <p class="note">Зарплата оператора за смену = сумма пиков по всем его станкам × ставка. Проверьте единицу: станок даёт около 220 тысяч пиков за смену.</p>
+
+    <h3 class="sect">Андон: станок стоит без тикета</h3>
+    <div class="bar">
+      <div class="f"><label for="an-warn">«Нет тикета» через, мин</label><input id="an-warn" size="4" inputmode="numeric"></div>
+      <div class="f"><label for="an-alarm">Тревога на доске через, мин</label><input id="an-alarm" size="4" inputmode="numeric"></div>
+      <div class="f"><label for="an-notify">Мастеру в телеграм через, мин</label><input id="an-notify" size="4" inputmode="numeric"></div>
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="an-save">Сохранить</button></div>
+    </div>
+    <p class="note">Обрыв, который станок назвал сам (уток, основа, ворс), в андон не попадает,
+      пока не затянется дольше 15 минут. 0 в последнем поле — не писать в телеграм.</p>
+
+    <h3 class="sect">Ключи API для 1С и других программ</h3>
+    <div class="bar">
+      <div class="f"><label for="key-name">Для кого</label><input id="key-name" size="18" placeholder="1С, бот, BI"></div>
+      <div class="f"><label>Права</label><div class="checks">
+        <label><input type="checkbox" value="read" checked> читать</label>
+        <label><input type="checkbox" value="write"> присылать заказы</label>
+        <label><input type="checkbox" value="tickets"> тикеты</label></div></div>
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="key-add">Выдать ключ</button></div>
+      <div class="f"><label>&nbsp;</label><a class="act" href="/api/docs" target="_blank">Описание API</a></div>
+    </div>
+    <div id="key-new" class="hidden" style="margin-top:8px">
+      <p class="note">Ключ показывается один раз — скопируйте его сейчас и передайте программисту 1С:</p>
+      <div class="keybox" id="key-value"></div>
+    </div>
+    <div class="tbl-wrap" style="margin-top:8px;max-height:36vh">
+      <table id="key-table">
+        <thead><tr><th>Для кого</th><th>Начало ключа</th><th>Права</th><th>Выдан</th>
+          <th>Последний запрос</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const nf = (x,d=0) => (x==null||x==="") ? "" : Number(x).toLocaleString("ru-RU",{minimumFractionDigits:d,maximumFractionDigits:d});
+const api = async (path, body) => {
+  const r = await fetch(path, body ? {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)} : {});
+  const j = await r.json();
+  if (j.error) throw new Error(j.error);
+  return j;
+};
+const say = (text, isErr) => { const m = $("#msg"); m.textContent = text; m.className = "msg" + (isErr ? " err" : "");
+  if (!text) m.classList.add("hidden"); setTimeout(()=>m.classList.add("hidden"), 6000); };
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.setAttribute("aria-current", x === b));
+  document.querySelectorAll("section").forEach(s => s.classList.add("hidden"));
+  $("#tab-" + b.dataset.tab).classList.remove("hidden");
+  const t = b.dataset.tab;
+  if (t === "report") repStick();       // отступы шапки меряются только на видимой вкладке
+  if (t === "tickets") loadTickets();   // тикеты — живые, всегда свежие
+  // Остальное не перекачиваем при каждом щелчке по вкладке: план — это пять
+  // запросов и 15 тысяч элементов. Свежее 30 секунд — показываем, что есть;
+  // кнопки «Показать»/«Обновить» на вкладках грузят заново всегда.
+  if (t === "dash") onTab("dash", () => { loadDash(); loadDashSoon(); });
+  if (t === "bottle") onTab("bottle", loadBottle);
+  if (t === "plan") onTab("plan", loadPlan);
+  if (t === "manual") onTab("manual", loadManual);
+  if (t === "settings") onTab("settings", loadKeys);
+  if (t === "assign") onTab("assign", loadAssign);
+  if (t === "setup") onTab("setup", loadGrid);
+});
+const TAB_AT = {};
+function onTab(key, load, fresh = 30000) {
+  if (TAB_AT[key] && Date.now() - TAB_AT[key] < fresh) return;
+  TAB_AT[key] = Date.now();
+  load();
+}
+
+let SHIFTS = [], OPERATORS = [], ME = null, PERMS = [], ROLES = {};
+const shiftLabel = s => `${s.day.replace(/\./g,"/")} · смена ${s.shift}`;
+const can = p => PERMS.includes(p);
+
+/* --- вход и права --- */
+const TAB_PERM = { assign:"assign", people:"people", settings:"settings", users:"users" };
+
+async function whoAmI() {
+  const r = await api("/api/me");
+  ME = r.user; PERMS = r.permissions || []; ROLES = r.roles || {};
+  const gate = $("#gate");
+  if (!ME) {
+    gate.classList.remove("hidden");
+    document.body.classList.add("locked");
+    return false;
+  }
+  gate.classList.add("hidden");
+  document.body.classList.remove("locked");
+  $("#whoami").innerHTML = `${ME.name} · ${ROLES[ME.role] || ME.role} — <a href="#" id="logout">выйти</a>`;
+  $("#logout").onclick = async (e) => { e.preventDefault(); await api("/api/logout", {}); location.reload(); };
+  document.querySelectorAll("nav button").forEach(b => {
+    const need = TAB_PERM[b.dataset.tab];
+    b.classList.toggle("hidden", !!need && !can(need));
+  });
+  $("#u-role").innerHTML = Object.entries(ROLES).map(([k,v])=>`<option value="${k}">${v}</option>`).join("");
+  if (can("users")) renderUsers();
+  return true;
+}
+
+$("#login-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const login = $("#login-user").value.trim(), pass = $("#login-pass").value;
+  const newPass = $("#login-newpass").value;
+  const err = $("#login-err");
+  err.textContent = "";
+  let r;
+  try {
+    r = await api("/api/login", { login, password: pass });
+  } catch (e2) {
+    err.textContent = "Неверный логин или пароль";
+    return;
+  }
+  // Временный пароль надо сменить. Пока новый не задан — вход не завершаем,
+  // иначе человек остаётся с паролем, которого не знает.
+  if (r.user && r.user.must_change) {
+    $("#login-new").classList.remove("hidden");
+    if (!newPass || newPass.length < 6) {
+      err.textContent = "Временный пароль принят. Придумайте свой — не короче шести символов — и нажмите «Войти» ещё раз.";
+      $("#login-newpass").focus();
+      return;
+    }
+    try {
+      await api("/api/password", { password: newPass });
+    } catch (e3) {
+      err.textContent = "Новый пароль не сохранился: " + e3.message + ". Войдите ещё раз временным.";
+      return;
+    }
+    err.style.color = "var(--good, green)";
+    err.textContent = "Пароль изменён. Запомните его — восстановить нельзя, можно только сбросить.";
+    setTimeout(() => location.reload(), 1500);
+    return;
+  }
+  location.reload();
+};
+
+async function renderUsers() {
+  try {
+    const { users } = await api("/api/users");
+    $("#u-table tbody").innerHTML = users.map(u => `<tr>
+      <td>${u.login}</td><td>${u.name}</td><td>${ROLES[u.role] || u.role}</td>
+      <td>${u.active ? '<span class="ok">да</span>' : "нет"}</td>
+      <td class="n">${u.last_login ? u.last_login.slice(0,16).replace("T"," ") : "—"}</td>
+      <td><button class="act" data-off="${u.id}">${u.active ? "Отключить" : "Включить"}</button></td></tr>`).join("");
+    document.querySelectorAll("[data-off]").forEach(b => b.onclick = async () => {
+      const u = users.find(x => String(x.id) === b.dataset.off);
+      await api("/api/users", { id: u.id, active: !u.active });
+      renderUsers();
+    });
+  } catch (e) { say("Список пользователей не загрузился: " + e.message, true); }
+}
+
+$("#u-add").onclick = async () => {
+  const login = $("#u-login").value.trim(), name = $("#u-name").value.trim(), pass = $("#u-pass").value.trim();
+  if (!login || !pass) return say("Нужны логин и временный пароль", true);
+  try {
+    await api("/api/users", { login, name: name || login, role: $("#u-role").value, password: pass });
+    $("#u-login").value = ""; $("#u-name").value = ""; $("#u-pass").value = "";
+    renderUsers(); say("Пользователь создан: " + login);
+  } catch (e) { say("Не создался: " + e.message, true); }
+};
+
+/* --- дашборд: станок, что заправлено, кто работает, что рвётся --- */
+let DASH = null, DASH_SEQ = 0;
+
+async function loadDash() {
+  // Ответ на прежний запрос не должен затирать свежий: иначе при быстром
+  // переключении смены на экране остаются числа за другой период.
+  const seq = ++DASH_SEQ;
+  try {
+    const day = $("#dash-day").value, sh = $("#dash-shift").value;
+    $("#dash-cards").href = `/cards?day=${day}` + (sh ? `&shift=${sh}` : "");
+    const d = await api(`/api/dashboard?day=${day}&shift=${sh}`);
+    if (seq !== DASH_SEQ) return;
+    DASH = d;
+    const t = d.totals;
+    $("#dash-tiles").innerHTML = [
+      ["Работает", `<span class="dot run"></span>${t.running}`],
+      ["Стоит", `<span class="dot stop"></span>${t.stopped}`],
+      ["С тикетом", t.with_ticket],
+      ["Тыс. пиков", nf(t.kpicks)],
+      ["Обрывы утка", nf(t.weft_ct)],
+      ["Обрывы основы", nf(t.warp_ct)],
+      ["Обрывы ворса", nf(t.top_ct)],
+    ].map(([l,v])=>`<div class="tile"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("");
+
+    // Что должно ткаться — из плана цеха; изделие 1С в клетке даёт пряжу и лоты.
+    $("#dash-note").textContent =
+      `По плану цеха на этот день — ${t.with_plan} станков из ${t.looms}, изделие 1С выбрано у ${t.with_product}`
+      + (t.with_plan > t.with_product ? ` (у остальных заказ не пришёл из 1С или изделие не выбрано во вкладке «План»)` : "")
+      + `. Оператор назначен у ${t.with_operator}.`;
+    // Станок ткёт не то, что в плане, или мастер поставил другой артикул — видно сразу.
+    const warn = d.mismatches || [];
+    $("#dash-warn").classList.toggle("hidden", !warn.length);
+    $("#dash-warn summary").textContent = `Расхождения с планом: ${warn.length} ${warn.length === 1 ? "станок" : "станков"} — проверьте код ткани на станке или план`;
+    $("#dash-warn ul").innerHTML = warn.map(w => `<li><b>${esc(w.loom)}</b> — ${esc(w.text)}</li>`).join("");
+
+    const only = $("#dash-only").value;
+    const rows = d.rows.filter(r => only === "all" ? true
+      : only === "stop" ? r.state === "stop" : !!r.ticket);
+
+    const yarnText = r => Object.entries(r.yarn || {})
+      .map(([slot, v]) => `${d.yarn_titles[slot] || slot}: ${v}${(r.lots || {})[slot] ? " л." + r.lots[slot] : ""}`).join(" · ") || "—";
+
+    const artCell = r => {
+      // По плану изделие известно — показываем его; выбор артикула руками нужен
+      // только станкам без изделия в плане.
+      if (r.article_from === "план") return `<div><b>${esc(r.order_no)}</b> ${esc(r.design || "")}${r.client ? ` · клиент ${esc(r.client)}` : ""} <small>(план)</small></div>`
+        + `<div class="note" style="margin:2px 0 0">${esc(r.article)}</div>`;
+      const plan = r.order_no ? `<div class="note" style="margin:0 0 2px">по плану: <b>${esc(r.order_no)}</b> ${esc(r.plan_product || "")}</div>` : "";
+      const all = new Set([...(r.candidates || []), ...d.articles]);
+      const opts = [`<option value="">— не задано —</option>`,
+        ...[...all].sort().map(a => `<option value="${a}"${a===r.article?" selected":""}>`
+          + `${(r.candidates||[]).includes(a) ? "★ " : ""}${a}</option>`)].join("");
+      return plan + `<select class="art" data-art="${r.loom}">${opts}</select>`
+        + (r.design ? `<div class="note" style="margin:2px 0 0">${r.design}`
+             + (r.article_from ? ` <small>(${r.article_from})</small>` : "") + `</div>` : "");
+    };
+
+    $("#dash-table tbody").innerHTML = rows.map(r => `
+      <tr class="${r.state === "run" ? "is-run" : r.state === "stop" ? "is-stop" : ""}">
+        <td><b>${r.loom}</b>${(r.mismatch || []).length
+          ? ` <span class="bad" title="${esc(r.mismatch.join("\n"))}" aria-label="расхождение с планом">⚠</span>` : ""}${
+          r.cloth ? `<br><small class="note" title="код ткани на станке">${esc(r.cloth.replace(/%20/g, " "))}</small>` : ""}</td>
+        <td><span class="dot ${r.state === "run" ? "run" : r.state === "stop" ? "stop" : "none"}"></span>${
+          r.state === "run" ? "работает" : r.state === "stop"
+            ? `стоит ${r.state_min} мин<br><small>${r.reason || r.cause_ru || ""}</small>` : "—"}</td>
+        <td>${r.ticket ? `<span class="badge">${r.ticket.reason}</span>` : ""}</td>
+        <td class="n">${r.rpm_now ? nf(r.rpm_now) : ""}${
+          r.rpm_shift ? `<br><small>смена ${nf(r.rpm_shift)}</small>` : ""}</td>
+        <td class="sep">${artCell(r)}</td>
+        <td>${r.size || "—"}</td><td class="n">${r.gsm || ""}</td>
+        <td><small>${yarnText(r)}</small></td>
+        <td class="n sep">${nf(r.kpicks,1)}</td><td class="n">${nf(r.meters,1)}</td>
+        <td class="n">${nf(r.towels)}${r.panels > 1 ? `<br><small>${r.pieces} × ${r.panels}</small>` : ""}</td>
+        <td class="n">${r.effic != null ? nf(r.effic,1) : ""}</td>
+        <td class="sep">${r.operator ? `${r.operator.name} <small>${r.operator.code}</small>` : "—"}</td>
+        <td class="n sep">${nf(r.weft_ct)}${r.weft_fix_min ? `<br><small>${r.weft_fix_min} мин</small>` : ""}</td>
+        <td class="n">${nf(r.warp_ct)}${r.warp_fix_min ? `<br><small>${r.warp_fix_min} мин</small>` : ""}</td>
+        <td class="n">${nf(r.top_ct)}${r.top_fix_min ? `<br><small>${r.top_fix_min} мин</small>` : ""}</td>
+        <td class="n">${nf(r.manual_ct)}</td>
+      </tr>`).join("");
+
+    document.querySelectorAll("select.art").forEach(s => s.onchange = async () => {
+      try {
+        await api("/api/loom_article", { loom: s.dataset.art, product_code: s.value,
+                                         day: $("#dash-day").value });
+        say(s.value ? `${s.dataset.art}: заправлено ${s.value}` : `${s.dataset.art}: артикул снят`);
+        loadDash();
+      } catch (e) { say("Не сохранилось: " + e.message, true); }
+    });
+  } catch (e) { say("Дашборд не загрузился: " + e.message, true); }
+}
+$("#dash-go").onclick = loadDash;
+$("#dash-only").onchange = loadDash;
+
+/* --- план: заказ, станок, успеваем или нет --- */
+let PLAN_CLOSED = false;
+// Заказов из 1С — сотни; сразу рисуем ближайшие по сроку, остальные — по кнопке.
+let PL_ALL = false;
+const PL_LIMIT = 60;
+
+async function loadPlan() {
+  try {
+    const d = await api("/api/plan" + (PLAN_CLOSED ? "?closed=1" : ""));
+    const o = d.orders;
+    $("#pl-products").innerHTML = (d.products || []).map(p => `<option value="${p}">`).join("");
+    const late = o.filter(x => x.late_days != null && x.late_days > 0);
+    const noRate = o.filter(x => !x.rate_per_day && x.left > 0);
+    $("#pl-tiles").innerHTML = [
+      ["Заказов в работе", o.length],
+      ["Полотенец в плане", nf(o.reduce((s,x)=>s+x.qty_towels,0))],
+      ["Сделано", nf(o.reduce((s,x)=>s+x.done,0))],
+      ["Отстаём", `<span class="${late.length?"bad":""}">${late.length}</span>`],
+      ["Без станка", noRate.length],
+    ].map(([l,v])=>`<div class="tile"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("");
+
+    const shown = PL_ALL ? o : o.slice(0, PL_LIMIT);
+    $("#pl-table tbody").innerHTML = shown.map(x => {
+      const pct = Math.min(100, x.percent);
+      const colour = x.late_days == null ? "var(--muted)" : x.late_days > 0 ? "#c4443b" : "#2f9e63";
+      return `<tr>
+        <td><b>${x.order_no}</b><br><small>${x.source || ""}</small></td>
+        <td>${x.product_code}</td>
+        <td class="n">${nf(x.qty_towels)}</td>
+        <td class="n">${nf(x.done)}</td>
+        <td><div style="background:var(--hair);height:14px;width:120px;position:relative">
+            <div style="background:${colour};height:14px;width:${pct}%"></div>
+            <span style="position:absolute;left:4px;top:0;font-size:11px">${nf(x.percent,1)}%</span>
+          </div></td>
+        <td class="n">${x.rate_per_day ? nf(x.rate_per_day) : "—"}</td>
+        <td class="n">${x.days_left != null ? nf(x.days_left,1) : "—"}</td>
+        <td>${x.eta ? x.eta.replace(/\./g,"/") : "—"}</td>
+        <td>${x.due_day ? x.due_day.replace(/\./g,"/") : "—"}${
+          x.late_days != null ? `<br><small class="${x.late_days>0?"bad":"ok"}">${
+            x.late_days > 0 ? `отстаём на ${nf(x.late_days,1)} дн.` : "успеваем"}</small>` : ""}</td>
+        ${x.plan ? `<td>${x.looms.map(l=>`<span title="по плану ${dmy(l.from_day)}–${dmy(l.to_day)}, ${l.days} дн.">${l.loom} <small>${nf(l.done)}</small></span>`).join(", ")}
+          <br><small class="note">${x.plan.cells ? `по плану цеха ${dmy(x.plan.first_day)}–${dmy(x.plan.last_day)}` : "изделие не поставлено в план цеха"}</small>
+          ${x.plan.shortfall ? `<br><small class="bad">к концу плана ≈ ${nf(x.plan.expected)}, не хватит ${nf(x.plan.shortfall)}</small>` : ""}</td>`
+        : `<td>${x.looms.map(l=>`<span class="${l.matched?"":"note"}">${l.loom} <small>${nf(l.done)}</small></span>`).join(", ") || "—"}
+          ${x.looms.length && !x.matched ? '<br><small class="bad">код ткани на станке не совпал с изделием</small>' : ""}
+          <br><input size="5" placeholder="станок" data-loom-for="${x.id}" style="font-size:12px">
+          <button class="act" data-assign="${x.id}" style="padding:2px 6px">+</button></td>`}
+        <td><button class="act" data-close="${x.id}">${x.closed ? "Вернуть" : "Закрыть"}</button></td>
+      </tr>`;
+    }).join("") || `<tr><td colspan="11" class="note">План пуст. Добавьте заказ или возьмите из 1С.</td></tr>`;
+    if (o.length > shown.length) {
+      $("#pl-table tbody").insertAdjacentHTML("beforeend", `<tr><td colspan="11">
+        <button class="act" id="pl-all">Показать все заказы (${o.length})</button>
+        <span class="note">сейчас — ${shown.length} ближайших по сроку</span></td></tr>`);
+      $("#pl-all").onclick = () => { PL_ALL = true; loadPlan(); };
+    }
+
+    document.querySelectorAll("[data-assign]").forEach(b => b.onclick = async () => {
+      const inp = document.querySelector(`[data-loom-for="${b.dataset.assign}"]`);
+      if (!inp.value.trim()) return say("Укажите станок", true);
+      try { await api("/api/plan/assign", { order_id: Number(b.dataset.assign), loom: inp.value.trim() });
+            loadPlan(); } catch (e) { say("Не поставилось: " + e.message, true); }
+    });
+    document.querySelectorAll("#pl-table [data-close]").forEach(b => b.onclick = async () => {
+      const row = o.find(x => String(x.id) === b.dataset.close);
+      try { await api("/api/plan/close", { order_id: Number(b.dataset.close), closed: !row.closed });
+            loadPlan(); } catch (e) { say("Не закрылось: " + e.message, true); }
+    });
+
+    const srcs = {};
+    o.forEach(x => { const k = x.ppt_source || "неизвестно"; srcs[k] = (srcs[k] || 0) + 1; });
+    const list = Object.entries(srcs).map(([k,v]) => `${k} — ${v}`).join(", ");
+    $("#pl-ppt-note").textContent = (list ? `Пиков на изделие берём: ${list}. ` : "")
+      + "Значение из 1С или введённое вручную главнее расчёта по счётчикам.";
+    renderClothMap(d);
+    const po = d.plan_only || [];
+    $("#pl-ppt-note").textContent += po.length ? ` В плане цеха есть заказы, которых ещё нет из 1С: ${
+      po.slice(0, 20).map(p => p.order_no).join(", ")}${po.length > 20 ? " и ещё " + (po.length - 20) : ""}.` : "";
+  } catch (e) { say("План не загрузился: " + e.message, true); }
+  loadLoomPlan();
+}
+
+/* план цеха по станкам: станок × день, план и факт */
+const dmy = d => d ? d.slice(8, 10) + "." + d.slice(5, 7) : "";
+const ymd = t => t.getFullYear() + "." + String(t.getMonth() + 1).padStart(2, "0") + "." + String(t.getDate()).padStart(2, "0");
+(() => { const t = new Date(); const a = new Date(t); a.setDate(t.getDate() - 3);
+  const b = new Date(t); b.setDate(t.getDate() + 10);
+  $("#lp-from").value = ymd(a); $("#lp-to").value = ymd(b); })();
+const hueOf = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+
+/* План составляется здесь: заказы из 1С перетаскиваются на станки. LP — всё
+   состояние сетки: план и факт с сервера, выделение, буфер и история отмены. */
+const LP = { g: null, rows: {}, looms: [], li: {}, di: {}, today: "", cat: [], sel: new Set(),
+             anchor: null, undo: [], clip: null, flt: "all", focus: null, dlgKeys: null, open: new Set() };
+const lpOrd = o => LP.cat.find(x => x.order_no === String(o));
+const lpKey = (l, d) => l + "|" + d;
+const lpSplit = k => k.split("|");
+const lpIdx = k => { const [l, d] = lpSplit(k); return [LP.li[l], LP.di[d]]; };
+const lpGet = (l, d) => (LP.rows[l] || {})[d];
+const lpSnap = (l, d) => { const c = lpGet(l, d) || {};
+  return { order_no: c.order_no || null, note: c.note || null, product: c.product || null, pile_yarn: c.pile_yarn || null,
+           product_code: c.product_code || null, pick: c.pick || null }; };
+const lpFilled = c => c && (c.order_no || c.note || c.product);
+const SLOT_RU = { vors: "ворс", karenoy: "грунт", utog1: "уток", utog2: "кромка", utog2p: "кромка кручёная",
+                  utog2x: "кромка полиэстер", utog3: "бордюр", utog3p: "бордюр кручёная", utog4: "бордюр полиэстер" };
+
+async function loadLoomPlan() {
+  try {
+    const from = encodeURIComponent(dash2dot($("#lp-from").value.trim()));
+    const to = encodeURIComponent(dash2dot($("#lp-to").value.trim()));
+    const [g, c] = await Promise.all([api(`/api/loom_plan?from=${from}&to=${to}`), api("/api/loom_plan/catalog")]);
+    LP.g = g; LP.cat = c.orders; LP.today = ymd(new Date());
+    LP.looms = g.looms.map(x => x.loom);
+    LP.rows = Object.fromEntries(g.looms.map(x => [x.loom, x.cells]));
+    LP.li = Object.fromEntries(LP.looms.map((l, i) => [l, i]));
+    LP.di = Object.fromEntries(g.days.map((d, i) => [d, i]));
+    LP.sel = new Set([...LP.sel].filter(k => { const [a, b] = lpIdx(k); return a != null && b != null; }));
+    $("#lp-order-list").innerHTML = LP.cat.map(o => `<option value="${esc(o.order_no)}">${esc(o.product || "")}</option>`).join("");
+    $("#lp-note").textContent = g.plan_from
+      ? `В плане дни ${dmy(g.plan_from)}–${dmy(g.plan_to)}.${g.plan_to.slice(0, 4)}, последняя правка ${(g.plan_loaded_at || "").slice(0, 16).replace("T", " ")}. Факт — по ${dmy(g.last_fact_day)}.`
+      : "План пуст: перетащите заказы на станки или загрузите Excel TOYOTA - LOOM PLAN.";
+    renderLP(); renderOrders(); renderCard();
+  } catch (e) { say("План цеха не загрузился: " + e.message, true); }
+  loadOneC();
+  loadPpt();
+}
+
+/* Сверка PPT за две недели: по изделиям и по станко-дням. */
+async function loadPpt() {
+  try {
+    const r = await api("/api/ppt_check");
+    const sign = v => v == null ? "" : (v > 0 ? "+" : "") + nf(v, 1) + "%";
+    const bad = v => v != null && Math.abs(v) > r.threshold;
+    $("#ppt-prod tbody").innerHTML = r.products.map(p => `<tr>
+      <td>${esc(p.product_code)}</td><td>${p.orders.map(esc).join(", ")}</td>
+      <td class="n">${nf(p.ppt_1c)}</td><td class="n">${p.ppt_fact ? nf(p.ppt_fact) : "—"}</td>
+      <td class="n${bad(p.dev) ? " bad" : ""}">${sign(p.dev)}</td>
+      <td class="n">${p.sec_1c ? nf(p.sec_1c) : "—"}</td>
+      <td class="n${p.norm_pct != null && p.norm_pct < 90 ? " bad" : ""}">${p.norm_pct != null ? nf(p.norm_pct) + "%" : "—"}</td>
+      <td class="n" title="из них с совпадающим кодом ткани: ${p.clean_days}">${p.days}</td>
+      <td>${p.looms.map(esc).join(", ")}</td>
+      <td class="${p.verdict === "проверьте PPT в 1С" ? "bad" : p.verdict === "совпадает" ? "ok" : "note"}">${esc(p.verdict)}</td></tr>`).join("")
+      || `<tr><td colspan="10" class="note">Нет станко-дней, где в плане изделие с PPT из 1С.</td></tr>`;
+    const off = r.days.filter(d => d.verdict !== "ok");
+    $("#ppt-days-sum").textContent = `По станкам и дням: ${r.days.length}, с расхождением больше ${r.threshold}% — ${off.length}`;
+    PPT_DAYS = () => r.days.slice().reverse().map(d => `<tr>
+      <td>${dmy(d.day)}</td><td><b>${esc(d.loom)}</b></td><td>${esc(d.order_no)}</td><td>${esc(d.product_code)}</td>
+      <td class="n">${nf(d.ppt_1c)}</td><td class="n">${nf(d.ppt_fact)}</td>
+      <td class="n${d.verdict !== "ok" ? " bad" : ""}">${sign(d.dev)}</td><td class="n">${nf(d.rows)}</td>
+      <td class="n${d.norm_pct != null && d.norm_pct < 90 ? " bad" : ""}" title="КПД по времени ${nf(d.time_eff, 1)}%">${d.norm_pct != null ? nf(d.norm_pct) + "%" : "—"}</td>
+      <td class="n">${d.rpm ? nf(d.rpm) : ""}</td>
+      <td>${esc((d.cloth || "").replace(/%20/g, " "))}</td>
+      <td class="${d.verdict === "ok" ? "ok" : d.verdict === "diff" ? "" : "bad"}" style="white-space:normal">${esc(d.verdict === "ok" ? "норма" : d.text.split(" — ").slice(1).join(" — ") || "расхождение")}</td></tr>`).join("");
+    pptDaysRender();
+  } catch (e) { /* без права смотреть — пусто */ }
+}
+// Станко-дни сверки PPT — сотни строк (2 тысячи элементов): рисуем, только когда раздел открыт.
+let PPT_DAYS = null;
+function pptDaysRender() {
+  const box = $("#ppt-days-box");
+  if (box && box.open && PPT_DAYS) { $("#ppt-days tbody").innerHTML = PPT_DAYS(); PPT_DAYS = null; }
+}
+$("#ppt-days-box").addEventListener("toggle", pptDaysRender);
+
+function lpCellHtml(l, d) {
+  const c = lpGet(l, d), k = lpKey(l, d);
+  const cls = ["d"];
+  if (d === LP.today) cls.push("today");
+  if (d < LP.today) cls.push("past");
+  if (LP.sel.has(k)) cls.push("sel");
+  if (c && c.order_no && c.order_no === LP.focus) cls.push("hl");
+  if (!c) return `<td class="${cls.join(" ")}" data-k="${esc(k)}"></td>`;
+  // Заказ из нескольких изделий, а какое стоит на станке — не выбрано: отчёт не
+  // знает PPT и пряжу. Рамка — чтобы выбрали (двойной щелчок).
+  const ord = c.order_no ? lpOrd(c.order_no) : null;
+  const amb = !!(ord && ord.products.length > 1 && !c.product_code);
+  if (amb) cls.push("amb");
+  const f = c.fact;
+  // Есть секунды 1С у изделия — показываем выполнение нормы (в секундах заложено 75 %),
+  // нет — КПД станка по времени.
+  const low = f && (f.norm != null ? f.norm < 90 : f.eff < 60);
+  const fx = f && d <= LP.g.last_fact_day ? `<span class="fx${low ? " lo" : ""}" title="по FACT: ${esc(f.cloth || "")} · КПД по времени ${nf(f.eff)}%${
+      f.norm != null ? ` · выполнение нормы 1С ${nf(f.norm)}%` : ""}">${nf(f.towels)} шт · ${
+      f.norm != null ? "норма " + nf(f.norm) + "%" : nf(f.eff) + "%"}</span>` : "";
+  const head = c.order_no ? `<b>${esc(c.order_no)}</b> ` : "";
+  const body = c.design ? `${esc(c.size || "")} ${esc(c.design)}${c.client ? "/" + esc(c.client) : ""}${c.gsm ? " · " + c.gsm : ""}`
+             : c.product ? esc(c.product) : "";
+  const note = c.note ? ` <span class="nt">${esc(c.note)}</span>` : "";
+  const tip = [c.product, c.pile_yarn && "ворс " + c.pile_yarn, c.note,
+    c.product_code ? "1С: " + c.product_code + (c.pick === "manual" ? " (выбрано вручную)" : "")
+                   : !amb ? "" : c.pick === "nomatch"
+                     ? "в заказе 1С нет изделия с таким размером, GSM и дизайном — проверьте план или выберите изделие (двойной щелчок)"
+                     : "подходят несколько изделий заказа — выберите нужное (двойной щелчок)"].filter(Boolean).join(" · ");
+  return `<td class="${cls.join(" ")}" data-k="${esc(k)}"${lpFilled(c) ? ' draggable="true"' : ""}${c.order_no ? ` style="--h:${hueOf(c.order_no)}"` : ""} title="${esc(tip)}">${head}${body}${note} ${fx}</td>`;
+}
+
+function renderLP() {
+  const g = LP.g; if (!g) return;
+  $("#lp-table thead").innerHTML = `<tr><th>Станок</th>${g.days.map(d => {
+    const wd = new Date(d.replace(/\./g, "-")).getDay();
+    return `<th class="d${d === LP.today ? " today" : ""}${wd === 0 ? " wk" : ""}">${dmy(d)} ${"вс пн вт ср чт пт сб".split(" ")[wd]}</th>`; }).join("")}</tr>`;
+  $("#lp-table tbody").innerHTML = LP.looms.map(l => `<tr><td class="lm">${l}</td>${g.days.map(d => lpCellHtml(l, d)).join("")}</tr>`).join("")
+    || `<tr><td class="note" colspan="${g.days.length + 1}">Станков нет.</td></tr>`;
+}
+
+function renderOrders() {
+  const q = $("#lp-q").value.trim().toLowerCase();
+  const list = LP.cat.filter(o => {
+    if (o.closed && !o.in_plan) return false;
+    if (LP.flt === "1c" && !o.in_1c) return false;
+    if (LP.flt === "no1c" && o.in_1c) return false;
+    if (LP.flt === "short" && !(o.qty && o.expected < o.qty)) return false;
+    if (LP.flt === "free" && o.cells) return false;
+    return !q || [o.order_no, o.product, o.design, o.client && "/" + o.client,
+                  ...o.products.map(p => p.product_code)].join(" ").toLowerCase().includes(q);
+  });
+  $("#lp-orders").innerHTML = list.map(o => {
+    const done = o.qty ? Math.min(100, 100 * o.done / o.qty) : 0, exp = o.qty ? Math.min(100, 100 * o.expected / o.qty) : 0;
+    const multi = o.products.length > 1, open = multi && LP.open.has(o.order_no);
+    // Изделия заказа: каждое перетаскивается на станок само — с его PPT и пряжей.
+    const lines = open ? `<div class="pls">${o.products.map(p => `<div class="pl" draggable="true" data-o="${esc(o.order_no)}" data-p="${esc(p.product_code)}" title="${esc(p.product_code)} — перетащите на станок">
+        <span>${esc(p.size || "")} <b>${esc(p.design || "")}</b>${p.gsm ? " · " + p.gsm : ""}</span>
+        <span class="m">${nf(p.qty)} шт${p.cells ? " · " + p.cells + " ст.-дн." : ""}</span></div>`).join("")}</div>` : "";
+    return `<div class="oc${o.order_no === LP.focus ? " on" : ""}" draggable="true" data-o="${esc(o.order_no)}" style="--h:${hueOf(o.order_no)}">
+      <div class="t"><span><b>${esc(o.order_no)}</b> ${multi ? `<span class="m">изделий: ${o.products.length}</span>`
+          : `${esc(o.size || "")} ${esc(o.design || "")}`}${o.client ? " /" + esc(o.client) : ""}</span>
+        <span>${multi ? `<button class="tg" data-open="${esc(o.order_no)}" aria-expanded="${open}" title="${open ? "Свернуть" : "Показать"} изделия">${open ? "▾" : "▸"}</button>` : (o.gsm || "")}</span></div>
+      <div class="m">${o.in_1c ? "1С" : "нет в 1С"}${o.qty ? " · " + nf(o.qty) + " шт" : ""}${o.due_day ? " · срок " + dmy(o.due_day) : ""} · ${o.cells ? o.cells + " ст.-дн." : "не в плане"}${
+        o.unpicked ? ` · <span class="bad">без изделия: ${o.unpicked}</span>` : ""}</div>
+      ${o.qty ? `<div class="b2" title="сделано ${nf(o.done)}, к концу плана ≈${nf(o.expected)} из ${nf(o.qty)}"><i class="p" style="width:${exp}%"></i><i style="width:${done}%"></i></div>` : ""}
+      ${lines}
+    </div>`; }).join("") || `<p class="note">Заказов не найдено.</p>`;
+}
+
+function renderCard() {
+  const o = LP.cat.find(x => x.order_no === LP.focus), box = $("#lp-card");
+  box.classList.toggle("hidden", !o);
+  if (!o) return;
+  const short = o.qty ? o.qty - o.expected : 0;
+  // Изделия заказа из 1С: у каждого свои PPT, вес, панели и пряжа с лотами.
+  const prods = o.products.map(p => {
+    const ys = Object.entries(p.yarns || {}).map(([s, y]) =>
+      `${SLOT_RU[s] || s} ${esc(y.yarn || "")}${y.lot ? " лот " + esc(y.lot) : ""}`).join(", ");
+    return `<tr><td>${esc(p.size || "")} <b>${esc(p.design || "")}</b></td><td class="n">${p.gsm || ""}</td>
+      <td class="n">${nf(p.qty)}</td><td class="n">${nf(p.ppt)}</td><td class="n">${p.weight_kg ? nf(p.weight_kg, 3) : ""}</td>
+      <td class="n">${p.panels || ""}</td><td class="n">${p.cells ? nf(p.done) + " / ≈" + nf(p.expected) : "не в плане"}</td></tr>
+      ${ys ? `<tr class="ys"><td colspan="7">${ys}</td></tr>` : ""}`; }).join("");
+  box.innerHTML = `<b>${esc(o.order_no)}</b>${o.client ? " · клиент " + esc(o.client) : ""}
+    <dl>
+      ${o.qty ? `<dt>Заказ</dt><dd>${nf(o.qty)} шт${o.products.length > 1 ? ", изделий " + o.products.length : ""}</dd>` : ""}
+      ${o.due_day ? `<dt>Срок</dt><dd>${dmy(o.due_day)}</dd>` : ""}
+      <dt>Сделано</dt><dd>${nf(o.done)} шт</dd>
+      ${o.qty ? `<dt>К концу плана</dt><dd>≈${nf(o.expected)}${short > 0 ? ` <span class="bad">не хватит ${nf(short)}</span>` : ' <span class="ok">хватает</span>'}</dd>` : ""}
+      ${o.cells ? `<dt>В плане</dt><dd>${dmy(o.first_day)}–${dmy(o.last_day)}, ${o.cells} ст.-дн.: ${o.looms.join(", ")}</dd>` : ""}
+      ${o.unpicked ? `<dt>Без изделия</dt><dd class="bad">${o.unpicked} клеток — выберите изделие двойным щелчком по клетке</dd>` : ""}
+      ${o.loaded_at ? `<dt>Из 1С</dt><dd>${esc(o.loaded_at.slice(0, 16).replace("T", " "))}</dd>` : ""}
+    </dl>
+    ${prods ? `<div class="tbl-wrap" style="max-height:42vh;margin-top:6px"><table class="lp-prods"><thead><tr>
+        <th>Изделие</th><th class="n">GSM</th><th class="n">Шт</th><th class="n">PPT</th><th class="n">Вес</th><th class="n">Пан.</th>
+        <th class="n">Сделано / к концу</th></tr></thead><tbody>${prods}</tbody></table></div>`
+      : `<p class="bad" style="margin:6px 0 0">Заказа нет в 1С — PPT, вес и пряжу отчёт возьмёт из справочника.</p>`}`;
+}
+
+/* Заказ, брошенный на клетку: на выделение целиком или на N дней вперёд по станку. */
+function lpDaysFrom(d, n) {
+  const out = [], t = new Date(d.replace(/\./g, "-") + "T00:00"), skip = $("#lp-sun").checked;
+  while (out.length < n) { if (!(skip && t.getDay() === 0)) out.push(ymd(t)); t.setDate(t.getDate() + 1); }
+  return out;
+}
+function lpPlace(order, k, pc) {
+  const [l, d] = lpSplit(k);
+  const keys = LP.sel.size > 1 && LP.sel.has(k) ? [...LP.sel]
+    : lpDaysFrom(d, Math.max(1, Math.min(90, parseInt($("#lp-span").value, 10) || 1))).map(x => lpKey(l, x));
+  // Заказ из нескольких изделий бросили целиком — спросим, какое изделие ставить.
+  const o = lpOrd(order);
+  if (!pc && o && o.products.length > 1) return lpOpenDialog(k, { order, keys });
+  if (!pc && o && o.products.length === 1) pc = o.products[0].product_code;
+  lpApply(keys.map(x => { const [a, b] = lpSplit(x); return { loom: a, day: b, order_no: order, product_code: pc || null, note: null }; }));
+}
+/* Блок клеток на новое место: перенос (move) или копия; snap — значения на момент копирования. */
+function lpBlock(snap, fromK, toK, move) {
+  const [fl, fd] = lpIdx(fromK), [tl, td] = lpIdx(toK), dl = tl - fl, dd = td - fd;
+  if (!dl && !dd) return;
+  const out = [], dst = new Set();
+  snap.forEach(({ k, c }) => { const [l, d] = lpIdx(k); const L = LP.looms[l + dl], D = LP.g.days[d + dd];
+    if (!L || !D) return; out.push({ loom: L, day: D, ...c }); dst.add(lpKey(L, D)); });
+  if (move) snap.forEach(({ k }) => { if (!dst.has(k)) { const [l, d] = lpSplit(k); out.push({ loom: l, day: d, order_no: null, note: null }); } });
+  lpApply(out);
+}
+const lpSnapKeys = keys => keys.map(k => ({ k, c: lpSnap(...lpSplit(k)) }));
+const lpTopLeft = keys => keys.reduce((best, k) => { const [a, b] = lpIdx(k), [x, y] = lpIdx(best);
+  return a < x || (a === x && b < y) ? k : best; }, keys[0]);
+
+async function lpApply(changes, isUndo) {
+  const m = new Map(); changes.forEach(c => m.set(lpKey(c.loom, c.day), c));
+  changes = [...m.values()];
+  if (!changes.length) return;
+  const before = changes.map(c => ({ loom: c.loom, day: c.day, ...lpSnap(c.loom, c.day) }));
+  try {
+    const r = await api("/api/loom_plan/cells", { changes });
+    if (!isUndo) { LP.undo.push(before); if (LP.undo.length > 50) LP.undo.shift(); }
+    $("#lp-undo").disabled = !LP.undo.length;
+    const amb = ((r.picked || {}).ambiguous || 0) + ((r.picked || {}).nomatch || 0);
+    say((isUndo ? "Отменено" : "Сохранено") + `: клеток ${r.ok}` +
+        (amb ? `; изделие не подобралось в ${amb} — выберите двойным щелчком` : "") +
+        (r.report_days.length ? `; отчёт пересчитывается за ${r.report_days.map(dmy).join(", ")}` : ""), amb > 0);
+    await loadLoomPlan();
+  } catch (e) { say("Не сохранилось: " + e.message, true); }
+}
+function lpUndo() { const b = LP.undo.pop(); if (b) lpApply(b, true); $("#lp-undo").disabled = !LP.undo.length; }
+
+/* Окно клетки: заказ, изделие заказа (если их несколько), пометка. opts.order и
+   opts.keys — когда заказ бросили на станок и нужно выбрать изделие. */
+function lpOpenDialog(k, opts = {}) {
+  const [l, d] = lpSplit(k), c = lpGet(l, d) || {};
+  const keys = opts.keys || (LP.sel.size > 1 && LP.sel.has(k) ? [...LP.sel] : [k]);
+  const one = keys.length === 1 && !opts.order;
+  LP.dlgKeys = keys;
+  $("#lp-dlg-t").textContent = (keys.length > 1 ? `Клеток: ${keys.length}` : `${l} · ${dmy(d)}.${d.slice(0, 4)}`)
+    + (opts.order ? ` · заказ ${opts.order}` : "");
+  $("#lp-d-order").value = opts.order || (one ? c.order_no || "" : "");
+  $("#lp-d-note").value = one ? c.note || "" : "";
+  lpFillProducts(one ? c.product_code : null);
+  $("#lp-d-hint").textContent = opts.order ? "В заказе несколько изделий — выберите, какое ставить на станок."
+    : c.product ? "Сейчас: " + c.product + (c.pile_yarn ? " · ворс " + c.pile_yarn : "") : "";
+  $("#lp-dlg").showModal();
+  (opts.order ? $("#lp-d-prod") : $("#lp-d-order")).focus();
+}
+function lpFillProducts(sel) {
+  const o = lpOrd($("#lp-d-order").value.trim()), ps = o ? o.products : [];
+  $("#lp-d-prod").innerHTML = `<option value="">${ps.length > 1 ? "подобрать по размеру и GSM" : "—"}</option>`
+    + ps.map(p => `<option value="${esc(p.product_code)}"${p.product_code === sel ? " selected" : ""}>${
+        esc([p.size, p.design, p.gsm && p.gsm + " GSM"].filter(Boolean).join(" · "))} — ${nf(p.qty)} шт</option>`).join("");
+  $("#lp-d-prod").disabled = ps.length < 2;
+}
+$("#lp-d-order").addEventListener("input", () => lpFillProducts(null));
+$("#lp-dlg").addEventListener("close", () => {
+  const how = $("#lp-dlg").returnValue, keys = LP.dlgKeys;
+  LP.dlgKeys = null;
+  if (!keys || how === "cancel" || !how) return;
+  const clear = how === "clear";
+  const order = clear ? null : $("#lp-d-order").value.trim() || null;
+  const note = clear ? null : $("#lp-d-note").value.trim() || null;
+  const pc = clear ? null : $("#lp-d-prod").value || null;
+  lpApply(keys.map(x => { const [l, d] = lpSplit(x); return { loom: l, day: d, order_no: order, product_code: pc, note }; }));
+});
+
+const lpTd = e => e.target.closest && e.target.closest("#lp-table td.d");
+const tb = $("#lp-table tbody");
+tb.addEventListener("click", e => {
+  const td = lpTd(e); if (!td) return;
+  const k = td.dataset.k;
+  if (e.shiftKey && LP.anchor) {
+    const [a1, b1] = lpIdx(LP.anchor), [a2, b2] = lpIdx(k);
+    LP.sel = new Set();
+    for (let i = Math.min(a1, a2); i <= Math.max(a1, a2); i++)
+      for (let j = Math.min(b1, b2); j <= Math.max(b1, b2); j++) LP.sel.add(lpKey(LP.looms[i], LP.g.days[j]));
+  } else if (e.ctrlKey || e.metaKey) {
+    LP.sel.has(k) ? LP.sel.delete(k) : LP.sel.add(k); LP.anchor = k;
+  } else { LP.sel = new Set([k]); LP.anchor = k; }
+  const c = lpGet(...lpSplit(k));
+  if (c && c.order_no) LP.focus = c.order_no;
+  renderLP(); renderOrders(); renderCard();
+});
+tb.addEventListener("dblclick", e => { const td = lpTd(e); if (td) lpOpenDialog(td.dataset.k); });
+tb.addEventListener("dragstart", e => {
+  const td = lpTd(e); if (!td) return;
+  e.dataTransfer.setData("text/plain", JSON.stringify({ t: "cell", k: td.dataset.k }));
+  e.dataTransfer.effectAllowed = "copyMove";
+});
+tb.addEventListener("dragover", e => { const td = lpTd(e); if (!td) return; e.preventDefault(); td.classList.add("over"); });
+tb.addEventListener("dragleave", e => { const td = lpTd(e); if (td) td.classList.remove("over"); });
+tb.addEventListener("drop", e => {
+  const td = lpTd(e); if (!td) return; e.preventDefault(); td.classList.remove("over");
+  let p; try { p = JSON.parse(e.dataTransfer.getData("text/plain")); } catch { return; }
+  if (p.t === "order") return lpPlace(p.o, td.dataset.k);
+  if (p.t === "prod") return lpPlace(p.o, td.dataset.k, p.p);
+  if (p.t === "cell") {
+    const keys = LP.sel.size > 1 && LP.sel.has(p.k) ? [...LP.sel] : [p.k];
+    lpBlock(lpSnapKeys(keys), p.k, td.dataset.k, !(e.ctrlKey || e.altKey));
+  }
+});
+$("#lp-orders").addEventListener("dragstart", e => {
+  const pl = e.target.closest(".pl");
+  if (pl) {                                   // одно изделие заказа
+    e.dataTransfer.setData("text/plain", JSON.stringify({ t: "prod", o: pl.dataset.o, p: pl.dataset.p }));
+    e.dataTransfer.effectAllowed = "copy";
+    return;
+  }
+  const oc = e.target.closest(".oc"); if (!oc) return;
+  e.dataTransfer.setData("text/plain", JSON.stringify({ t: "order", o: oc.dataset.o }));
+  e.dataTransfer.effectAllowed = "copy";
+});
+$("#lp-orders").addEventListener("click", e => {
+  const tg = e.target.closest("[data-open]");
+  if (tg) { const o = tg.dataset.open; if (LP.open.has(o)) LP.open.delete(o); else LP.open.add(o); return renderOrders(); }
+  const oc = e.target.closest(".oc"); if (!oc) return;
+  const o = oc.dataset.o;
+  if (e.target.closest(".pl")) LP.focus = o;
+  else {
+    LP.focus = LP.focus === o ? null : o;
+    const ord = lpOrd(o);
+    if (LP.focus && ord && ord.products.length > 1) LP.open.add(o);
+  }
+  renderLP(); renderOrders(); renderCard();
+});
+$("#lp-q").oninput = renderOrders;
+$("#lp-flt").onclick = e => { const b = e.target.closest("button"); if (!b) return;
+  LP.flt = b.dataset.f; $("#lp-flt").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b)); renderOrders(); };
+$("#lp-undo").onclick = lpUndo;
+document.addEventListener("keydown", e => {
+  if ($("#tab-plan").classList.contains("hidden") || !LP.g) return;
+  if (e.target.closest("input, textarea, select, dialog")) return;
+  const ctrl = e.ctrlKey || e.metaKey, keys = [...LP.sel];
+  if (ctrl && e.key.toLowerCase() === "z") { e.preventDefault(); return lpUndo(); }
+  if (!keys.length) return;
+  if (e.key === "Delete" || e.key === "Backspace") {
+    e.preventDefault();
+    lpApply(keys.map(k => { const [l, d] = lpSplit(k); return { loom: l, day: d, order_no: null, note: null }; }));
+  } else if (ctrl && e.key.toLowerCase() === "c") {
+    LP.clip = { snap: lpSnapKeys(keys), from: lpTopLeft(keys) }; say(`Скопировано клеток: ${keys.length}`);
+  } else if (ctrl && e.key.toLowerCase() === "v" && LP.clip) {
+    e.preventDefault(); lpBlock(LP.clip.snap, LP.clip.from, lpTopLeft(keys), false);
+  } else if (e.key === "Enter") { e.preventDefault(); lpOpenDialog(LP.anchor || keys[0]); }
+  else if (e.key === "Escape") { LP.sel = new Set(); renderLP(); }
+});
+
+async function loadOneC() {
+  try {
+    const r = await api("/api/onec/messages?limit=50");
+    $("#oc-msgs tbody").innerHTML = r.messages.map(m => `<tr>
+      <td>${esc((m.received_at || "").slice(0, 16).replace("T", " "))}</td><td>${esc(m.who || "")}</td>
+      <td>${esc(m.action || "—")}</td><td style="white-space:normal;max-width:30ch">${esc(m.order_numbers || "—")}</td>
+      <td class="${m.ok ? "ok" : "bad"}">${m.ok ? `принято: техкарт ${m.result ? m.result.cards : "—"}, новой пряжи ${m.result ? m.result.yarns_added || 0 : 0}` : esc(m.error || "ошибка")}</td>
+      <td><button class="act" data-m="${m.id}" style="padding:2px 8px">Что прислали</button></td></tr>`).join("")
+      || `<tr><td colspan="6" class="note">1С ещё ничего не присылала.</td></tr>`;
+  } catch (e) { /* без права смотреть — просто пусто */ }
+}
+$("#oc-msgs").addEventListener("click", async e => {
+  const b = e.target.closest("[data-m]"); if (!b) return;
+  try {
+    const m = await api("/api/onec/message?id=" + b.dataset.m);
+    $("#oc-dlg-t").textContent = `Сообщение 1С №${m.id} · ${(m.received_at || "").slice(0, 16).replace("T", " ")}`;
+    $("#oc-json").textContent = JSON.stringify({ прислали: m.payload, ответили: m.result || { error: m.error } }, null, 2);
+    $("#oc-dlg").showModal();
+  } catch (err) { say("Не открылось: " + err.message, true); }
+});
+$("#lp-show").onclick = loadLoomPlan;
+$("#lp-up").onclick = () => $("#lp-file").click();
+$("#lp-file").onchange = async () => {
+  const f = $("#lp-file").files[0]; if (!f) return;
+  try {
+    const r = await fetch("/api/loom_plan/upload", { method: "POST", body: f });
+    const j = await r.json(); if (j.error) throw new Error(j.error);
+    say(`План загружен: ${dmy(j.from)}–${dmy(j.to)}, станков ${j.looms}, заказов ${j.orders.length}` +
+        (j.notes.length ? `. Без изделия: ${j.notes.slice(0, 3).join("; ")}` : ""));
+    loadPlan();
+  } catch (e) { say("План не загрузился: " + e.message, true); }
+  $("#lp-file").value = "";
+};
+
+$("#pl-add").onclick = async () => {
+  const order = $("#pl-order").value.trim(), product = $("#pl-product").value.trim();
+  const qty = Number($("#pl-qty").value);
+  if (!order || !product || !qty) return say("Нужны заказ, изделие и количество", true);
+  try {
+    await api("/api/plan/order", { order_no: order, product_code: product,
+      qty_towels: qty, due_day: $("#pl-due").value });
+    $("#pl-order").value = ""; $("#pl-qty").value = "";
+    say("Заказ поставлен в план"); loadPlan();
+  } catch (e) { say("Не добавился: " + e.message, true); }
+};
+$("#pl-1c").onclick = async () => {
+  try {
+    const r = await api("/api/plan/import_1c", {});
+    say(r.error ? r.error : `Из 1С взято заказов ${r.orders}, станков ${r.looms}`, !!r.error);
+    loadPlan();
+  } catch (e) { say("Не получилось: " + e.message, true); }
+};
+$("#pl-closed").onclick = () => { PLAN_CLOSED = !PLAN_CLOSED;
+  $("#pl-closed").textContent = PLAN_CLOSED ? "Только открытые" : "Показать закрытые"; loadPlan(); };
+
+/* --- узкие места: где цех теряет время --- */
+let BT_SEQ = 0;
+const secs = v => v == null ? "—" : (v >= 60 ? `${Math.floor(v/60)}:${String(v%60).padStart(2,"0")}` : `${v} с`);
+const shiftFilter = () => [...document.querySelectorAll("#bt-shifts .chip")]
+  .filter(c => c.getAttribute("aria-pressed") === "true").map(c => c.dataset.sh).join("");
+
+document.querySelectorAll("#bt-shifts .chip").forEach(c => c.onclick = () => {
+  c.setAttribute("aria-pressed", c.getAttribute("aria-pressed") !== "true" ? "true" : "false");
+  loadBottle();
+});
+$("#bt-go").onclick = loadBottle;
+
+async function loadBottle() {
+  const seq = ++BT_SEQ;
+  try {
+    const sh = shiftFilter();
+    const d = await api(`/api/bottlenecks?from=${$("#bt-from").value}&to=${$("#bt-to").value}`
+      + (sh && sh !== "ABC" ? `&shifts=${sh}` : ""));
+    if (seq !== BT_SEQ) return;
+    const t = d.totals, r = d.response;
+
+    $("#bt-tiles").innerHTML = [
+      ["Остановов", nf(t.stops)],
+      ["Потеряно", `${nf(t.lost_h)}<small> часов</small>`],
+      ["Реакция оператора", `${secs(r.median)}<small> медиана</small>`],
+      ["Реакция, 90 %", secs(r.p90)],
+      ["Уток на 100k пиков", `${nf(t.weft_median,1)}<small> медиана цеха</small>`],
+      ["Основа и ворс /100k", nf(t.warp_median,1)],
+    ].map(([l,v])=>`<div class="tile"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("");
+
+    $("#bt-cause tbody").innerHTML = d.by_cause.map(c => `<tr>
+      <td>${c.name}</td><td class="n">${nf(c.count)}</td><td class="n">${nf(c.minutes)}</td>
+      <td class="n">${nf(c.share,1)}%</td>
+      <td class="n${c.mttr_sec > 120 ? " bad" : ""}">${nf(c.mttr_sec)}</td>
+      <td class="n">${c.resp_median != null ? nf(c.resp_median) : "—"}</td></tr>`).join("");
+
+    $("#bt-shift tbody").innerHTML = d.by_shift.map(s => `<tr>
+      <td>Смена ${s.shift}</td><td class="n">${nf(s.stops)}</td>
+      <td class="n">${nf(s.lost_min)}</td><td class="n">${secs(s.resp_median)}</td></tr>`).join("");
+
+    // Красным — станки, которые рвут в полтора раза чаще медианы по цеху.
+    const wl = (t.weft_median || 0) * 1.5, gl = (t.warp_median || 0) * 1.5;
+    $("#bt-loom tbody").innerHTML = d.by_loom.map(l => `<tr>
+      <td><b>${l.loom}</b></td><td class="n">${nf(l.lost_min)}</td><td class="n">${nf(l.stops)}</td>
+      <td class="n${l.weft_per_100k > wl ? " bad" : ""}">${nf(l.weft_per_100k,1)}</td>
+      <td class="n${l.warp_per_100k > gl ? " bad" : ""}">${nf(l.warp_per_100k,1)}</td>
+      <td class="n">${nf(l.manual_min)}</td>
+      <td class="n">${secs(l.resp_median)}</td><td class="n">${secs(l.resp_p90)}</td></tr>`).join("");
+
+    $("#bt-op tbody").innerHTML = d.by_operator.map(o => `<tr>
+      <td class="n">${o.code}</td><td>${o.name}</td><td class="n">${o.looms}</td>
+      <td class="n">${nf(o.stops)}</td><td class="n">${nf(o.lost_min)}</td>
+      <td class="n">${secs(o.resp_median)}</td><td class="n">${secs(o.resp_p90)}</td></tr>`).join("");
+    $("#bt-op-note").textContent = d.by_operator.length
+      ? "Останов засчитывается тому, кто был на этом станке в эту смену."
+      : "Операторы за этот период не расставлены — загрузите расстановку из FACT на вкладке «Зарплата».";
+  } catch (e) { say("Узкие места не загрузились: " + e.message, true); }
+}
+
+/* --- тикеты: почему станок стоит --- */
+let TK_CATS = [];
+const dur = sec => { sec = Math.max(0, sec|0);
+  const h = Math.floor(sec/3600), m = Math.floor(sec%3600/60);
+  return h ? `${h} ч ${String(m).padStart(2,"0")} мин` : `${m} мин`; };
+
+async function loadTickets() {
+  try {
+    const onlyOpen = $("#tk-filter").value === "open";
+    const [t, live] = await Promise.all([
+      api("/api/tickets?limit=200" + (onlyOpen ? "&open=1" : "")), api("/api/live")]);
+    TK_CATS = t.categories;
+    const edit = t.can_edit;
+
+    const top = t.summary.slice(0, 5);
+    $("#tk-tiles").innerHTML = [
+      ["Открытых тикетов", live.totals.open_tickets],
+      ["Стоит сейчас", live.totals.stopped],
+      ["Без причины", live.totals.no_reason],
+      ...top.map(s => [s.reason, `${nf(s.minutes)}<small> мин · ${s.count}</small>`]),
+    ].map(([l,v])=>`<div class="tile"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("");
+
+    const need = live.looms.filter(l => l.needs_ticket);
+    $("#tk-need").innerHTML = need.length
+      ? "Стоят без объяснения и ждут тикета: " + need.map(l =>
+          `<button class="chip" data-new="${l.loom}">${l.loom} · ${l.cause_ru} · ${dur(l.state_sec)}</button>`
+        ).join(" ")
+      : "Станков, которые стоят без объяснения, сейчас нет.";
+    document.querySelectorAll("[data-new]").forEach(b => b.onclick = async () => {
+      if (!edit) return say("Нет прав заводить тикеты", true);
+      try { await api("/api/tickets/new", { loom: b.dataset.new }); loadTickets(); }
+      catch (e) { say("Тикет не завёлся: " + e.message, true); }
+    });
+
+    const opts = c => TK_CATS.map(x =>
+      `<option value="${x.id}"${x.id===c?" selected":""}>${x.name}</option>`).join("");
+    $("#tk-table tbody").innerHTML = t.tickets.map(r => `<tr>
+      <td>${r.loom}</td>
+      <td class="n">${r.started_at.slice(5,16).replace("T"," ")}</td>
+      <td class="n">${dur(r.duration_sec)}</td>
+      <td>${r.cause_ru || "—"}</td>
+      <td>${r.reason}</td>
+      <td>${r.reason_from}</td>
+      <td>${edit ? `<select data-cls="${r.id}"><option value="">— выбрать —</option>${opts(r.category_id)}</select>`
+                 : (r.category_name || "—")}</td>
+      <td>${r.open && edit ? `<button class="act" data-close="${r.id}">Закрыть</button>`
+                           : (r.open ? '<span class="ok">открыт</span>' : "")}</td></tr>`).join("");
+
+    document.querySelectorAll("[data-cls]").forEach(s => s.onchange = async () => {
+      if (!s.value) return;
+      try { await api("/api/tickets/classify", { id: Number(s.dataset.cls), category_id: s.value });
+            say("Причина записана"); loadTickets(); }
+      catch (e) { say("Не записалось: " + e.message, true); }
+    });
+    document.querySelectorAll("[data-close]").forEach(b => b.onclick = async () => {
+      try { await api("/api/tickets/close", { id: Number(b.dataset.close) }); loadTickets(); }
+      catch (e) { say("Не закрылся: " + e.message, true); }
+    });
+  } catch (e) { say("Тикеты не загрузились: " + e.message, true); }
+}
+$("#tk-reload").onclick = loadTickets;
+$("#tk-filter").onchange = loadTickets;
+
+/* --- сводка ручных остановов: как Manual Stoppages Summary в LDS --- */
+let MN_SEQ = 0;
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const hms = s => { if (s == null) return "—"; s = Math.round(s);
+  const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60;
+  return h ? `${h}:${String(m).padStart(2,"0")}:${String(x).padStart(2,"0")}` : `${m}:${String(x).padStart(2,"0")}`; };
+
+async function loadManual() {
+  const seq = ++MN_SEQ;
+  try {
+    const d = await api(`/api/manual_stops?from=${$("#mn-from").value}&to=${$("#mn-to").value}`
+      + `&group=${$("#mn-group").value}`);
+    if (seq !== MN_SEQ) return;
+    const t = d.totals, cols = d.columns;
+    const un = t.cats.unexplained || {min: 0};
+    $("#mn-tiles").innerHTML = [
+      ["Shed Eff", `${nf(t.shed_eff,1)}<small> %</small>`],
+      ["Time Eff", `${nf(t.time_eff,1)}<small> %</small>`],
+      ["Prod Eff", `${nf(t.prod_eff,1)}<small> %</small>`],
+      ["Длинные остановы", `${nf(t.stop_pct,1)}<small> % · ${nf(t.stop_min/60)} ч</small>`],
+      ["Объяснено тикетами и станком", `${t.explained_pct == null ? "—" : nf(t.explained_pct,1)}<small> %</small>`],
+      ["Без причины", `<span class="${un.min ? "bad" : ""}">${nf(un.min/60)}</span><small> ч</small>`],
+    ].map(([l,v])=>`<div class="tile"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("");
+
+    const keyName = {day: "День", shift: "Смена", loom: "Станок"}[d.group];
+    const cls = c => c.kind === "none" ? " none-col" : "";
+    $("#mn-table thead").innerHTML =
+      `<tr class="grp"><th colspan="6"></th>${cols.map(c =>
+        `<th colspan="4" class="sep${cls(c)}">${esc(c.name)}</th>`).join("")}</tr>
+       <tr class="cols"><th>${keyName}</th><th class="n">Станков</th><th class="n">Shed Eff %</th>
+        <th class="n">Time Eff %</th><th class="n">Prod Eff %</th><th class="n">Tot. Stop %</th>
+        ${cols.map(c => `<th class="n sep${cls(c)}">Раз</th><th class="n${cls(c)}">Мин</th>
+          <th class="n${cls(c)}">Среднее</th><th class="n${cls(c)}">%</th>`).join("")}</tr>`;
+    const cells = r => cols.map(c => {
+      const v = r.cats[c.id];
+      if (!v) return `<td class="n sep${cls(c)}"></td><td class="n${cls(c)}"></td><td class="n${cls(c)}"></td><td class="n${cls(c)}"></td>`;
+      const hot = c.kind === "none" && v.pct > 5 ? " bad" : "";
+      return `<td class="n sep${cls(c)}">${v.n == null ? "—" : nf(v.n)}</td><td class="n${cls(c)}">${nf(v.min)}</td>`
+        + `<td class="n${cls(c)}">${hms(v.avg_sec)}</td><td class="n${cls(c)}${hot}">${nf(v.pct,1)}</td>`;
+    }).join("");
+    const line = (r, label) => `<td>${label}</td><td class="n">${r.looms}</td>`
+      + `<td class="n">${nf(r.shed_eff,1)}</td><td class="n${paintEff(r.time_eff)}">${nf(r.time_eff,1)}</td>`
+      + `<td class="n">${nf(r.prod_eff,1)}</td><td class="n">${nf(r.stop_pct,1)}</td>` + cells(r);
+    $("#mn-table tbody").innerHTML = d.rows.map(r =>
+      `<tr>${line(r, d.group === "day" ? r.key.replace(/\./g, "/") : esc(r.key))}</tr>`).join("")
+      || `<tr><td class="note" colspan="${6 + cols.length * 4}">За период нет данных</td></tr>`;
+    $("#mn-table tfoot").innerHTML = `<tr>${line(t, "Итого")}</tr>`;
+  } catch (e) { say("Сводка ручных остановов не загрузилась: " + e.message, true); }
+}
+$("#mn-go").onclick = loadManual;
+$("#mn-group").onchange = loadManual;
+
+/* --- план: связка кодов ткани и пики на изделие --- */
+function renderClothMap(d) {
+  const um = d.unmapped || [], cm = d.cloth_map || [];
+  $("#cm-unmapped tbody").innerHTML = um.map((u, i) => `<tr>
+      <td><b>${esc(u.cloth)}</b>${u.variants > 1
+        ? ` <small class="note">и ещё ${u.variants - 1} написания</small>` : ""}</td>
+      <td>${esc(u.looms.join(", "))}</td>
+      <td class="n">${nf(u.rows)}</td><td>${esc((u.last_day || "").replace(/\./g, "/"))}</td>
+      <td><input size="24" list="pl-products" data-cm-in="${i}" placeholder="артикул 1С" autocomplete="off">
+        <button class="act" data-cm-save="${i}">Связать</button></td></tr>`).join("")
+    || `<tr><td colspan="5" class="note">Все коды ткани за две недели опознаны.</td></tr>`;
+  $("#cm-map tbody").innerHTML = cm.map((m, i) => `<tr><td>${esc(m.cloth_code)}</td>
+      <td>${esc(m.product_code)}</td><td>${esc(m.set_by || "")}</td>
+      <td><button class="act" data-cm-drop="${i}">Снять</button></td></tr>`).join("")
+    || `<tr><td colspan="4" class="note">Связок пока нет.</td></tr>`;
+  document.querySelectorAll("[data-cm-save]").forEach(b => b.onclick = async () => {
+    const u = um[Number(b.dataset.cmSave)];
+    const val = document.querySelector(`[data-cm-in="${b.dataset.cmSave}"]`).value.trim();
+    if (!val) return say("Укажите артикул 1С", true);
+    try { await api("/api/plan/cloth_map", { cloth_code: u.cloth, product_code: val });
+          say(`Связано: ${u.cloth} = ${val}`); loadPlan(); }
+    catch (e) { say("Не связалось: " + e.message, true); }
+  });
+  document.querySelectorAll("[data-cm-drop]").forEach(b => b.onclick = async () => {
+    const m = cm[Number(b.dataset.cmDrop)];
+    try { await api("/api/plan/cloth_map", { cloth_code: m.cloth_code, product_code: "" });
+          loadPlan(); }
+    catch (e) { say("Не снялось: " + e.message, true); }
+  });
+}
+$("#ppt-save").onclick = async () => {
+  const key = $("#ppt-key").value.trim(), ppt = Number($("#ppt-val").value);
+  if (!key || !ppt) return say("Нужны артикул (или код ткани) и число пиков", true);
+  try {
+    await api("/api/plan/ppt", { key, ppt, panels: Number($("#ppt-panels").value) || null });
+    say(`Сохранено: ${key} — ${ppt} пиков`); $("#ppt-val").value = ""; loadPlan();
+  } catch (e) { say("Не сохранилось: " + e.message, true); }
+};
+
+/* --- настройки: андон и ключи API --- */
+$("#an-save").onclick = async () => {
+  const v = id => String(Math.max(0, parseInt($(id).value, 10) || 0));
+  try {
+    await api("/api/settings", { andon_warn_min: v("#an-warn"), andon_alarm_min: v("#an-alarm"),
+                                 andon_notify_min: v("#an-notify") });
+    say("Пороги андона сохранены — доски в цехе уже работают по ним");
+  } catch (e) { say("Не сохранилось: " + e.message, true); }
+};
+
+async function loadKeys() {
+  if (!can("users")) return;
+  try {
+    const { keys, scopes } = await api("/api/keys");
+    $("#key-table tbody").innerHTML = keys.map(k => `<tr class="${k.active ? "" : "note"}">
+      <td>${esc(k.name)}</td><td class="n">${esc(k.prefix)}…</td>
+      <td>${esc(k.scopes.split(" ").map(s => scopes[s] || s).join(", "))}</td>
+      <td class="n">${esc((k.created_at || "").slice(0, 16))}</td>
+      <td class="n">${k.last_used_at ? esc(k.last_used_at.slice(0, 16).replace("T", " ")) : "—"}</td>
+      <td>${k.active ? `<button class="act" data-revoke="${k.id}">Отозвать</button>` : "отозван"}</td></tr>`).join("")
+      || `<tr><td colspan="6" class="note">Ключей пока нет.</td></tr>`;
+    document.querySelectorAll("[data-revoke]").forEach(b => b.onclick = async () => {
+      if (!confirm("Отозвать ключ? Программа, которая им пользуется, перестанет получать данные.")) return;
+      try { await api("/api/keys/revoke", { id: Number(b.dataset.revoke) }); loadKeys(); }
+      catch (e) { say("Не отозвался: " + e.message, true); }
+    });
+  } catch (e) { say("Ключи не загрузились: " + e.message, true); }
+}
+$("#key-add").onclick = async () => {
+  const scopes = [...document.querySelectorAll(".checks input:checked")].map(x => x.value);
+  try {
+    const k = await api("/api/keys", { name: $("#key-name").value.trim(), scopes });
+    $("#key-value").textContent = k.key;
+    $("#key-new").classList.remove("hidden");
+    $("#key-name").value = "";
+    loadKeys();
+  } catch (e) { say("Ключ не выдан: " + e.message, true); }
+};
+
+/* --- дашборд: что случится в ближайшие часы --- */
+async function loadDashSoon() {
+  try {
+    const f = await api("/api/forecast?hours=12");
+    const ev = f.events || [];
+    // Нет связи с FACT — сроки посчитаны от последнего снимка: говорим от какого.
+    $("#dash-soon").innerHTML = ev.length
+      ? `<b>Ближайшие 12 часов${f.stale ? ` <span class="bad">(данные FACT от ${esc(f.snapshot_at)} — связи нет, сроки могут сдвинуться)</span>` : ""}:</b> `
+        + ev.slice(0, 18).map(e =>
+          `${esc(e.loom)} — ${esc(e.what)} в ${e.at}${e.tomorrow ? " (завтра)" : ""}`).join(" · ")
+      : f.stale ? `<span class="bad">Прогноза нет: данные FACT от ${esc(f.snapshot_at)}, связи нет.</span>` : "";
+  } catch (e) { $("#dash-soon").textContent = ""; }
+}
+
+async function boot() {
+  try {
+    if (!(await whoAmI())) return;
+    const [sh, days, ops, set] = await Promise.all([
+      api("/api/shifts"), api("/api/report_days"), api("/api/operators"), api("/api/settings")]);
+    SHIFTS = sh.shifts; OPERATORS = ops.operators;
+    const shOpts = SHIFTS.map((s,i)=>`<option value="${i}">${shiftLabel(s)}</option>`).join("");
+    $("#sal-shift").innerHTML = shOpts;
+    const dayOpts = days.days.map(d=>`<option value="${d}">${d.replace(/\./g,"/")}</option>`).join("");
+    $("#rep-day").innerHTML = dayOpts;
+    $("#dash-day").innerHTML = dayOpts;
+    $("#kpi-from").innerHTML = dayOpts; $("#kpi-to").innerHTML = dayOpts;
+    $("#kpi-from").value = days.days[Math.min(days.days.length-1, 29)] || days.days.at(-1);
+    $("#kpi-to").value = days.days[0];
+    // вкладки «Простои» и «Обход цеха»
+    $("#bt-from").innerHTML = dayOpts; $("#bt-to").innerHTML = dayOpts;
+    $("#bt-from").value = days.days[Math.min(days.days.length-1, 29)] || days.days.at(-1);
+    $("#bt-to").value = days.days[0];
+    $("#ex-from").innerHTML = dayOpts; $("#ex-to").innerHTML = dayOpts;
+    $("#ex-from").value = days.days[Math.min(days.days.length-1, 29)] || days.days.at(-1);
+    $("#ex-to").value = days.days[0];
+    $("#wk-shift").innerHTML = shOpts;
+    $("#wk-shift").value = 1;          // последняя завершённая смена
+    $("#set-rate").value = set.rate; $("#set-unit").value = set.rate_unit;
+    $("#an-warn").value = set.andon_warn_min; $("#an-alarm").value = set.andon_alarm_min;
+    $("#an-notify").value = set.andon_notify_min;
+    // вкладка «Ручные остановы» — те же дни, по умолчанию последние 30
+    $("#mn-from").innerHTML = dayOpts; $("#mn-to").innerHTML = dayOpts;
+    $("#mn-from").value = days.days[Math.min(days.days.length-1, 29)] || days.days.at(-1);
+    $("#mn-to").value = days.days[0];
+    renderOperators();
+    loadYarns();
+    loadReport(true);   // true — перескочить на последний завершённый день
+  } catch (e) { say("Не удалось загрузить данные: " + e.message, true); }
+}
+
+/* --- окраска отчёта: правила взяты из шаблона Excel ---
+   КПД: 1–69 красный, 70–79 жёлтый. Обрывы: свой порог у ворса, утка, основы и
+   прочих, у колонок «Итого» пороги выше. Обороты: 250–519 песочный, ниже 500
+   оранжевый — в шаблоне первое правило имеет приоритет, здесь так же. */
+const paint = (v, yLo, yHi, rLo) => {
+  const x = Number(v);
+  if (v == null || v === "" || isNaN(x) || x === 0) return "";
+  if (x >= rLo) return " c-red";
+  if (x >= yLo && x <= yHi) return " c-yel";
+  return "";
+};
+const paintEff = v => {
+  const x = Number(v);
+  if (v == null || v === "" || isNaN(x)) return "";
+  if (x >= 1 && x <= 69) return " c-red";
+  if (x >= 70 && x <= 79) return " c-yel";
+  return "";
+};
+const paintRpm = v => {
+  const x = Number(v);
+  if (!x || isNaN(x)) return "";
+  if (x >= 250 && x <= 519) return " c-rpm";
+  if (x < 500) return " c-rpm2";
+  return "";
+};
+
+/* --- отчёт --- */
+$("#rep-day").onchange = () => loadReport(false);
+async function loadReport(autoSkip) {
+  try {
+    const { rows } = await api("/api/report?day=" + encodeURIComponent($("#rep-day").value));
+    // Текущий день обычно незавершён (смена C ещё не прошла) — его итоги выглядят
+    // провалом. При первой загрузке перескакиваем на последний полный день.
+    if (autoSkip && rows.length) {
+      const withC = rows.filter(r => r.eff_c != null).length;
+      const sel = $("#rep-day");
+      if (withC < rows.length / 2 && sel.selectedIndex < sel.options.length - 1) {
+        sel.selectedIndex += 1;
+        return loadReport(true);
+      }
+    }
+    // Флаги строки для быстрого фильтра: есть ли красная или жёлтая ячейка
+    // (обороты не считаются — их цвет справочный, а не тревога).
+    rows.forEach(r => {
+      const marks = REP_COLS.filter(c => c.p && c.p !== paintRpm).map(c => c.p(r[c.k]));
+      r._red = marks.some(m => m.includes("c-red"));
+      r._yel = marks.some(m => m.includes("c-yel"));
+    });
+    // Пряжа — по местам, как в техкарте 1С, у каждой нити свой лот: «16/1 RING · 2451».
+    rows.forEach(r => {
+      let ys = [];
+      try { ys = typeof r.yarns === "string" ? JSON.parse(r.yarns || "[]") : (r.yarns || []); } catch (e) {}
+      r.yarn_by = Object.fromEntries(ys.map(y => [y.slot, y]));
+      const show = (...slots) => slots.map(s => r.yarn_by[s]).filter(Boolean)
+        .map(y => (y.yarn || "?") + (y.lot ? " · " + y.lot : "")).join(" + ");
+      r.y_pile = show("pile"); r.y_ground = show("ground"); r.y_weft = show("weft1");
+      r.y_hem = show("weft2", "hemply", "hempoly"); r.y_fancy = show("weft3", "fancyply", "weft4");
+    });
+    REP_ROWS = rows;
+    renderReport();
+  } catch (e) { say("Отчёт не загрузился: " + e.message, true); }
+}
+
+/* --- заправка станка: GSM, вес штуки, PPT, панели, пряжа и лот --- */
+// Места пряжи — как типы компонентов техкарты 1С (Pile, Ground, Weft, E hem…, Fancy…).
+const LS_YARNS = [["pile", "Ворс (Pile)"], ["ground", "Грунт (Ground)"], ["weft1", "Уток (Weft)"],
+                  ["weft2", "Кромка (E hem)"], ["hemply", "Кромка кручёная (E hem ply)"],
+                  ["hempoly", "Кромка полиэстер (E hem polyester)"], ["weft3", "Бордюр (Fancy)"],
+                  ["fancyply", "Бордюр кручёная (Fancy ply)"], ["weft4", "Бордюр полиэстер (Fancy polyester)"]];
+let LS_ROW = null;
+const lsSame = r => REP_ROWS.filter(x => x.cloth && x.cloth === r.cloth && x.loom !== r.loom).map(x => x.loom);
+async function openSetup(loom) {
+  const r = REP_ROWS.find(x => x.loom === loom);
+  if (!r) return;
+  if (!YARNS.length) await loadYarns();      // отбор пряжи по местам нужен и в окне станка
+  LS_ROW = r;
+  const s = r.setup || {};
+  const val = (k, ref) => s[k] != null && s[k] !== "" ? s[k] : (ref == null || ref === "0" ? "" : ref);
+  $("#ls-title").textContent = `Заправка станка ${loom}` + (r.cloth ? ` · ${r.cloth}` : "");
+  $("#ls-note").textContent = r.setup
+    ? `Сейчас действует запись с ${r.setup.from_day.replace(/\./g, "/")} (ввёл ${r.setup.set_by || "—"}).`
+    : "Вручную по этому станку ещё не вводили — в полях значения из справочника, их можно поправить.";
+  $("#ls-from").value = $("#rep-day").value.replace(/\./g, "-");
+  $("#ls-gsm").value = val("gsm", r.gsm);
+  $("#ls-weight_kg").value = val("weight_kg", r.weight_kg);
+  $("#ls-ppt").value = val("ppt", r.ppt);
+  $("#ls-panels").value = val("panels", r.panels);
+  // Пустое поле — «как в техкарте 1С»: там пряжа и лот каждого места.
+  const ref = r.yarn_by || {};
+  $("#ls-yarns").innerHTML = LS_YARNS.map(([y, name]) => `<tr><th scope="row">${name}</th>
+    <td><input data-f="${y}_yarn" data-pick="yarn:${y}" value="${esc(val(y + "_yarn", ref[y] && ref[y].yarn))}" autocomplete="off" aria-label="${name}: пряжа"></td>
+    <td><input data-f="${y}_lot" data-pick="lot:${y}" value="${esc(val(y + "_lot", ref[y] && ref[y].lot))}" autocomplete="off" aria-label="${name}: лот"></td></tr>`).join("");
+  const same = lsSame(r);
+  $("#ls-same-wrap").classList.toggle("hidden", !same.length);
+  $("#ls-same").checked = false;
+  $("#ls-same-text").textContent = `то же для станков с этим кодом ткани: ${same.join(", ")}`;
+  $("#ls-dlg").showModal();
+}
+$("#rep-table tbody").addEventListener("click", e => {
+  const td = e.target.closest("td.edit-loom");
+  if (td) openSetup(td.dataset.loom);
+});
+$("#ls-save").onclick = async () => {
+  const r = LS_ROW;
+  if (!r) return;
+  const values = {gsm: $("#ls-gsm").value, weight_kg: $("#ls-weight_kg").value,
+                  ppt: $("#ls-ppt").value, panels: $("#ls-panels").value};
+  document.querySelectorAll("#ls-yarns input").forEach(i => { values[i.dataset.f] = i.value; });
+  const looms = [r.loom, ...($("#ls-same").checked ? lsSame(r) : [])];
+  $("#ls-save").disabled = true;
+  try {
+    const res = await api("/api/loom_setup", {looms, from_day: $("#ls-from").value.replace(/-/g, "."), values});
+    $("#ls-dlg").close();
+    say(`Заправка записана: ${res.looms.join(", ")} с ${res.from_day.replace(/\./g, "/")}; `
+      + `отчёт пересчитан за ${res.days.length} дн.`);
+    loadReport(false);
+  } catch (e) { say("Не записалось: " + e.message, true); }
+  finally { $("#ls-save").disabled = false; }
+};
+
+/* Колонки отчёта описаны один раз: из этого описания строятся шапка, строки,
+   фильтры, сортировка и итоги. p — окраска как в Excel, f — как считать итог. */
+const grp4 = (pre, name, pa, pt, dt = 0, f = "sum") => ["a", "b", "c", "total"].map((s, i) => ({
+  k: `${pre}_${s}`, t: s === "total" ? "Итог" : s.toUpperCase(), g: name,
+  p: s === "total" ? pt : pa, d: s === "total" ? dt : 0, sep: i === 0, f }));
+const grp3 = (pre, lbl) => ["a", "b", "c"].map((s, i) => ({
+  k: `mend_${pre}_${s}`, t: `${lbl} ${s.toUpperCase()}`, g: "Mending time, сек", sep: i === 0, f: "avg" }));
+const REP_COLS = [
+  {k: "sr", t: "Sr#"}, {k: "size_cm", t: "Размер"}, {k: "rpm", t: "Об/мин", p: paintRpm, f: "avg"},
+  {k: "prod100_kg", t: "100% кг", d: 1, f: "sum"},
+  // Выполнение нормы 1С за день: ряды × секунды на ряд (в них заложено 75 %) ÷ время смен.
+  {k: "norm_pct", t: "Норма 1С, %", d: 0, f: "avg", p: v => (v != null && v < 90 ? " bad" : "")},
+  {k: "loom", t: "Станок", text: "loom"},
+  // Дизайн — из плана цеха без клиента («D327/64» — дизайн D327), без плана — из 1С.
+  {k: "design", t: "Дизайн", text: "sub"},
+  // Заправка: из техкарты 1С по плану или вручную по номеру станка (s — поле ручного ввода)
+  {k: "ppt", t: "PPT", g: "Заправка", sep: true},
+  {k: "weight_kg", t: "Вес шт, кг", g: "Заправка", d: 3, s: "weight_kg"},
+  {k: "panels", t: "Панели", g: "Заправка", s: "panels"},
+  {k: "gsm", t: "GSM", g: "Заправка", s: "gsm"},
+  // Пряжа · лот — каждое место отдельно, как в техкарте 1С.
+  {k: "y_pile", t: "Ворс · лот", g: "Заправка", text: "sub", s: "pile"},
+  {k: "y_ground", t: "Грунт · лот", g: "Заправка", text: "sub", s: "ground"},
+  {k: "y_weft", t: "Уток · лот", g: "Заправка", text: "sub", s: "weft"},
+  {k: "y_hem", t: "Кромка · лот", g: "Заправка", text: "sub", s: "hem"},
+  {k: "y_fancy", t: "Бордюр · лот", g: "Заправка", text: "sub", s: "fancy"},
+  ...grp4("eff", "Efficiency", paintEff, paintEff, 1, "avg"),
+  ...grp4("pile", "Ворс (Pile)", v => paint(v, 30, 40, 41), v => paint(v, 91, 120, 121)),
+  ...grp4("weft", "Уток (Weft)", v => paint(v, 50, 60, 61), v => paint(v, 91, 120, 121)),
+  ...grp4("ground", "Основа (Ground)", v => paint(v, 50, 60, 61), v => paint(v, 45, 60, 61)),
+  ...grp4("other", "Прочие", v => paint(v, 16, 20, 21), v => paint(v, 91, 120, 121)),
+  ...grp3("vors", "Vors"), ...grp3("utog", "Utog"), ...grp3("karenoy", "Karenoy"),
+];
+let REP_ROWS = [], REP_F = {}, REP_SORT = null;
+// Фильтры помнятся по номеру колонки — если колонки поменялись, старые не применяем.
+const REP_SIG = REP_COLS.map(c => c.k).join(",");
+try {
+  const v = JSON.parse(localStorage.getItem("rep-view") || "{}");
+  if (v.sig === REP_SIG) { REP_F = v.f || {}; REP_SORT = v.sort || null; }
+  if (v.flag) $("#rep-flag").value = v.flag;
+} catch (e) { /* без памяти браузера — просто без сохранённых фильтров */ }
+const saveRepView = () => { try {
+  localStorage.setItem("rep-view", JSON.stringify({f: REP_F, sort: REP_SORT, flag: $("#rep-flag").value, sig: REP_SIG}));
+} catch (e) {} };
+
+/* Свёрнутые группы колонок. У сменных групп (A, B, C, Итог) остаётся только
+   «Итог»; у Заправки и Mending time — одна узкая колонка «…», щелчок раскрывает. */
+const SHIFT_GROUPS = ["Efficiency", "Ворс (Pile)", "Уток (Weft)", "Основа (Ground)", "Прочие"];
+const G_SETUP = "Заправка", G_MEND = "Mending time, сек";
+let REP_HIDE = new Set(), REP_VIS = [];
+try { REP_HIDE = new Set(JSON.parse(localStorage.getItem("rep-hide") || "[]")); } catch (e) {}
+
+function repVisible() {
+  const out = [];
+  let prev = null;
+  REP_COLS.forEach((c, i) => {
+    const g = c.g || "", first = !!g && g !== prev;
+    prev = g;
+    if (!g || !REP_HIDE.has(g)) return out.push({c: {...c, sep: !!c.sep || first}, i});
+    if (SHIFT_GROUPS.includes(g)) { if (c.k.endsWith("_total")) out.push({c: {...c, sep: true}, i}); }
+    else if (first) out.push({c: {k: "", t: "…", g, sep: true, ph: true}, i: -1});
+  });
+  return out;
+}
+function repToggle(groups, open) {
+  groups.forEach(g => { const o = open ?? REP_HIDE.has(g); if (o) REP_HIDE.delete(g); else REP_HIDE.add(g); });
+  try { localStorage.setItem("rep-hide", JSON.stringify([...REP_HIDE])); } catch (e) {}
+  $("#rep-table thead").innerHTML = "";
+  renderReport();
+}
+function syncRepChecks() {
+  $("#rg-setup").checked = !REP_HIDE.has(G_SETUP);
+  $("#rg-mend").checked = !REP_HIDE.has(G_MEND);
+  const open = SHIFT_GROUPS.filter(g => !REP_HIDE.has(g)).length;
+  $("#rg-shift").checked = open === SHIFT_GROUPS.length;
+  $("#rg-shift").indeterminate = open > 0 && open < SHIFT_GROUPS.length;
+}
+$("#rg-setup").onchange = e => repToggle([G_SETUP], e.target.checked);
+$("#rg-mend").onchange = e => repToggle([G_MEND], e.target.checked);
+$("#rg-shift").onchange = e => repToggle(SHIFT_GROUPS, e.target.checked);
+
+// «>60», «<=70», «50-80», «=0», просто «5». Непонятное — null: фильтр подсвечивается и не действует.
+function numTest(expr) {
+  const s = expr.replace(/\s/g, "").replace(/,/g, ".");
+  let m = s.match(/^(>=|<=|>|<|=)?(-?\d+(?:\.\d+)?)$/);
+  if (m) {
+    const op = m[1] || "=", x = +m[2];
+    return v => v != null && v !== "" && !isNaN(v) &&
+      ({">": v > x, "<": v < x, ">=": v >= x, "<=": v <= x, "=": +v === x})[op];
+  }
+  m = s.match(/^(-?\d+(?:\.\d+)?)-(-?\d+(?:\.\d+)?)$/);
+  if (m) {
+    const a = Math.min(+m[1], +m[2]), b = Math.max(+m[1], +m[2]);
+    return v => v != null && v !== "" && !isNaN(v) && +v >= a && +v <= b;
+  }
+  return null;
+}
+// Пряжа, лот: просто кусок текста, без учёта регистра.
+const subTest = expr => { const q = expr.trim().toLowerCase();
+  return v => String(v ?? "").toLowerCase().includes(q); };
+// Станки: «D» — весь ряд, «J1-J14» — участок, «D1,D5» — перечисление.
+function textTest(expr) {
+  const items = expr.toUpperCase().split(/[,\s]+/).filter(Boolean);
+  const pp = s => s.match(/^([A-Z]+)(\d+)$/) || [];
+  return v => {
+    const name = String(v || "").toUpperCase();
+    return items.some(it => {
+      const [from, to] = it.split("-");
+      if (to) {
+        const a = pp(from), b = pp(to), c = pp(name);
+        return a[1] && c[1] === a[1] && +c[2] >= +a[2] && +c[2] <= +b[2];
+      }
+      return /^[A-Z]+$/.test(it) ? name.startsWith(it) && /^\d+$/.test(name.slice(it.length))
+                                 : name === it;
+    });
+  };
+}
+
+function buildRepHead() {
+  REP_VIS = repVisible();
+  const groups = [];
+  REP_VIS.forEach(({c}) => {
+    const g = c.g || "", last = groups[groups.length - 1];
+    if (last && last.g === g) last.n++; else groups.push({g, n: 1});
+  });
+  const cls = c => (c.text ? "" : "n") + (c.sep ? " sep" : "");
+  const shut = g => REP_HIDE.has(g);
+  $("#rep-table thead").innerHTML =
+    `<tr class="grp">${groups.map(x => x.g
+        ? `<th colspan="${x.n}" class="sep tg" data-g="${esc(x.g)}" tabindex="0" aria-expanded="${!shut(x.g)}"
+             title="${shut(x.g) ? "Раскрыть" : "Свернуть"}: ${esc(x.g)}"><span class="car" aria-hidden="true">${shut(x.g) ? "▸" : "▾"}</span>${
+             shut(x.g) && !SHIFT_GROUPS.includes(x.g) ? "" : esc(x.g)}</th>`
+        : `<th colspan="${x.n}"></th>`).join("")}</tr>
+     <tr class="cols">${REP_VIS.map(({c, i}) => c.ph
+        ? `<th class="sep ph" data-g="${esc(c.g)}" title="Раскрыть: ${esc(c.g)}">${c.g === G_SETUP ? "Запр." : "Mend."}</th>`
+        : `<th class="${cls(c)} sortable" data-i="${i}" tabindex="0"
+        title="Сортировать: ${c.g ? c.g + ", " : ""}${c.t}">${c.t}<span class="ar"></span></th>`).join("")}</tr>
+     <tr class="flt">${REP_VIS.map(({c, i}) => c.ph ? `<th class="sep ph"></th>` : `<th${c.sep ? ' class="sep"' : ""}><input class="flt" size="1" data-i="${i}"
+        value="${esc(REP_F[i] || "")}" autocomplete="off" placeholder="${c.text === "loom" ? "D, J1-J14" : ""}"
+        title="${c.text === "loom" ? "D — ряд, J1-J14 — участок, D1,D5 — перечисление"
+               : c.text ? "часть текста, например 12/1" : "&gt;60, &lt;70, 50-80, =0"}"
+        aria-label="Фильтр: ${c.g ? c.g + ", " : ""}${c.t}"></th>`).join("")}</tr>`;
+  document.querySelectorAll("#rep-table th.sortable").forEach(th => {
+    const go = () => {
+      const i = +th.dataset.i, first = REP_COLS[i].text ? 1 : -1;   // числа — сначала худшие (большие)
+      if (!REP_SORT || REP_SORT.i !== i) REP_SORT = {i, dir: first};
+      else if (REP_SORT.dir === first) REP_SORT = {i, dir: -first};
+      else REP_SORT = null;
+      saveRepView(); renderReport();
+    };
+    th.onclick = go;
+    th.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } };
+  });
+  document.querySelectorAll("#rep-table input.flt").forEach(inp => inp.oninput = () => {
+    REP_F[inp.dataset.i] = inp.value;
+    if (!inp.value.trim()) delete REP_F[inp.dataset.i];
+    saveRepView(); renderReport();
+  });
+  document.querySelectorAll("#rep-table thead [data-g]").forEach(th => {
+    const go = () => repToggle([th.dataset.g]);
+    th.onclick = go;
+    th.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } };
+  });
+  syncRepChecks();
+}
+
+// Что введено вручную: пряжа или лот любого места этой колонки.
+const manSlots = (...ys) => ys.flatMap(y => [y + "_yarn", y + "_lot"]);
+const MAN_KEYS = {pile: manSlots("pile"), ground: manSlots("ground"), weft: manSlots("weft1"),
+                  hem: manSlots("weft2", "hemply", "hempoly"), fancy: manSlots("weft3", "fancyply", "weft4")};
+const isMan = (r, s) => !!(r.setup && (MAN_KEYS[s] || [s]).some(k => r.setup[k] != null && r.setup[k] !== ""));
+const manTip = r => ` title="введено вручную: ${esc(r.setup.set_by || "—")}, действует с ${esc(r.setup.from_day)}"`;
+
+function repCell(c, r) {
+  const v = r[c.k];
+  if (c.k === "loom") return can("assign")
+    ? `<td class="edit-loom" data-loom="${esc(v)}" title="Ввести GSM, вес штуки, PPT, пряжу и лот">`
+      + `<strong>${esc(v)}</strong> <span class="pen" aria-hidden="true">✎</span></td>`
+    : `<td><strong>${esc(v)}</strong></td>`;
+  if (c.s) {
+    const man = isMan(r, c.s), cls = (c.sep ? " sep" : "") + (man ? " man" : "");
+    return c.text ? `<td class="tx${cls}"${man ? manTip(r) : ""}>${esc(v ?? "")}</td>`
+                  : `<td class="n${cls}"${man ? manTip(r) : ""}>${nf(v, c.d || 0)}</td>`;
+  }
+  if (c.k === "ppt") {
+    const hot = r.ppt_gap != null && Math.abs(r.ppt_gap) > 5, sep = c.sep ? " sep" : "";
+    // PPT, вес штуки, пряжу и лоты вносят руками (вкладка «Заправка»); из 1С —
+    // только дизайн, размер, GSM и панели. Не введено — так и пишем.
+    if (v == null || v === "") return `<td class="n note${sep}" title="заправка не введена — введите PPT, вес и пряжу во вкладке «Заправка» (или щёлкните по номеру станка)">не введено</td>`;
+    if (isMan(r, "ppt")) return `<td class="n man${sep}"${manTip(r)}>${nf(v)}</td>`;
+    return `<td class="n${sep}${hot ? " c-yel" : ""}" title="${r.ppt_fact != null
+      ? `по счётчикам станка ${nf(r.ppt_fact)}${r.ppt_gap != null ? ` (${r.ppt_gap > 0 ? "+" : ""}${nf(r.ppt_gap,1)} %)` : ""}${r.ppt_spread != null ? `, разброс по дням ${nf(r.ppt_spread,1)} %` : ""}${r.ppt_note ? ` — ${esc(r.ppt_note)}` : ""}`
+      : "по счётчикам не посчитан"}">${nf(v)}${r.ppt_fact != null && hot ? `<br><small>факт ${nf(r.ppt_fact)}</small>` : ""}</td>`;
+  }
+  // Текстовые колонки без ручного ввода (дизайн, клиент) — как текст, не как число.
+  if (c.text) return `<td class="tx${c.sep ? " sep" : ""}">${esc(v ?? "")}</td>`;
+  return `<td class="n${c.sep ? " sep" : ""}${c.p ? c.p(v) : ""}">${nf(v, c.d || 0)}</td>`;
+}
+
+function renderReport() {
+  if (!$("#rep-table thead").children.length) buildRepHead();
+  const all = REP_ROWS, tests = [], bad = [];
+  REP_COLS.forEach((c, i) => {
+    const e = (REP_F[i] || "").trim();
+    if (!e) return;
+    const t = c.text === "sub" ? subTest(e) : c.text ? textTest(e) : numTest(e);
+    if (t) tests.push([c.k, t]); else bad.push(i);
+  });
+  document.querySelectorAll("#rep-table input.flt").forEach(inp => {
+    inp.classList.toggle("bad-in", bad.includes(+inp.dataset.i));
+    inp.classList.toggle("on", !!inp.value.trim() && !bad.includes(+inp.dataset.i));
+  });
+  const flag = $("#rep-flag").value;
+  let rows = all.filter(r => tests.every(([k, t]) => t(r[k]))
+    && (flag === "all" || (flag === "red" ? r._red : (r._red || r._yel))));
+  if (REP_SORT) {
+    const c = REP_COLS[REP_SORT.i], dir = REP_SORT.dir;
+    const empty = x => x == null || x === "" || (!c.text && isNaN(x));
+    rows = [...rows].sort((a, b) => {
+      const x = a[c.k], y = b[c.k];
+      if (empty(x) || empty(y)) return empty(x) - empty(y);     // пустые всегда внизу
+      return (c.text ? String(x).localeCompare(String(y), "ru", {numeric: true}) : x - y) * dir;
+    });
+  }
+  document.querySelectorAll("#rep-table th.sortable").forEach(th => {
+    const on = REP_SORT && REP_SORT.i === +th.dataset.i;
+    th.querySelector(".ar").textContent = on ? (REP_SORT.dir > 0 ? "▲" : "▼") : "";
+    th.setAttribute("aria-sort", on ? (REP_SORT.dir > 0 ? "ascending" : "descending") : "none");
+  });
+
+  const filtered = rows.length !== all.length;
+  const S = k => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0);
+  const avg = k => { const v = rows.map(r => r[k]).filter(x => x != null && x !== "");
+    return v.length ? v.reduce((a, b) => a + Number(b), 0) / v.length : null; };
+  const p100 = S("prod100_kg"), fact = S("achieved_kg");
+  const hiddenF = Object.keys(REP_F).filter(i => !REP_VIS.some(v => v.i === +i)).length;
+  $("#rep-count").textContent = (filtered ? `Показано ${rows.length} из ${all.length} станков` : "")
+    + (hiddenF ? `${filtered ? "; " : ""}фильтр стоит и в свёрнутой группе` : "");
+  $("#rep-tiles").innerHTML = [
+    ["100% Production", nf(p100) + "<small> кг</small>"],
+    ["Achieved", nf(fact) + "<small> кг</small>"],
+    ["Efficiency", p100 ? nf(100 * fact / p100, 1) + "<small> %</small>" : "—"],
+    ["Средние об/мин", nf(avg("rpm"))],
+    ["Всего пиков", nf(S("picks") / 1e6, 2) + "<small> млн</small>"],
+    ["Станков", filtered ? `${rows.length}<small> из ${all.length}</small>` : all.length],
+  ].map(([l, v]) => `<div class="tile"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("");
+
+  $("#rep-table tbody").innerHTML = rows.map(r => `<tr>${REP_VIS.map(({c}) =>
+      c.ph ? '<td class="sep ph"></td>' : repCell(c, r)).join("")}</tr>`).join("")
+    || `<tr><td class="note" colspan="${REP_VIS.length}">Под фильтры не попал ни один станок</td></tr>`;
+  $("#rep-table tfoot").innerHTML = `<tr>${REP_VIS.map(({c}) => {
+    if (c.ph) return `<td class="sep ph"></td>`;
+    const sep = c.sep ? " sep" : "";
+    if (c.k === "sr") return `<td>Итого</td>`;
+    if (c.k === "loom") return `<td>${rows.length} станков</td>`;
+    if (c.f === "sum") return `<td class="n${sep}">${nf(S(c.k), c.d || 0)}</td>`;
+    if (c.f === "avg") { const a = avg(c.k); return `<td class="n${sep}">${a == null ? "" : nf(a, c.d || 0)}</td>`; }
+    return `<td class="n${sep}"></td>`;
+  }).join("")}</tr>`;
+  repStick();
+}
+
+// Шапка из трёх строк закреплена при прокрутке. Высота строк зависит от переносов
+// в заголовках, поэтому отступы второй и третьей строки меряем после отрисовки.
+function repStick() {
+  const t = $("#rep-table"), g = t.querySelector("tr.grp"), c = t.querySelector("tr.cols");
+  if (!g || !c || !g.offsetHeight) return;          // вкладка скрыта — померим, когда откроют
+  t.style.setProperty("--rep-h1", g.offsetHeight + "px");
+  t.style.setProperty("--rep-h2", g.offsetHeight + c.offsetHeight + "px");
+}
+window.addEventListener("resize", repStick);
+
+// «Развернуть отчёт»: только таблица на весь экран (и полноэкранный режим браузера,
+// если он разрешён). Выход — кнопка «Свернуть» или Esc.
+const repIsFull = () => document.body.classList.contains("rep-full");
+function repFull(on) {
+  document.body.classList.toggle("rep-full", on);
+  if (on) {
+    const d = $("#rep-day").value || "";
+    $("#rep-strip-day").textContent = d ? d.split(".").reverse().join(".") : "";
+    $("#rep-strip-info").textContent = $("#rep-count").textContent;
+    const el = document.documentElement;
+    if (el.requestFullscreen && !document.fullscreenElement) el.requestFullscreen().catch(() => {});
+  } else if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {});
+  }
+  repStick();
+}
+$("#rep-full").onclick = () => repFull(true);
+$("#rep-strip-exit").onclick = () => repFull(false);
+// Esc в полноэкранном режиме браузер обрабатывает сам — выходим из «развёрнутого» вслед за ним.
+document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && repIsFull()) repFull(false); });
+document.addEventListener("keydown", e => {
+  const inDialog = e.target && e.target.closest && e.target.closest("dialog");
+  if (e.key === "Escape" && repIsFull() && !document.fullscreenElement && !inDialog) repFull(false);
+});
+
+$("#rep-flag").onchange = () => { saveRepView(); renderReport(); };
+$("#rep-reset").onclick = () => {
+  REP_F = {}; REP_SORT = null; $("#rep-flag").value = "all";
+  document.querySelectorAll("#rep-table input.flt").forEach(inp => { inp.value = ""; });
+  saveRepView(); renderReport();
+};
+
+/* --- заправка таблицей: все станки сразу, как в Excel --- */
+// Места пряжи — как типы компонентов техкарты 1С, у каждого свой лот.
+// Кручёная и полиэстер показываются, только если хоть на одном станке они есть.
+const SG_YARN_RU = {pile: "Ворс", ground: "Грунт", weft1: "Уток", weft2: "Кромка",
+                    hemply: "Кромка кручён.", hempoly: "Кромка полиэст.", weft3: "Бордюр",
+                    fancyply: "Бордюр кручён.", weft4: "Бордюр полиэст."};
+const SG_RARE = ["hemply", "hempoly", "fancyply", "weft4"];
+const SG_NUMS = [
+  {k: "gsm", t: "GSM", num: 1, sep: 1}, {k: "weight_kg", t: "Вес шт, кг", num: 1},
+  {k: "ppt", t: "PPT", num: 1}, {k: "panels", t: "Панели", num: 1}];
+const sgColsFor = rows => [...SG_NUMS, ...Object.entries(SG_YARN_RU)
+  .filter(([y]) => !SG_RARE.includes(y) || rows.some(r => r.values[y + "_yarn"] || r.values[y + "_lot"]))
+  .flatMap(([y, t]) => [{k: `${y}_yarn`, t, yarn: 1, sep: 1, slot: y}, {k: `${y}_lot`, t: "лот", lot: 1, slot: y}])];
+let SG_COLS = sgColsFor([]);
+const YARN_KINDS = {"": "—", pile: "ворс", ground: "грунт", weft: "уток"};
+let SG = null, SG_ORIG = [], SG_FOCUS = null, YARNS = [];
+const fmtv = v => v == null ? "" : (typeof v === "number" ? String(+v.toFixed(4)) : String(v));
+// То же, что на сервере: «20/2spun» → «20/2 SPUN», сравнение — без пробелов.
+const yarnCanon = s => String(s || "").toUpperCase().replace(/\s+/g, " ").trim()
+  .replace(/\s*\/\s*/g, "/").replace(/^(\d+(?:\/\d+)?)\s*([A-ZА-ЯЁ])/, "$1 $2");
+const yarnKey = s => yarnCanon(s).replace(/ /g, "");
+const sgCell = (r, c) => document.querySelector(`#sg-table input.sg[data-r="${r}"][data-c="${c}"]`);
+const sgHidden = r => { const i = sgCell(r, 0); return !i || i.closest("tr").classList.contains("hidden"); };
+const sgInFilter = row => { const f = $("#sg-filter").value.trim(); return !f || textTest(f)(row.loom); };
+const sgDirty = () => !!document.querySelector("#sg-table input.sg.chg");
+
+// Отбор по месту: на ворс — только ворсовая пряжа, на уток — уточная и т.д.
+// Сначала то, что 1С ставит на это место, потом пряжа того же вида из справочника.
+let YARN_SLOTS = {};
+async function loadYarns() {
+  try { const d = await api("/api/yarns"); YARNS = d.yarns; YARN_SLOTS = d.by_slot || {}; }
+  catch (e) { YARNS = []; YARN_SLOTS = {}; }
+  $("#yarn-list").innerHTML = YARNS.filter(y => y.active).map(y => `<option value="${esc(y.name)}">`).join("");
+  renderYarns();
+}
+
+/* Выпадающий отбор для полей с data-pick="yarn:<место>" / "lot:<место>" — в таблице
+   заправки и в окне станка. Список браузера (datalist) фильтрует по тому, что уже
+   стоит в поле, и показывает одну строку; здесь при входе в поле виден весь список
+   места, а фильтр включается, только когда начали печатать. */
+const PICK = {el: null, inp: null, items: [], hi: -1, typed: false};
+function pickYarnOf(inp) {
+  const slot = inp.dataset.pick.split(":")[1];
+  const y = inp.closest("tr") && inp.closest("tr").querySelector(`[data-pick="yarn:${slot}"]`);
+  return y ? y.value : "";
+}
+function pickSource(inp) {
+  const [kind, slot] = inp.dataset.pick.split(":");
+  const list = YARN_SLOTS[slot] || [];
+  if (kind === "yarn") return list.map(y => ({v: y.name, g: y.from_1c ? "По техкартам 1С" : "Справочник, тот же вид",
+    hint: y.lots.length ? "лоты " + y.lots.slice(0, 6).join(", ") : ""}));
+  const yarn = pickYarnOf(inp), y = list.find(x => yarnKey(x.name) === yarnKey(yarn));
+  return (y ? y.lots : []).map(l => ({v: l, g: `Лоты ${y.name}`, hint: (y.suppliers || {})[l] || ""}));
+}
+function pickRender() {
+  const {inp} = PICK;
+  const q = PICK.typed ? inp.value.trim() : "";
+  const kind = inp.dataset.pick.split(":")[0];
+  const hit = kind === "yarn" ? (v => yarnKey(v).includes(yarnKey(q))) : (v => v.toLowerCase().includes(q.toLowerCase()));
+  PICK.items = pickSource(inp).filter(o => !q || hit(o.v));
+  if (!PICK.el) {
+    PICK.el = document.createElement("div");
+    PICK.el.className = "pick"; PICK.el.setAttribute("role", "listbox");
+    PICK.el.addEventListener("mousedown", e => {        // не уводить фокус из поля
+      e.preventDefault();
+      const o = e.target.closest(".pick-o");
+      if (o) pickChoose(+o.dataset.i);
+    });
+  }
+  (inp.closest("dialog") || document.body).append(PICK.el);   // модальное окно — поверх всего
+  const cur = kind === "yarn" ? yarnKey(inp.value) : inp.value.trim();
+  if (PICK.hi >= PICK.items.length) PICK.hi = PICK.items.length - 1;
+  let g = null;
+  PICK.el.innerHTML = PICK.items.map((o, i) => {
+    const head = o.g !== g ? `<div class="pick-h">${esc(o.g)}</div>` : "";
+    g = o.g;
+    const isCur = (kind === "yarn" ? yarnKey(o.v) : o.v) === cur;
+    return `${head}<div class="pick-o${i === PICK.hi ? " hi" : ""}${isCur ? " cur" : ""}" data-i="${i}" role="option">
+      <b>${esc(o.v)}</b><span>${esc(o.hint)}</span></div>`;
+  }).join("") || `<div class="pick-empty">${kind === "lot" ? "У этой пряжи на этом месте в 1С лотов нет — впишите лот"
+                                                            : "Ничего не найдено — пряжу можно добавить в справочник"}</div>`;
+  const b = inp.getBoundingClientRect();
+  PICK.el.style.left = Math.max(4, Math.min(b.left, innerWidth - 260)) + "px";
+  const below = innerHeight - b.bottom;
+  if (below < 200 && b.top > below) { PICK.el.style.top = ""; PICK.el.style.bottom = (innerHeight - b.top + 2) + "px"; }
+  else { PICK.el.style.bottom = ""; PICK.el.style.top = (b.bottom + 2) + "px"; }
+  const h = PICK.el.querySelector(".pick-o.hi");
+  if (h) h.scrollIntoView({block: "nearest"});
+}
+function pickOpen(inp) {
+  if (inp.readOnly) return;
+  PICK.inp = inp; PICK.typed = false; PICK.hi = -1;
+  pickRender();
+  const c = PICK.el.querySelector(".pick-o.cur");
+  if (c) { PICK.hi = +c.dataset.i; pickRender(); }
+}
+function pickClose() { if (PICK.el) PICK.el.remove(); PICK.inp = null; }
+function pickChoose(i) {
+  const o = PICK.items[i], inp = PICK.inp;
+  if (!o || !inp) return;
+  inp.value = o.v;
+  PICK.choosing = true;
+  inp.dispatchEvent(new Event("input", {bubbles: true}));
+  inp.dispatchEvent(new Event("change", {bubbles: true}));
+  PICK.choosing = false;
+  pickClose();
+}
+document.addEventListener("focusin", e => { if (e.target.dataset && e.target.dataset.pick) pickOpen(e.target); });
+document.addEventListener("focusout", e => { if (e.target === PICK.inp) pickClose(); });
+document.addEventListener("mousedown", e => {        // щелчок по полю, где список уже закрыли, — открыть снова
+  const t = e.target;
+  if (t.dataset && t.dataset.pick && t === document.activeElement && !PICK.inp) pickOpen(t);
+});
+document.addEventListener("input", e => {
+  if (PICK.choosing || e.target !== PICK.inp) return;
+  PICK.typed = true; PICK.hi = e.target.value.trim() ? 0 : -1; pickRender();
+});
+document.addEventListener("scroll", e => { if (PICK.inp && !(PICK.el && PICK.el.contains(e.target))) pickClose(); }, true);
+// Перехват раньше таблицы: пока список открыт, стрелки листают его, а не станки.
+document.addEventListener("keydown", e => {
+  if (!PICK.inp || e.target !== PICK.inp) return;
+  const n = PICK.items.length;
+  if (e.key === "ArrowDown" && n) { e.preventDefault(); e.stopPropagation(); PICK.hi = (PICK.hi + 1) % n; pickRender(); }
+  else if (e.key === "ArrowUp" && n) { e.preventDefault(); e.stopPropagation(); PICK.hi = PICK.hi <= 0 ? n - 1 : PICK.hi - 1; pickRender(); }
+  else if (e.key === "Enter" && PICK.hi >= 0 && n) pickChoose(PICK.hi);   // дальше таблица перейдёт на станок ниже
+  else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); pickClose(); }
+  else if (e.key === "Tab") pickClose();
+}, true);
+
+async function loadGrid(force) {
+  if (!force && SG && sgDirty() && !confirm("Есть несохранённые правки — выбросить их?")) return;
+  if (!$("#sg-day").value) $("#sg-day").value = shiftNow().day;
+  try {
+    if (!YARNS.length) await loadYarns();
+    SG = await api(`/api/setup_grid?day=${dash2dot($("#sg-day").value)}`);
+    SG_COLS = sgColsFor(SG.rows);
+    SG_ORIG = SG.rows.map(r => Object.fromEntries(SG_COLS.map(c => [c.k, fmtv(r.values[c.k])])));
+    SG_FOCUS = null;
+    renderGrid();
+    renderYarns();
+  } catch (e) { say("Заправка не загрузилась: " + e.message, true); }
+}
+
+function renderGrid() {
+  const edit = can("assign"), sep = c => c.sep ? ' class="sep"' : "";
+  $("#sg-table thead").innerHTML = `<tr><th><input type="checkbox" id="sg-all" aria-label="Отметить все станки"></th>
+    <th>Станок</th><th>Дизайн</th><th>Код ткани</th>${SG_COLS.map(c =>
+      `<th class="${c.num ? "n" : ""}${c.sep ? " sep" : ""}">${c.t}</th>`).join("")}</tr>`;
+  $("#sg-table tbody").innerHTML = SG.rows.map((r, ri) => `<tr data-r="${ri}"${sgInFilter(r) ? "" : ' class="hidden"'}>
+    <td><input type="checkbox" class="sg-pick" aria-label="Отметить ${esc(r.loom)}"></td>
+    <td><strong>${esc(r.loom)}</strong></td><td>${esc(r.design || "")}</td><td class="note">${esc(r.cloth || "")}</td>
+    ${SG_COLS.map((c, ci) => `<td${sep(c)}><input class="sg${r.manual[c.k] ? "" : " ref"}${c.num ? " num" : ""}${c.yarn ? " yw" : ""}"
+      data-r="${ri}" data-c="${ci}" value="${esc(SG_ORIG[ri][c.k])}"${c.yarn ? ` data-pick="yarn:${c.slot}"` : c.lot ? ` data-pick="lot:${c.slot}"` : ""}
+      ${edit ? "" : " readonly"} autocomplete="off" aria-label="${esc(r.loom)}: ${c.t}"></td>`).join("")}</tr>`).join("")
+    || `<tr><td colspan="${SG_COLS.length + 4}" class="note">Нет отчёта ни за один день — станков не из чего взять.</td></tr>`;
+  $("#sg-all").onchange = e => document.querySelectorAll("#sg-table tbody tr:not(.hidden) .sg-pick")
+    .forEach(x => { x.checked = e.target.checked; });
+  document.querySelectorAll("#sg-table input.sg").forEach(i => { if (SG_COLS[+i.dataset.c].yarn) sgCheckYarn(i); });
+  $("#sg-note-day").textContent = SG.report_day && SG.report_day !== SG.day
+    ? `Справочные значения — из отчёта за ${SG.report_day.replace(/\./g, "/")}.` : "";
+  ["#sg-save", "#sg-fill", "#sg-row", "#sg-undo"].forEach(s => { $(s).disabled = !edit; });
+  sgState();
+}
+
+function sgCheckYarn(i) {
+  const v = i.value.trim();
+  if (!v) { i.classList.remove("bad"); i.title = ""; return; }
+  const y = YARNS.find(x => x.active && x.key === yarnKey(v));
+  if (y && i.value !== y.name) i.value = y.name;          // одно написание на одну пряжу
+  i.classList.toggle("bad", !y);
+  i.title = y ? "" : "Такой пряжи нет в справочнике — выберите из списка или добавьте её";
+}
+function sgMark(i) {
+  i.classList.toggle("chg", i.value !== SG_ORIG[+i.dataset.r][SG_COLS[+i.dataset.c].k]);
+  sgState();
+}
+function sgSet(i, v) {
+  i.value = v;
+  if (SG_COLS[+i.dataset.c].yarn) sgCheckYarn(i);
+  sgMark(i);
+}
+function sgState() {
+  const n = new Set([...document.querySelectorAll("#sg-table input.sg.chg")].map(i => i.dataset.r)).size;
+  const bad = document.querySelectorAll("#sg-table input.sg.bad").length;
+  $("#sg-state").textContent = (n ? `Изменено станков: ${n}` : "Изменений нет")
+    + (bad ? ` · пряжи нет в справочнике: ${bad}` : "");
+}
+
+$("#sg-table").addEventListener("focusin", e => {
+  if (!e.target.classList.contains("sg")) return;
+  SG_FOCUS = {r: +e.target.dataset.r, c: +e.target.dataset.c};
+});
+$("#sg-table").addEventListener("input", e => { if (e.target.classList.contains("sg")) sgMark(e.target); });
+$("#sg-table").addEventListener("change", e => {
+  const i = e.target;
+  if (i.classList.contains("sg") && SG_COLS[+i.dataset.c].yarn) { sgCheckYarn(i); sgMark(i); }
+});
+$("#sg-table").addEventListener("keydown", e => {
+  const i = e.target;
+  if (!i.classList || !i.classList.contains("sg")) return;
+  const r = +i.dataset.r, c = +i.dataset.c, yarn = SG_COLS[c].yarn;
+  const go = dr => {
+    let k = r + dr;
+    while (k >= 0 && k < SG.rows.length && sgHidden(k)) k += dr;
+    const n = sgCell(k, c);
+    if (n) { n.focus(); n.select(); }
+  };
+  if (e.key === "Enter") {
+    e.preventDefault();
+    if (yarn) { sgCheckYarn(i); sgMark(i); }
+    go(e.shiftKey ? -1 : 1);
+  } else if (!yarn && e.key === "ArrowDown") { e.preventDefault(); go(1); }   // в пряже стрелки листают список
+  else if (!yarn && e.key === "ArrowUp") { e.preventDefault(); go(-1); }
+  else if ((e.ctrlKey || e.metaKey) && e.code === "KeyD" && !i.readOnly) {
+    e.preventDefault();
+    let k = r - 1;
+    while (k >= 0 && sgHidden(k)) k--;
+    const up = sgCell(k, c);
+    if (up) sgSet(i, up.value);
+  }
+});
+// Блок из Excel: строки — по станкам вниз, колонки — вправо от ячейки, куда вставили.
+$("#sg-table").addEventListener("paste", e => {
+  const i = e.target;
+  if (!i.classList.contains("sg") || i.readOnly) return;
+  const text = (e.clipboardData || window.clipboardData).getData("text");
+  const body = text.replace(/\r/g, "").replace(/\n+$/, "");
+  if (!/[\t\n]/.test(body)) return;                   // одно значение — обычная вставка
+  e.preventDefault();
+  const r0 = +i.dataset.r, c0 = +i.dataset.c;
+  const rows = SG.rows.map((_, k) => k).filter(k => k >= r0 && !sgHidden(k));
+  let n = 0;
+  body.split("\n").forEach((line, dr) => {
+    const r = rows[dr];
+    if (r == null) return;
+    line.split("\t").forEach((v, dc) => {
+      const cell = sgCell(r, c0 + dc);
+      if (cell) { sgSet(cell, v.trim()); n++; }
+    });
+  });
+  say(`Вставлено ячеек: ${n}` + (body.split("\n").length > rows.length ? " — строк было больше, чем станков ниже" : ""));
+});
+
+const sgPicked = () => [...document.querySelectorAll("#sg-table tbody tr:not(.hidden) .sg-pick:checked")]
+  .map(x => +x.closest("tr").dataset.r);
+$("#sg-fill").onclick = () => {
+  if (!SG_FOCUS) return say("Сначала встаньте в ячейку, значение которой нужно протянуть", true);
+  const picks = sgPicked(), src = sgCell(SG_FOCUS.r, SG_FOCUS.c);
+  if (!picks.length) return say("Отметьте станки галочками слева", true);
+  picks.forEach(r => sgSet(sgCell(r, SG_FOCUS.c), src.value));
+  say(`${SG_COLS[SG_FOCUS.c].t} = ${src.value || "пусто"} — на ${picks.length} станков`);
+};
+$("#sg-row").onclick = () => {
+  if (!SG_FOCUS) return say("Сначала встаньте в строку станка, которую нужно размножить", true);
+  const picks = sgPicked().filter(r => r !== SG_FOCUS.r);
+  if (!picks.length) return say("Отметьте станки галочками слева", true);
+  picks.forEach(r => SG_COLS.forEach((_, c) => sgSet(sgCell(r, c), sgCell(SG_FOCUS.r, c).value)));
+  say(`Заправка ${SG.rows[SG_FOCUS.r].loom} скопирована на ${picks.length} станков`);
+};
+$("#sg-same").onclick = () => {
+  if (!SG_FOCUS) return say("Сначала встаньте в строку станка", true);
+  const cl = SG.rows[SG_FOCUS.r].cloth;
+  if (!cl) return say("У этого станка нет кода ткани", true);
+  document.querySelectorAll("#sg-table tbody tr").forEach(tr => {
+    tr.querySelector(".sg-pick").checked = SG.rows[+tr.dataset.r].cloth === cl; });
+  say(`Отмечены станки с кодом ткани ${cl}`);
+};
+$("#sg-undo").onclick = () => loadGrid(true);
+$("#sg-day").onchange = () => loadGrid();
+$("#sg-filter").oninput = () => document.querySelectorAll("#sg-table tbody tr[data-r]")
+  .forEach(tr => tr.classList.toggle("hidden", !sgInFilter(SG.rows[+tr.dataset.r])));
+window.addEventListener("beforeunload", e => { if (SG && sgDirty()) { e.preventDefault(); e.returnValue = ""; } });
+
+$("#sg-save").onclick = async () => {
+  const bad = [...document.querySelectorAll("#sg-table input.sg.bad")];
+  if (bad.length) {
+    const names = [...new Set(bad.map(i => yarnCanon(i.value)))];
+    if (!confirm(`Этой пряжи нет в справочнике: ${names.join(", ")}.\nДобавить её в справочник и сохранить?`)) return;
+    try {
+      for (const name of names) await api("/api/yarns", {name});
+      await loadYarns();
+      document.querySelectorAll("#sg-table input.sg").forEach(i => {
+        if (SG_COLS[+i.dataset.c].yarn) { sgCheckYarn(i); sgMark(i); } });
+    } catch (e) { return say("Пряжа не добавилась: " + e.message, true); }
+  }
+  const changed = [...new Set([...document.querySelectorAll("#sg-table input.sg.chg")].map(i => +i.dataset.r))];
+  if (!changed.length) return say("Изменений нет");
+  const rows = changed.map(r => ({loom: SG.rows[r].loom,
+    values: Object.fromEntries(SG_COLS.map((c, ci) => [c.k, sgCell(r, ci).value]))}));
+  $("#sg-save").disabled = true;
+  try {
+    const res = await api("/api/loom_setup/bulk", {from_day: dash2dot($("#sg-day").value), rows});
+    say(`Сохранено станков: ${res.looms.length}, с ${res.from_day.replace(/\./g, "/")}; `
+      + `отчёт пересчитан за ${res.days.length} дн.`);
+    await loadGrid(true);
+  } catch (e) { say("Не сохранилось: " + e.message, true); }
+  finally { $("#sg-save").disabled = false; }
+};
+
+function renderYarns() {
+  const uses = {};
+  if (SG) SG.rows.forEach(r => SG_COLS.filter(c => c.yarn).forEach(c => {
+    const v = r.values[c.k];
+    if (v) uses[yarnKey(v)] = (uses[yarnKey(v)] || 0) + 1; }));
+  const edit = can("assign");
+  $("#yarn-table tbody").innerHTML = YARNS.map(y => `<tr class="${y.active ? "" : "note"}">
+    <td>${edit ? `<input data-yn="${y.id}" value="${esc(y.name)}" size="18" autocomplete="off" aria-label="Название пряжи">` : esc(y.name)}</td>
+    <td>${edit ? `<select data-yk="${y.id}" aria-label="Вид пряжи">${Object.entries(YARN_KINDS).map(([k, v]) =>
+      `<option value="${k}"${y.kind === k ? " selected" : ""}>${v}</option>`).join("")}</select>` : esc(YARN_KINDS[y.kind] || "")}</td>
+    <td class="n">${uses[y.key] || ""}</td>
+    <td>${edit ? `<button class="act" data-ya="${y.id}">${y.active ? "Скрыть" : "Вернуть"}</button>` : (y.active ? "" : "скрыта")}</td></tr>`).join("")
+    || `<tr><td colspan="4" class="note">Справочник пуст — добавьте пряжу.</td></tr>`;
+  const upd = async (body, msg) => {
+    try { await api("/api/yarns/update", body); say(msg); await loadYarns(); if (SG && !sgDirty()) loadGrid(true); }
+    catch (e) { say("Не сохранилось: " + e.message, true); loadYarns(); }
+  };
+  document.querySelectorAll("[data-yn]").forEach(i => i.onchange = () =>
+    upd({id: +i.dataset.yn, name: i.value}, `Пряжа переименована: ${yarnCanon(i.value)}`));
+  document.querySelectorAll("[data-yk]").forEach(s => s.onchange = () => upd({id: +s.dataset.yk, kind: s.value}, "Вид пряжи сохранён"));
+  document.querySelectorAll("[data-ya]").forEach(b => b.onclick = () => {
+    const y = YARNS.find(x => x.id === +b.dataset.ya);
+    upd({id: y.id, active: !y.active}, y.active ? `«${y.name}» скрыта` : `«${y.name}» снова в списке`);
+  });
+}
+$("#yarn-imp").onclick = () => $("#yarn-file").click();
+$("#yarn-file").onchange = async () => {
+  const f = $("#yarn-file").files[0]; if (!f) return;
+  try {
+    const r = await fetch("/api/yarns/import", {method: "POST", body: f});
+    const j = await r.json(); if (j.error) throw new Error(j.error);
+    say(`Справочник 1С загружен: партий ${j.items} (новых ${j.new}, обновлено ${j.updated})` +
+        (j.yarns_added.length ? `, новая пряжа: ${j.yarns_added.join(", ")}` : "") +
+        (j.no_kind.length ? `. Без вида: ${j.no_kind.length}` : ""));
+    await loadYarns();
+    if (SG && !sgDirty()) loadGrid(true);
+  } catch (e) { say("Справочник не загрузился: " + e.message, true); }
+  $("#yarn-file").value = "";
+};
+$("#yarn-add").onclick = async () => {
+  const name = $("#yarn-new").value.trim();
+  if (!name) return say("Напишите название пряжи", true);
+  try {
+    const r = await api("/api/yarns", {name, kind: $("#yarn-kind").value});
+    say(r.exists ? `«${r.name}» уже есть в справочнике` : `Добавлена пряжа «${r.name}»`);
+    $("#yarn-new").value = "";
+    await loadYarns();
+    document.querySelectorAll("#sg-table input.sg").forEach(i => {
+      if (SG_COLS[+i.dataset.c].yarn) { sgCheckYarn(i); sgMark(i); } });
+  } catch (e) { say("Не добавилась: " + e.message, true); }
+};
+
+/* --- зарплата --- */
+$("#sal-go").onclick = loadSalary;
+$("#sal-shift").onchange = loadSalary;
+let SAL_SEQ = 0;
+async function loadSalary() {
+  const s = SHIFTS[+$("#sal-shift").value];
+  if (!s) return;
+  const seq = ++SAL_SEQ;
+  try {
+    const d = await api(`/api/salary?day=${s.day}&shift=${s.shift}`);
+    if (seq !== SAL_SEQ) return;
+    $("#sal-tiles").innerHTML = [
+      ["Начислено", nf(d.totals.salary)+"<small> сум</small>"],
+      ["Не распределено", nf(d.totals.unassigned_salary)+"<small> сум</small>"],
+      ["Выработка", nf(d.totals.kpicks)+"<small> тыс. пиков</small>"],
+      ["Операторов", d.operators.length],
+      ["Станков закреплено", `${d.totals.assigned}<small> / ${d.totals.looms}</small>`],
+      ["Ставка", `${nf(d.rate)}<small> сум ${d.rate_unit==="kpick"?"за 1000 пиков":"за пик"}</small>`],
+      ["Мастерицы", d.masters.map(m=>m.name).join(", ") || "—"],
+    ].map(([l,v])=>`<div class="tile"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("");
+    $("#sal-note").textContent = d.unassigned_looms.length
+      ? `Без оператора ${d.unassigned_looms.length} станков из ${d.totals.looms} — это ${nf(d.totals.unassigned_salary)} сум, которые пока никому не начислены.`
+      : "Все работавшие станки закреплены за операторами.";
+
+    // Выработка по станкам: видна всегда, даже когда операторов ещё не назначили.
+    const opOpts = cur => [`<option value="">— не назначен —</option>`,
+      ...OPERATORS.filter(o => o.role !== "master" && o.active !== 0)
+        .map(o => `<option value="${o.id}"${o.id===cur?" selected":""}>${o.name} (${o.code})</option>`)
+      ].join("");
+    $("#sal-looms tbody").innerHTML = (d.looms || []).map(l => `<tr>
+      <td><b>${l.loom}</b></td><td>${l.style}</td>
+      <td class="n">${nf(l.kpicks,1)}</td>
+      <td class="n"><strong>${nf(l.salary)}</strong></td>
+      <td class="n${l.effic<60?" bad":""}">${nf(l.effic,1)}</td>
+      <td class="n">${nf(l.weft_ct)}</td><td class="n">${nf(l.warp_ct)}</td>
+      <td class="n${l.wait_min>60?" bad":""}">${nf(l.wait_min)}</td>
+      <td><select data-assign="${l.loom}">${opOpts(l.operator_id)}</select></td></tr>`).join("");
+    $("#sal-looms tfoot").innerHTML = `<tr><td colspan="2">Итого</td>
+      <td class="n">${nf(d.totals.kpicks,1)}</td>
+      <td class="n">${nf(d.totals.salary_all)}</td><td colspan="5"></td></tr>`;
+    document.querySelectorAll("[data-assign]").forEach(sel => sel.onchange = async () => {
+      try {
+        await api("/api/assign_one", { day: s.day, shift: s.shift, loom: sel.dataset.assign,
+                                       operator_id: sel.value ? Number(sel.value) : null });
+        say(sel.value ? `${sel.dataset.assign}: оператор назначен` : `${sel.dataset.assign}: снят`);
+        loadSalary();
+      } catch (e) { say("Не сохранилось: " + e.message, true); }
+    });
+    $("#sal-table tbody").innerHTML = d.operators.map(o => `<tr>
+      <td class="n">${o.code}</td><td>${o.name}</td><td>${o.looms.join(", ")}</td>
+      <td class="n">${o.loom_count}</td><td class="n">${nf(o.kpicks,1)}</td>
+      <td class="n"><strong>${nf(o.salary)}</strong></td>
+      <td class="n${o.effic<60?" bad":""}">${nf(o.effic,1)}</td>
+      <td class="n">${nf(o.weft_cmpx,1)}</td><td class="n">${nf(o.warp_cmpx,1)}</td>
+      <td class="n${o.wait_min>60?" bad":""}">${nf(o.wait_min)}</td></tr>`).join("")
+      || `<tr><td colspan="10" class="note">На эту смену никто не назначен. Откройте вкладку «Смена».</td></tr>`;
+    $("#sal-table tfoot").innerHTML = d.operators.length ? `<tr><td colspan="4">Итого</td>
+      <td class="n">${nf(d.totals.kpicks,1)}</td><td class="n">${nf(d.totals.salary)}</td>
+      <td colspan="4"></td></tr>` : "";
+  } catch (e) { say("Зарплата не посчиталась: " + e.message, true); }
+}
+
+$("#sal-copy").onclick = async () => {
+  const s = SHIFTS[+$("#sal-shift").value];
+  if (!s) return;
+  try {
+    const r = await api("/api/assign_copy", { day: s.day, shift: s.shift });
+    say(r.copied ? `Перенесено со смены ${r.from}: станков ${r.copied}`
+                 : "Не нашлось смены с расстановкой — назначьте вручную");
+    loadSalary();
+  } catch (e) { say("Не перенеслось: " + e.message, true); }
+};
+
+/* --- расстановка на смену: три документа на день (A, B, C) --- */
+let AS = null, AS_SH = null;
+const dash2dot = v => (v || "").replace(/-/g, ".");
+function shiftNow() {
+  const d = new Date(), h = d.getHours();
+  const sh = h >= 7 && h < 15 ? "A" : h >= 15 && h < 23 ? "B" : "C";
+  if (h < 7) d.setDate(d.getDate() - 1);          // ночная смена C числится за вчерашним днём
+  return {day: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`, sh};
+}
+const asMarkShift = () => document.querySelectorAll("#as-shifts .chip")
+  .forEach(c => c.setAttribute("aria-pressed", c.dataset.sh === AS_SH));
+document.querySelectorAll("#as-shifts .chip").forEach(c => c.onclick = () => {
+  AS_SH = c.dataset.sh; asMarkShift(); loadAssign(); });
+$("#as-day").onchange = loadAssign;
+$("#as-all").onchange = e => document.querySelectorAll("#as-table tbody input[type=checkbox]")
+  .forEach(c => { if (!c.disabled) c.checked = e.target.checked; });
+$("#as-apply").onclick = () => {
+  const id = $("#as-bulk").value;
+  document.querySelectorAll("#as-table tbody tr").forEach(tr => {
+    const cb = tr.querySelector("input[type=checkbox]"), sel = tr.querySelector("select");
+    if (cb && cb.checked && sel) sel.value = id;
+  });
+  asSummary();
+};
+const opLabel = o => `${esc(o.name)} (${esc(o.code)})`;
+
+async function loadAssign() {
+  if (!AS_SH) { const n = shiftNow(); $("#as-day").value = n.day; AS_SH = n.sh; }
+  asMarkShift();
+  const day = dash2dot($("#as-day").value);
+  if (!day) return;
+  try {
+    const d = await api(`/api/shift_doc?day=${day}&shift=${AS_SH}`);
+    AS = d;
+    const doc = d.doc || {}, locked = doc.status === "confirmed", edit = can("assign") && !locked;
+    const ops = OPERATORS.filter(o => o.role === "operator"
+      && (o.active || d.assignments.some(a => a.operator_id === o.id)));
+    const opts = id => `<option value="">—</option>` + ops.map(o =>
+      `<option value="${o.id}"${o.id === id ? " selected" : ""}>${opLabel(o)}</option>`).join("");
+    $("#as-bulk").innerHTML = opts(null);
+    $("#as-table tbody").innerHTML = d.assignments.map(a => `<tr>
+      <td><input type="checkbox" aria-label="Отметить ${esc(a.loom)}"${edit ? "" : " disabled"}></td>
+      <td><strong>${esc(a.loom)}</strong></td>
+      <td><select data-loom="${esc(a.loom)}"${edit ? "" : " disabled"}>${opts(a.operator_id)}</select></td></tr>`).join("")
+      || `<tr><td colspan="3" class="note">Станков нет.</td></tr>`;
+    const foremen = OPERATORS.filter(o => o.role === "foreman" && (o.active || o.id === doc.foreman_id));
+    $("#as-foreman").innerHTML = `<option value="">— не указан —</option>` + foremen.map(o =>
+      `<option value="${o.id}"${o.id === doc.foreman_id ? " selected" : ""}>${opLabel(o)}</option>`).join("");
+    $("#as-foreman").disabled = !edit;
+    $("#as-foreman-note").textContent = foremen.length ? ""
+      : "Мастеров в справочнике нет — добавьте на вкладке «Операторы» с ролью «мастер».";
+    const masters = OPERATORS.filter(o => o.role === "master" && (o.active || d.masters.includes(o.id)));
+    $("#as-masters").innerHTML = masters.map(m => `<button class="chip" data-id="${m.id}"
+        aria-pressed="${d.masters.includes(m.id)}"${edit ? "" : " disabled"}>${opLabel(m)}</button>`).join("")
+      || `<span class="note">Мастериц в справочнике нет — добавьте на вкладке «Операторы».</span>`;
+    document.querySelectorAll("#as-masters .chip").forEach(c => c.onclick = () =>
+      c.setAttribute("aria-pressed", c.getAttribute("aria-pressed") !== "true"));
+    $("#as-note").value = doc.note || "";
+    $("#as-note").disabled = !edit;
+    ["#as-save", "#as-apply", "#as-prev", "#as-fact"].forEach(s => { $(s).disabled = !edit; });
+    $("#as-confirm").textContent = locked ? "Открыть для правки" : "Утвердить";
+    $("#as-confirm").disabled = !can("assign");
+    const when = t => t ? t.slice(0, 16).replace("T", " ") : "";
+    $("#as-status").innerHTML = `<b>Расстановка смены ${AS_SH} за ${day.replace(/\./g, "/")}</b> · ${d.hours} · `
+      + (locked ? `<span class="ok">утверждена</span> ${esc(doc.confirmed_by || "")} ${when(doc.confirmed_at)}` : "черновик")
+      + (doc.source ? ` · заполнена: ${esc(doc.source)}` : "")
+      + (doc.updated_by ? ` · правил ${esc(doc.updated_by)} ${when(doc.updated_at)}` : "");
+    document.querySelectorAll("#as-table select").forEach(s => s.onchange = asSummary);
+    asSummary();
+    loadDocs(day);
+  } catch (e) { say("Расстановка не загрузилась: " + e.message, true); }
+}
+
+function asCollect() {
+  return {
+    day: dash2dot($("#as-day").value), shift: AS_SH,
+    assignments: [...document.querySelectorAll("#as-table tbody select")]
+      .map(s => ({loom: s.dataset.loom, operator_id: s.value ? +s.value : null})),
+    masters: [...document.querySelectorAll('#as-masters .chip[aria-pressed="true"]')].map(c => +c.dataset.id),
+    foreman_id: $("#as-foreman").value ? +$("#as-foreman").value : null,
+    note: $("#as-note").value,
+  };
+}
+function asByOperator(c) {
+  const by = {};
+  c.assignments.forEach(a => { if (a.operator_id) (by[a.operator_id] = by[a.operator_id] || []).push(a.loom); });
+  return by;
+}
+function asSummary() {
+  const c = asCollect(), by = asByOperator(c);
+  const free = c.assignments.filter(a => !a.operator_id).map(a => a.loom);
+  $("#as-summary").innerHTML = `Станков ${c.assignments.length}, с оператором ${c.assignments.length - free.length}`
+    + (free.length ? `; без оператора: ${esc(free.join(", "))}` : "")
+    + `<br>Операторов ${Object.keys(by).length}` + (Object.keys(by).length ? ": " : "")
+    + Object.entries(by).map(([id, looms]) => {
+        const o = OPERATORS.find(x => x.id === +id);
+        return `${o ? esc(o.name) : id} — ${looms.length}`; }).join(", ");
+}
+$("#as-save").onclick = async () => {
+  try { await api("/api/shift_doc", asCollect()); say(`Расстановка смены ${AS_SH} сохранена`); loadAssign(); }
+  catch (e) { say("Не сохранилось: " + e.message, true); }
+};
+$("#as-confirm").onclick = async () => {
+  const locked = AS && AS.doc && AS.doc.status === "confirmed";
+  try {
+    if (!locked) await api("/api/shift_doc", asCollect());    // сначала сохранить то, что на экране
+    await api("/api/shift_doc/confirm", {day: dash2dot($("#as-day").value), shift: AS_SH, confirmed: !locked});
+    say(locked ? "Документ открыт для правки" : `Расстановка смены ${AS_SH} утверждена`);
+    loadAssign();
+  } catch (e) { say("Не получилось: " + e.message, true); }
+};
+const asFill = how => async () => {
+  if (!confirm(how === "fact" ? "Заполнить расстановку по данным FACT? То, что на экране, заменится."
+                              : "Взять расстановку из прошлой такой же смены? То, что на экране, заменится.")) return;
+  try {
+    const r = await api("/api/shift_doc/fill", {day: dash2dot($("#as-day").value), shift: AS_SH, how});
+    say(how === "fact" ? `Из FACT: станков ${r.found}, назначено ${r.assigned}`
+          + (r.no_operator && r.no_operator.length ? `; нет в справочнике: ${r.no_operator.length}` : "")
+        : `Взято из смены ${AS_SH} за ${r.from.replace(/\./g, "/")}`);
+    loadAssign();
+  } catch (e) { say("Не заполнилось: " + e.message, true); }
+};
+$("#as-prev").onclick = asFill("prev");
+$("#as-fact").onclick = asFill("fact");
+
+async function loadDocs(day) {
+  const fmt = x => `${x.getFullYear()}.${String(x.getMonth() + 1).padStart(2, "0")}.${String(x.getDate()).padStart(2, "0")}`;
+  const to = new Date(day.replace(/\./g, "-") + "T12:00:00"), from = new Date(to);
+  from.setDate(from.getDate() - 6);
+  try {
+    const {docs} = await api(`/api/shift_docs?from=${fmt(from)}&to=${fmt(to)}`);
+    const days = [...new Set(docs.map(x => x.day))];
+    const cell = (dd, sh) => {
+      const x = docs.find(y => y.day === dd && y.shift === sh);
+      if (!x) return `<td class="note">—</td>`;
+      return `<td><button class="chip" data-doc="${dd}|${sh}" aria-pressed="${dd === day && sh === AS_SH}">`
+        + `${x.status === "confirmed" ? "✓ утверждена" : "черновик"}</button> <small class="note">`
+        + `${x.foreman_name ? esc(x.foreman_name) + " · " : ""}${x.looms} ст., ${x.operators} опер.</small></td>`;
+    };
+    $("#as-docs tbody").innerHTML = days.map(dd => `<tr><td>${dd.replace(/\./g, "/")}</td>`
+      + ["A", "B", "C"].map(sh => cell(dd, sh)).join("") + `</tr>`).join("")
+      || `<tr><td colspan="4" class="note">Документов пока нет.</td></tr>`;
+    document.querySelectorAll("[data-doc]").forEach(b => b.onclick = () => {
+      const [dd, sh] = b.dataset.doc.split("|");
+      $("#as-day").value = dd.replace(/\./g, "-"); AS_SH = sh; loadAssign();
+    });
+  } catch (e) { /* список — вспомогательный, документ и без него работает */ }
+}
+
+/* Печать документа: кто мастер, кто мастерицы, какой оператор на каких станках,
+   место для подписей. Печатается то, что на экране, — даже несохранённое. */
+$("#as-print").onclick = () => {
+  if (!AS) return;
+  const c = asCollect(), doc = AS.doc || {}, by = asByOperator(c);
+  const person = id => { const o = OPERATORS.find(x => x.id === id); return o ? `${esc(o.name)} (${esc(o.code)})` : "—"; };
+  const nameOf = id => (OPERATORS.find(x => x.id === +id) || {name: ""}).name;
+  const rows = Object.entries(by).sort((a, b) => nameOf(a[0]).localeCompare(nameOf(b[0]), "ru"))
+    .map(([id, looms]) => `<tr><td>${person(+id)}</td><td>${esc(looms.join(", "))}</td>`
+      + `<td class="n">${looms.length}</td><td class="sig"></td></tr>`).join("");
+  const free = c.assignments.filter(a => !a.operator_id).map(a => a.loom);
+  const html = `<!doctype html><meta charset="utf-8"><title>Расстановка смены ${AS_SH} · ${c.day}</title>
+<style>body{font:13px/1.45 "IBM Plex Sans",Arial,sans-serif;margin:16mm 14mm;color:#000}
+h1{font-size:18px;margin:0 0 10px}p{margin:4px 0}table{border-collapse:collapse;width:100%;margin-top:12px}
+th,td{border:1px solid #555;padding:5px 7px;text-align:left;vertical-align:top}th{background:#eee}
+td.n{text-align:right}td.sig{width:26%}.st{margin-top:12px;color:#333}
+.signs{display:flex;justify-content:space-between;gap:20px;margin-top:30px}</style>
+<h1>Расстановка смены ${AS_SH} · ${c.day.replace(/\./g, "/")} · ${AS.hours}</h1>
+<p>Мастер смены: <b>${c.foreman_id ? person(c.foreman_id) : "—"}</b></p>
+<p>Мастерицы: <b>${c.masters.map(person).join(", ") || "—"}</b></p>
+<table><thead><tr><th>Оператор</th><th>Станки</th><th>Станков</th><th>Подпись</th></tr></thead>
+<tbody>${rows || `<tr><td colspan="4">Операторы не расставлены</td></tr>`}</tbody></table>
+${free.length ? `<p style="margin-top:10px">Без оператора: ${esc(free.join(", "))}</p>` : ""}
+${c.note ? `<p>Примечание: ${esc(c.note)}</p>` : ""}
+<p class="st">${doc.status === "confirmed"
+    ? `Утверждено: ${esc(doc.confirmed_by || "")} ${(doc.confirmed_at || "").slice(0, 16).replace("T", " ")}`
+    : "Черновик — не утверждено"}</p>
+<div class="signs"><span>Мастер смены ______________________</span><span>Мастерица ______________________</span></div>`;
+  const w = window.open("", "_blank");
+  if (!w) return say("Браузер не дал открыть окно печати — разрешите всплывающие окна для этого адреса", true);
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 300);
+};
+
+/* --- операторы --- */
+function renderOperators() {
+  const roleRu = {operator: "оператор", master: "мастерица", foreman: "мастер"};
+  $("#op-table tbody").innerHTML = OPERATORS.map(o => `<tr>
+    <td class="n">${esc(o.code)}</td><td>${esc(o.name)}</td>
+    <td>${can("people") ? `<select data-role-id="${o.id}" aria-label="Роль: ${esc(o.name)}">${
+      Object.entries(roleRu).map(([k, v]) => `<option value="${k}"${o.role === k ? " selected" : ""}>${v}</option>`).join("")
+    }</select>` : (roleRu[o.role] || o.role)}</td>
+    <td>${o.active ? '<span class="ok">да</span>' : "нет"}</td>
+    <td><button class="act" data-del="${o.id}">Удалить</button></td></tr>`).join("")
+    || `<tr><td colspan="5" class="note">Справочник пуст. Добавьте людей или возьмите имена из FACT.</td></tr>`;
+  document.querySelectorAll("[data-role-id]").forEach(s => s.onchange = async () => {
+    const o = OPERATORS.find(x => x.id === +s.dataset.roleId);
+    try {
+      await api("/api/operators", {id: o.id, code: o.code, name: o.name, role: s.value, active: !!o.active});
+      o.role = s.value;
+      say(`${o.name}: ${roleRu[s.value]}`);
+    } catch (e) { s.value = o.role; say("Не сохранилось: " + e.message, true); }
+  });
+  document.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    if (!confirm("Удалить из справочника?")) return;
+    await api("/api/operators/delete", { id: +b.dataset.del });
+    OPERATORS = (await api("/api/operators")).operators; renderOperators();
+  });
+}
+$("#op-add").onclick = async () => {
+  const code = $("#op-code").value.trim(), name = $("#op-name").value.trim();
+  if (!code || !name) return say("Заполните код и имя", true);
+  try {
+    await api("/api/operators", { code, name, role: $("#op-role").value });
+    $("#op-code").value = ""; $("#op-name").value = "";
+    OPERATORS = (await api("/api/operators")).operators; renderOperators();
+    say("Добавлен: " + name);
+  } catch (e) { say("Не добавился: " + e.message, true); }
+};
+$("#op-paste-go").onclick = async () => {
+  const text = $("#op-paste").value;
+  if (!text.trim()) return say("Вставьте список", true);
+  try {
+    const r = await api("/api/operators/import", {text});
+    OPERATORS = (await api("/api/operators")).operators;
+    renderOperators();
+    $("#op-paste-res").textContent = `В списке ${r.in_list} человек: добавлено ${r.added}, обновлено `
+      + `${r.updated}, без изменений ${r.same}` + (r.repeats ? `; повторов ${r.repeats}` : "")
+      + (r.skipped.length ? `; не разобрано строк ${r.skipped.length}: ${r.skipped.slice(0, 3).join(" | ")}` : "");
+    $("#op-paste").value = "";
+  } catch (e) { say("Не загрузилось: " + e.message, true); }
+};
+$("#op-import").onclick = async () => {
+  try {
+    const r = await api("/api/operators/import_fact", {});
+    OPERATORS = (await api("/api/operators")).operators; renderOperators();
+    say(`Найдено имён в FACT: ${r.found}, добавлено новых: ${r.added}, всего в справочнике: ${r.total}`);
+  } catch (e) { say("Импорт не удался: " + e.message, true); }
+};
+
+/* --- KPI --- */
+document.querySelectorAll("#kpi-role .chip").forEach(c => c.onclick = () => {
+  document.querySelectorAll("#kpi-role .chip").forEach(x => x.setAttribute("aria-pressed", x === c));
+});
+$("#kpi-go").onclick = async () => {
+  const role = document.querySelector('#kpi-role .chip[aria-pressed="true"]').dataset.role;
+  const a = $("#kpi-from").value, b = $("#kpi-to").value;
+  const [from, to] = a <= b ? [a, b] : [b, a];
+  try {
+    const d = await api(`/api/kpi?from=${from}&to=${to}&role=${role}`);
+    $("#kpi-table tbody").innerHTML = d.rows.map(r => `<tr>
+      <td class="n">${r.code}</td><td>${r.name}</td><td class="n">${r.shifts}</td><td class="n">${r.looms}</td>
+      <td class="n">${nf(r.kpicks,1)}</td><td class="n${r.effic<60?" bad":""}">${nf(r.effic,1)}</td>
+      <td class="n">${nf(r.weft_cmpx,1)}</td><td class="n">${nf(r.warp_cmpx,1)}</td>
+      <td class="n">${nf(r.wait_per_shift)}</td><td class="n">${nf(r.manual_per_shift,1)}</td></tr>`).join("")
+      || `<tr><td colspan="10" class="note">Нет назначений за выбранный период.</td></tr>`;
+  } catch (e) { say("KPI не посчитался: " + e.message, true); }
+};
+
+/* --- простои --- */
+const SER = ["--s1","--s2","--s3","--s1","--s2","--s3"];
+document.querySelectorAll("#ex-shifts .chip").forEach(c => c.onclick = () => {
+  const on = c.getAttribute("aria-pressed") === "true";
+  if (on && document.querySelectorAll('#ex-shifts .chip[aria-pressed="true"]').length === 1) return;
+  c.setAttribute("aria-pressed", String(!on));
+});
+document.querySelectorAll("#ex-group .chip").forEach(c => c.onclick = () =>
+  document.querySelectorAll("#ex-group .chip").forEach(x => x.setAttribute("aria-pressed", x === c)));
+$("#ex-go").onclick = loadExplorer;
+async function loadExplorer() {
+  const a = $("#ex-from").value, b = $("#ex-to").value;
+  const [from, to] = a <= b ? [a, b] : [b, a];
+  const shifts = [...document.querySelectorAll('#ex-shifts .chip[aria-pressed="true"]')].map(c => c.dataset.s).join("");
+  const group = document.querySelector('#ex-group .chip[aria-pressed="true"]').dataset.g;
+  try {
+    const d = await api(`/api/explorer?from=${from}&to=${to}&shifts=${shifts}&group=${group}`);
+    const t = d.totals;
+    $("#ex-tiles").innerHTML = [
+      ["КПД", `${nf(t.eff,1)}<small> %</small>`],
+      ["Отработано", `${nf(t.run_h)}<small> ч</small>`],
+      ["Простой", `${nf(t.stop_h)}<small> ч</small>`],
+      ["Выработка", `${nf(t.mpicks,2)}<small> млн пиков</small>`],
+      ["Ручные остановы", `${nf(d.causes["Ручные остановы"]||0)}<small> ч</small>`],
+      ["Записей", nf(t.rows)],
+    ].map(([l,v])=>`<div class="tile"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("");
+    const causes = Object.entries(d.causes).sort((x,y)=>y[1]-x[1]);
+    const sum = causes.reduce((s,c)=>s+c[1],0) || 1;
+    $("#ex-stack").innerHTML = causes.map(([n,h],i) =>
+      `<div title="${n}: ${nf(h)} ч" style="width:${100*h/sum}%;background:var(${SER[i%SER.length]})"></div>`).join("");
+    $("#ex-legend").innerHTML = causes.map(([n,h],i) =>
+      `<span class="chip" style="cursor:default"><b style="display:inline-block;width:9px;height:9px;margin-right:6px;background:var(${SER[i%SER.length]})"></b>${n} — ${nf(h)} ч</span>`).join("");
+    $("#ex-table tbody").innerHTML = d.by_loom.map(l => `<tr>
+      <td><strong>${l.loom}</strong></td><td class="n${l.eff<60?" bad":""}">${nf(l.eff,1)}</td>
+      <td class="n">${nf(l.kpicks)}</td><td class="n">${nf(l.weft_ct)}</td><td class="n">${nf(l.weft_cmpx,1)}</td>
+      <td class="n">${nf(l.warp_ct)}</td><td class="n">${nf(l.top_ct)}</td>
+      <td class="n">${nf(l.manual_ct)}</td><td class="n">${nf(l.manual_h,1)}</td>
+      <td class="n">${nf(l.wait_h,1)}</td><td class="n">${l.shifts}</td></tr>`).join("");
+  } catch (e) { say("Простои не загрузились: " + e.message, true); }
+}
+
+/* --- обход цеха --- */
+$("#wk-go").onclick = loadWalk;
+$("#wk-shift").onchange = loadWalk;
+async function loadWalk() {
+  const s = SHIFTS[+$("#wk-shift").value];
+  if (!s) return;
+  try {
+    const d = await api(`/api/walk?day=${s.day}&shift=${s.shift}`);
+    $("#wk-table tbody").innerHTML = d.rows.map(r => `<tr>
+      <td><strong>${r.loom}</strong></td><td>${r.style}</td>
+      <td>${r.main}</td><td class="n">${nf(r.main_min)}</td>
+      <td class="n${r.eff<60?" bad":""}">${nf(r.eff,1)}</td><td class="n">${nf(r.stop_min)}</td>
+      <td class="n">${nf(r.weft_ct)}</td><td class="n">${nf(r.top_ct)}</td><td class="n">${nf(r.warp_ct)}</td>
+      <td class="n">${nf(r.manual_ct)}</td><td class="n${r.wait_min>60?" bad":""}">${nf(r.wait_min)}</td></tr>`).join("");
+  } catch (e) { say("Обход не загрузился: " + e.message, true); }
+}
+
+/* --- выгрузка Excel --- */
+$("#rep-excel").onclick = async () => {
+  const day = $("#rep-day").value;
+  const btn = $("#rep-excel");
+  btn.disabled = true; btn.textContent = "Собираю…";
+  try {
+    const r = await api("/api/export_excel", { day });
+    if (!r.ok) throw new Error(r.log || "не собралось");
+    location.href = "/api/excel?day=" + encodeURIComponent(day);
+    say("Excel за " + day.replace(/\./g,"/") + " готов");
+  } catch (e) { say("Excel не собрался: " + e.message, true); }
+  btn.disabled = false; btn.textContent = "Скачать Excel";
+};
+
+/* --- настройки --- */
+$("#set-save").onclick = async () => {
+  try {
+    await api("/api/settings", { rate: $("#set-rate").value.trim(), rate_unit: $("#set-unit").value });
+    say("Ставка сохранена");
+  } catch (e) { say("Не сохранилось: " + e.message, true); }
+};
+
+boot();
+</script>

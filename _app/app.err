@@ -1,0 +1,6 @@
+2026-09-13 15:30:30 INFO    shop.web запуск: порт 8780, данные станков C:\Users\Asus\Documents\FACT_archive\_tools\fact.db
+2026-09-13 15:30:35 INFO    shop.web вход: «admin» с адреса 127.0.0.1
+2026-09-13 15:30:35 INFO    shop.web заказы из 1С: {'orders': 8, 'looms': 67, 'from_day': '2026.09.12'}
+2026-09-13 15:30:36 INFO    shop.web заказ TEST-2 (220100TC390) на 9000 полотенец добавил admin
+2026-09-13 15:30:36 INFO    shop.web заказ TEST-3 (5090Hotel450) на 3000 полотенец добавил admin
+2026-09-13 15:30:37 INFO    shop.web вход: «admin» с адреса 127.0.0.1

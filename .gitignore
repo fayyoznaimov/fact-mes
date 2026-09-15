@@ -1,0 +1,49 @@
+# Данные, а не код: базы, зеркало FACT, отчёты — в git не храним.
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+factdata/
+fact/
+reports/
+
+# Работающая служба и журналы
+_app/run/
+_app/logs/
+logs/
+*.log
+__pycache__/
+*.pyc
+
+# Промежуточные файлы отчётов и сгенерированные страницы (собираются скриптами _tools/build_*.py)
+_tools/_rows_*.csv
+_tools/dashboard.html
+_tools/explorer.html
+_tools/shift_view.html
+_tools/daily_report.html
+_tools/report_dashboard.html
+
+# Секреты: живые ключи API и локальная настройка (пример — _app/config.example.json)
+_app/config.json
+_app/e2e_secrets.json
+postman/1C-to-MES.postman_collection.json
+postman/MES-local.postman_environment.json
+*.env
+.env.*
+
+# Excel: шаблоны и выгрузки пользователя (оригинал .xlsb не меняем и не храним)
+*.xlsb
+*.xlsx
+*.xlsm
+~$*
+
+# Редакторы и ОС
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+
+# Разовые сверки и выгрузки данных (не код)
+_tools/*.csv
+_tools/manual_report_*.json
+_tools/artikul_ref.json
