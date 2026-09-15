@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MES · задания и остановки — макет Ганта</title>
+<style>
+:root{font-family:Segoe UI,Arial,sans-serif;color:#203342;background:#eef2f5;font-synthesis:none}*{box-sizing:border-box}body{margin:0}button,select{font:inherit}button{cursor:pointer}button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #168ed0;outline-offset:3px}
+.demo{background:#dce8f1;padding:10px 26px;font-size:14px;color:#30516a}header{padding:24px 28px;background:white;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #d7e1e8;gap:16px}h1{font-size:28px;margin:0 0 5px}h2{font-size:21px;margin:0 0 14px}.muted{color:#627484;font-size:14px}.status{color:#31624c;background:#e9f4ed;padding:12px;border-radius:7px;font-size:14px}
+.toolbar{padding:18px 28px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}select,.reset{padding:10px;border:1px solid #b8c8d5;border-radius:6px;background:white}.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:13px}.key:before{content:'';display:inline-block;width:18px;height:10px;background:var(--color);margin-right:7px;border-radius:2px}.key.fore:before{background:white;border:1px dashed #7755b9}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 325px;gap:18px;padding:0 28px 28px}.chart,.detail,.summary{background:white;border:1px solid #d4dfe7;border-radius:10px}.layout>section{min-width:0}.chart{overflow:hidden}.chart-title{padding:16px 18px;border-bottom:1px solid #e3e9ee;display:flex;justify-content:space-between;gap:10px}.scroll{overflow:auto}.plot{min-width:720px}.axis,.row{display:grid;grid-template-columns:105px minmax(0,1fr)}.axis{height:42px;background:#f6f8fa;position:sticky;top:0;z-index:4}.axis-label{padding:12px;font-size:13px}.time{position:relative}.tick{position:absolute;top:12px;font-size:12px;transform:translateX(-50%);color:#647585}.row{min-height:106px;border-top:1px solid #e0e7ec}.row.active{background:#f3f8fd}.label{padding:17px 12px;border-right:1px solid #e1e7ec;font-size:20px;font-weight:650}.label small{display:block;font-size:12px;color:#697b88;font-weight:400;margin-top:6px}.track{position:relative;background:repeating-linear-gradient(to right,transparent 0,transparent calc(12.5% - 1px),#edf0f4 calc(12.5% - 1px),#edf0f4 12.5%)}
+.bar{position:absolute;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;border:0;border-radius:4px;text-align:left;padding:4px 8px;font-size:12px;color:#244c6c;height:24px;min-width:5px}.plan{top:15px;background:#dbe7f4;border:1px solid #92b1cc}.actual{top:48px;background:#2f866b;color:white}.stop{top:48px;background:#c55045;color:white;padding:0}.forecast{top:48px;border:1px dashed #7a5ab5;background:#f1ebfa;color:#684491}.delay{top:48px;background:repeating-linear-gradient(45deg,#f8d3b1,#f8d3b1 4px,#fdf0de 4px,#fdf0de 8px);border:1px solid #c68b51;padding:0}.unavailable{position:absolute;left:39%;top:51px;color:#805c16;font-size:12px}.caption{position:absolute;bottom:9px;left:12px;color:#677985;font-size:12px}.now{position:absolute;top:0;bottom:0;left:37.5%;border-left:2px solid #206c9e;pointer-events:none;z-index:3}.due{position:absolute;top:10px;bottom:26px;border-left:1px dotted #9a6870;pointer-events:none}.summary{margin:16px 0 0;padding:15px 18px;font-size:14px;line-height:1.6}.detail{padding:20px;align-self:start}.badge{display:inline-block;padding:5px 9px;border-radius:5px;background:#e8f1ed;color:#256045;font-size:13px;margin-bottom:16px}.badge.warn{color:#885a0d;background:#fff1d4}.metrics{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:8px 0 22px}.metric small{color:#627484;display:block;font-size:12px;margin-bottom:5px}.metric strong{font-size:22px}.reason{padding:12px;background:#f6f8fa;border-left:3px solid #c55045;font-size:14px;line-height:1.5;margin:12px 0}.scenario{border-top:1px solid #d9e3eb;margin-top:18px;padding-top:18px}.scenario label{display:block;font-size:14px;margin:12px 0 8px}.scenario input{width:100%;accent-color:#326d9b}.formula{font-size:12px;color:#627484;line-height:1.6;margin-top:16px}.empty{padding:30px}footer{padding:0 28px 28px;color:#627484;font-size:13px}dialog{max-width:520px;border:1px solid #b8c8d4;border-radius:12px;padding:24px;line-height:1.6}dialog::backdrop{background:#1234}dialog button{padding:10px 18px;background:#e5eef5;border:1px solid #b4c7d7;border-radius:6px}
+@media(max-width:1100px){.layout{grid-template-columns:1fr}.detail{display:grid;grid-template-columns:1fr 1fr;gap:0 24px}.detail h2,.detail .badge,.detail .muted{grid-column:1/-1}.scenario{margin-top:0}.layout{padding:0 16px 20px}.toolbar{padding:16px}.legend{gap:10px}header{padding:20px 16px}}@media(max-width:600px){header{display:block}.status{margin-top:15px}.detail{display:block}.scenario{margin-top:18px}.chart-title{display:block}.chart-title span{display:block;margin-top:6px}.demo{padding:10px 16px}h1{font-size:25px}}
+</style>
+<div class="demo">Интерактивный макет · вымышленные задания · изменения действуют только на этом экране</div>
+<header><div><h1>Задания и остановки</h1><div class="muted">Демонстрационный день · 15 сентября 2026 · 07:00 → 07:00 · Ташкент</div></div><div class="status">Время сценария: 16:00<br>План и прогноз отображаются отдельно</div></header>
+<div class="toolbar"><label>Участок <select id="group"><option value="all">Все участки</option><option>Dobby</option><option>Bonas</option><option>Staubli</option></select></label><label><input type="checkbox" id="risks"> Только риски</label><button class="reset" id="reset">Сбросить сценарий</button><div class="legend"><span class="key" style="--color:#dbe7f4">План</span><span class="key" style="--color:#2f866b">Факт работы</span><span class="key" style="--color:#c55045">Останов</span><span class="key fore">Прогноз</span></div></div>
+<div class="layout"><section><div class="chart"><div class="chart-title"><strong id="scope">6 станков · 6 заданий</strong><span class="muted">Нажмите полосу задания или красный останов</span></div><div class="scroll"><div class="plot"><div class="axis"><div class="axis-label">Станок</div><div class="time" id="axis"></div></div><div id="rows"></div></div></div></div><div class="summary" id="summary" role="status"></div></section><aside class="detail" id="detail"></aside></div>
+<footer>Вертикальная синяя линия — время сценария; точечная линия — срок задания. Прогноз учитывает оставшееся количество и выбранную эффективность. Ночной выпуск в этом примере разрешён календарём. <a href="operator-terminal.html">Макет терминала оператора</a></footer>
+<dialog id="stopDialog" aria-labelledby="stopTitle"><h2 id="stopTitle">Останов</h2><p id="stopInfo"></p><p class="muted">Причина станка и уточнение оператора хранятся раздельно. В рабочем MES здесь будут время, сотрудник и история изменения причины.</p><button id="close">Закрыть</button></dialog>
+<script>
+'use strict';
+const $=id=>document.getElementById(id),NOW=9,HORIZON=24;
+const jobs=[
+ {id:'DEMO-101',loom:'D-01',group:'Dobby',item:'Полотенце 50 × 90',start:0,planEnd:11,due:12,total:4000,done:2600,rpm:500,ppt:240,panels:4,stops:[[3,4,'Ручной останов','Ожидание электрика'],[6,6.5,'Обрыв основы','Уточнение не требуется']]},
+ {id:'DEMO-102',loom:'D-02',group:'Dobby',item:'Полотенце 70 × 140',start:0,planEnd:14,due:15,total:3200,done:2000,rpm:480,ppt:240,panels:4,stops:[[4,4.3,'Обрыв утка','Уточнение не требуется']]},
+ {id:'DEMO-103',loom:'D-03',group:'Dobby',item:'Полотенце 30 × 50',start:2,planEnd:13,due:14,total:3600,done:1800,rpm:500,ppt:200,panels:4,stops:[[5,6,'Ручной останов','Наладка после смены изделия']]},
+ {id:'DEMO-104',loom:'J-07',group:'Bonas',item:'Жаккард 70 × 140',start:1,planEnd:15,due:16,total:2600,done:1400,rpm:520,ppt:360,panels:4,stops:[[5,5.7,'Ручной останов','Проверка версии дизайна']]},
+ {id:'DEMO-105',loom:'J-08',group:'Bonas',item:'Жаккард 50 × 90',start:0,planEnd:14,due:15,total:3600,done:1800,rpm:520,ppt:300,panels:4,stale:true,stops:[[2,2.5,'Обрыв утка','Уточнение не требуется']]},
+ {id:'DEMO-106',loom:'J-01',group:'Staubli',item:'Жаккард 100 × 150',start:0,planEnd:16,due:17,total:2000,done:800,rpm:490,ppt:440,panels:4,stops:[[3,4,'Ручной останов','Подготовка навоя']]}
+];
+let selected=jobs[0].id,efficiency=80,extra={};
+const time=t=>{const minutes=Math.round((7+t)*60),day=Math.floor(minutes/1440);return String(Math.floor(minutes/60)%24).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0')+(day?' +'+day+' д.':'');};
+const forecast=j=>j.stale?null:NOW+(extra[j.id]||0)/60+(j.total-j.done)/(60*j.rpm/j.ppt*j.panels*efficiency/100);
+const risk=j=>j.stale||forecast(j)>j.due;
+function node(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e;}
+function bar(track,j,a,b,cls,label,action){if(b<=a||a>=HORIZON)return;const e=node('button','bar '+cls,label);e.type='button';e.style.left=(a/HORIZON*100)+'%';e.style.width=((Math.min(b,HORIZON)-a)/HORIZON*100)+'%';e.title=j.loom+' · '+label+' · '+time(a)+'–'+time(b);e.setAttribute('aria-label',e.title);e.onclick=action||(()=>{selected=j.id;render();});track.append(e);}
+function render(){
+ const visible=jobs.filter(j=>($('group').value==='all'||j.group===$('group').value)&&(!$('risks').checked||risk(j)));
+ if(!visible.some(j=>j.id===selected)&&visible.length)selected=visible[0].id;
+ $('rows').replaceChildren();$('axis').replaceChildren();
+ for(let h=0;h<24;h+=3){const e=node('span','tick',time(h));e.style.left=(h/24*100)+'%';if(h===0)e.style.transform='none';$('axis').append(e);}
+ visible.forEach(j=>{
+  const r=node('div','row'+(j.id===selected?' active':'')),label=node('div','label',j.loom);label.append(node('small','',j.group));r.append(label);
+  const track=node('div','track');r.append(track);track.append(node('div','now'));const due=node('div','due');due.style.left=(j.due/24*100)+'%';track.append(due);
+  bar(track,j,j.start,j.planEnd,'plan',j.id+' · '+j.item);
+  const knownUntil=j.stale?8:NOW;let t=j.start;
+  j.stops.forEach(s=>{bar(track,j,t,s[0],'actual','Работа');bar(track,j,s[0],s[1],'stop',s[2],()=>{selected=j.id;render();$('stopTitle').textContent=j.loom+' · '+s[2];$('stopInfo').textContent=time(s[0])+'–'+time(s[1])+' · '+Math.round((s[1]-s[0])*60)+' мин. '+s[3]+'.';$('stopDialog').showModal();});t=s[1];});
+  bar(track,j,t,knownUntil,'actual','Работа');const end=forecast(j);
+  if(end!==null){const delay=(extra[j.id]||0)/60;if(delay)bar(track,j,NOW,NOW+delay,'delay','Дополнительный останов');bar(track,j,NOW+delay,end,'forecast','До '+time(end));}
+  else track.append(node('span','unavailable','Нет свежих данных · прогноз скрыт'));
+  track.append(node('span','caption',j.done.toLocaleString('ru')+' / '+j.total.toLocaleString('ru')+' полотенец · срок '+time(j.due)));
+  $('rows').append(r);
+ });
+ $('scope').textContent=visible.length+' станков · '+visible.length+' заданий';
+ if(!visible.length)$('rows').append(node('div','empty','Для выбранного участка рисков нет.'));
+ const late=visible.filter(j=>!j.stale&&forecast(j)>j.due).length,unknown=visible.filter(j=>j.stale).length;
+ $('summary').textContent='Выбранный участок: '+late+' заданий с прогнозом позже срока; '+unknown+' без достоверного прогноза. Неподтверждённые данные не включаются в оценку выполнения срока.';
+ detail(visible.find(j=>j.id===selected));
+}
+function detail(j){
+ const d=$('detail');d.replaceChildren();if(!j){d.append(node('h2','','Нет выбранного задания'));return;}
+ d.append(node('h2','',j.loom+' · '+j.id),node('div','muted',j.item));
+ const end=forecast(j);d.append(node('p','badge'+(risk(j)?' warn':''),j.stale?'Toyota: последний снимок в 15:00':end>j.due?'Риск опоздания на '+Math.ceil((end-j.due)*60)+' мин':'Прогноз в пределах срока'));
+ const metrics=node('div','metrics');for(const [k,v]of[['Выполнено',Math.round(j.done/j.total*100)+'%'],['Осталось',(j.total-j.done).toLocaleString('ru')+' шт.'],['План окончания',time(j.planEnd)],['Прогноз',end===null?'Недоступен':time(end)]]){const m=node('div','metric');m.append(node('small','',k),node('strong','',v));metrics.append(m);}d.append(metrics);
+ const losses=node('div');losses.append(node('h2','','Потери времени'));
+ j.stops.forEach(s=>losses.append(node('div','reason',Math.round((s[1]-s[0])*60)+' мин · '+s[2]+'. '+s[3])));d.append(losses);
+ const sim=node('section','scenario');sim.append(node('h2','','Что будет, если…'));
+ const effLabel=node('label','','Эффективность: '+efficiency+'%');effLabel.htmlFor='eff';const eff=node('input');eff.id='eff';eff.type='range';eff.min=60;eff.max=95;eff.step=5;eff.value=efficiency;eff.disabled=j.stale;
+ eff.onchange=()=>{efficiency=Number(eff.value);render();};sim.append(effLabel,eff);
+ const delayLabel=node('label','','Дополнительный останов этого задания');delayLabel.htmlFor='delay';const delay=node('select');delay.id='delay';delay.disabled=j.stale;
+ for(const [v,title]of[[0,'Без дополнительного останова'],[30,'Ещё 30 минут'],[60,'Ещё 1 час'],[120,'Ещё 2 часа']]){const o=node('option','',title);o.value=v;o.selected=v===(extra[j.id]||0);delay.append(o);}delay.onchange=()=>{extra[j.id]=Number(delay.value);render();};sim.append(delayLabel,delay);
+ sim.append(node('p','formula','Расчёт: 60 × '+j.rpm+' об/мин ÷ '+j.ppt+' прокидок на ряд × '+j.panels+' панели × '+efficiency+'% = '+Math.round(60*j.rpm/j.ppt*j.panels*efficiency/100)+' полотенец/час. Эффективность применяется один раз. Изменение эффективности относится ко всем заданиям макета; дополнительный останов — к выбранному.'));
+ d.append(sim);
+}
+$('group').onchange=render;$('risks').onchange=render;$('reset').onclick=()=>{selected=jobs[0].id;efficiency=80;extra={};$('group').value='all';$('risks').checked=false;render();};$('close').onclick=()=>$('stopDialog').close();render();
+</script>
+</html>
