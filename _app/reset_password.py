@@ -9,7 +9,6 @@
 """
 import argparse
 import secrets
-import sqlite3
 
 import auth
 
@@ -37,10 +36,6 @@ def main():
 
     password = secrets.token_urlsafe(9)
     auth.set_password(target["id"], password, must_change=not args.keep)
-    conn = sqlite3.connect(auth.DB_PATH)
-    conn.execute("DELETE FROM app_session WHERE user_id=?", (target["id"],))
-    conn.commit()
-    conn.close()
 
     print("Логин:            %s" % target["login"])
     print("Временный пароль: %s" % password)

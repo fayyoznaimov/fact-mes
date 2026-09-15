@@ -95,10 +95,8 @@ PUBLIC_GET = {"/", "/index.html", "/wall", "/cards", "/api/me", "/api/live", "/a
               "/api/forecast", "/api/cards", "/api/health", "/api/docs"}
 
 
-def current_user(handler):
-    """Пользователь текущей сессии по cookie, либо None."""
-    if not auth:
-        return None
+def current_token(handler):
+    """Токен из cookie, либо None; некорректная cookie не даёт сессию."""
     raw = handler.headers.get("Cookie")
     if not raw:
         return None
@@ -106,8 +104,12 @@ def current_user(handler):
         jar = http.cookies.SimpleCookie(raw)
     except http.cookies.CookieError:
         return None
-    token = jar["sid"].value if "sid" in jar else None
-    return auth.user_by_token(token)
+    return jar["sid"].value if "sid" in jar else None
+
+
+def current_user(handler):
+    """Пользователь текущей сессии по cookie, либо None."""
+    return auth.user_by_token(current_token(handler)) if auth else None
 
 
 def may(user, permission):
@@ -443,7 +445,8 @@ class Handler(BaseHTTPRequestHandler):
                 target = body.get("user_id") or me["id"]
                 if target != me["id"] and not may(me, "users"):
                     return self._send(403, {"error": "нет прав"})
-                auth.set_password(target, body.get("password", ""), must_change=False)
+                auth.set_password(target, body.get("password", ""), must_change=False,
+                                  keep_token=current_token(self) if target == me["id"] else None)
                 return self._send(200, {"ok": True})
             if u.path == "/api/users":
                 if not may(current_user(self), "users"):

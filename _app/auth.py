@@ -110,13 +110,20 @@ def create_user(login, name, role, password, must_change=True):
         conn.close()
 
 
-def set_password(user_id, password, must_change=False):
+def set_password(user_id, password, must_change=False, keep_token=None):
+    """Меняет пароль и отзывает прежние сессии в одной транзакции.
+
+    При смене своего пароля веб-клиент сохраняет только текущую сессию.
+    При сбросе администратором или из консоли закрываются все сессии цели.
+    """
     if not password or len(password) < 6:
         raise ValueError("пароль короче шести символов")
     salt = secrets.token_hex(16)
     conn = db()
     conn.execute("UPDATE app_user SET pwd_hash=?, pwd_salt=?, must_change=? WHERE id=?",
                  (_hash(password, salt), salt, 1 if must_change else 0, user_id))
+    conn.execute("DELETE FROM app_session WHERE user_id=? AND token IS NOT ?",
+                 (user_id, keep_token))
     conn.commit()
     conn.close()
 

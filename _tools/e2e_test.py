@@ -8,6 +8,7 @@ import json
 import os
 import sqlite3
 import socket
+import secrets
 import sys
 import time
 import urllib.error
@@ -64,6 +65,47 @@ def ok(path, **kw):
     code, js, out, ms = req("GET", path, **kw)
     assert code == 200, "HTTP %s: %s" % (code, out[:200])
     return js if js is not None else out
+
+
+def password_sessions():
+    def reset():
+        login = "e2e_" + secrets.token_hex(8)
+        password = secrets.token_urlsafe(20)
+        code, _, _, _ = req("POST", "/api/users", {
+            "login": login, "name": "Проверка сессий", "role": "viewer", "password": password})
+        assert code == 200, code
+        try:
+            def sign_in(pwd):
+                code, _, _, _ = req("POST", "/api/login", {"login": login, "password": pwd}, cookie=False)
+                assert code == 200, code
+                with sqlite3.connect(SHOP) as db:
+                    return db.execute("SELECT s.token FROM app_session s JOIN app_user u ON u.id=s.user_id "
+                                      "WHERE u.login=? ORDER BY s.rowid DESC LIMIT 1", (login,)).fetchone()[0]
+            first, second = sign_in(password), sign_in(password)
+            with sqlite3.connect(SHOP) as db:
+                uid = db.execute("SELECT id FROM app_user WHERE login=?", (login,)).fetchone()[0]
+            def user(token):
+                return ok("/api/me", cookie=False, headers={"Cookie": "sid=" + token})["user"]
+            new_password = secrets.token_urlsafe(20)
+            code, _, _, _ = req("POST", "/api/password", {"password": new_password}, cookie=False,
+                                headers={"Cookie": "sid=" + first})
+            assert code == 200, code
+            assert user(first) and not user(first)["must_change"], "текущая сессия потеряна"
+            assert user(second) is None, "другая сессия сохранилась после смены пароля"
+            code, _, _, _ = req("POST", "/api/login", {"login": login, "password": password}, cookie=False)
+            assert code == 401, "старый пароль работает"
+            third = sign_in(new_password)
+            code, _, _, _ = req("POST", "/api/password", {"user_id": uid, "password": secrets.token_urlsafe(20)})
+            assert code == 200, code
+            assert user(first) is None and user(third) is None, "сброс не отозвал все сессии"
+            assert ok("/api/me")["user"]["role"] == "admin", "сессия администратора потеряна"
+            return "смена сохраняет текущую сессию; сброс отзывает все сессии пользователя"
+        finally:
+            with sqlite3.connect(SHOP) as db:
+                db.execute("DELETE FROM app_session WHERE user_id IN (SELECT id FROM app_user WHERE login=?)", (login,))
+                db.execute("DELETE FROM app_user WHERE login=?", (login,))
+                db.execute("DELETE FROM login_fail WHERE login=?", (login,))
+    check("вход", "отзыв сессий при смене и сбросе пароля", reset)
 
 
 def http_input():
@@ -439,6 +481,7 @@ def main():
         SECRETS.update(json.load(f))
     t0 = time.time()
     print("Песочница", BASE)
+    password_sessions()
     http_input()
     public()
     state = reads()
