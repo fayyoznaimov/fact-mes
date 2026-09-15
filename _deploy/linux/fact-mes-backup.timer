@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily FACT MES backup
+
+[Timer]
+OnCalendar=*-*-* 02:15:00 Asia/Tashkent
+Persistent=true
+RandomizedDelaySec=5m
+Unit=fact-mes-backup.service
+
+[Install]
+WantedBy=timers.target
