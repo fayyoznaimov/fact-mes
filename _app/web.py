@@ -23,6 +23,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 import api
+import auth
 import cache
 import collector
 import dashboard
@@ -46,11 +47,6 @@ LOG = logs.get("web")
 STARTED_AT = time.time()
 MAX_BODY = 5 * 1024 * 1024      # больше пяти мегабайт от 1С не бывает — это ошибка
 PING_SEC = 15                   # пустая строка в поток, чтобы соединение не рвали
-
-try:
-    import auth
-except ImportError:      # приложение работает и без модуля прав
-    auth = None
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -113,10 +109,7 @@ def current_user(handler):
 
 
 def may(user, permission):
-    """Права выключены, пока не заведён ни один пользователь — иначе можно
-    запереть себя снаружи на первом же запуске."""
-    if not auth:
-        return True
+    """Проверяет право пользователя; модуль авторизации обязателен для запуска."""
     return auth.can(user, permission)
 
 

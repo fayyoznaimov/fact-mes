@@ -9,6 +9,7 @@ import os
 import sqlite3
 import socket
 import secrets
+import subprocess
 import sys
 import time
 import urllib.error
@@ -106,6 +107,17 @@ def password_sessions():
                 db.execute("DELETE FROM app_user WHERE login=?", (login,))
                 db.execute("DELETE FROM login_fail WHERE login=?", (login,))
     check("вход", "отзыв сессий при смене и сбросе пароля", reset)
+
+
+def auth_required():
+    def missing():
+        result = subprocess.run(
+            [sys.executable, "-c", "import sys; sys.modules['auth'] = None; import web"],
+            cwd=os.path.join(ROOT, "_app"), capture_output=True, text=True, timeout=10)
+        assert result.returncode != 0 and "ModuleNotFoundError" in result.stderr, (
+            "сервер загрузился без модуля авторизации")
+        return "при отсутствии auth запуск прерывается"
+    check("права", "сервер не запускается без авторизации", missing)
 
 
 def http_input():
@@ -481,6 +493,7 @@ def main():
         SECRETS.update(json.load(f))
     t0 = time.time()
     print("Песочница", BASE)
+    auth_required()
     password_sessions()
     http_input()
     public()
