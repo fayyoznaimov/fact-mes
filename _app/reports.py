@@ -580,6 +580,19 @@ def excel_path(day):
 
 def export_excel(day):
     """Собирает Excel-отчёт за день теми же скриптами, что и из командной строки."""
+    if os.name != "nt":
+        # COM Excel доступен только на Windows. На Linux создаём самостоятельный
+        # XLSX из тех же рассчитанных данных, не меняя исходный шаблон XLSB.
+        if TOOLS_DIR not in sys.path:
+            sys.path.insert(0, TOOLS_DIR)
+        import make_excel_report as mer
+        from xlsx_report import write_report
+        rows = mer.build(day)
+        mer.save_db(day, rows)
+        path = excel_path(day)
+        write_report(day, rows, path)
+        return {"ok": True, "step": "xlsx", "path": path,
+                "log": "Отчёт XLSX: %d станков; формат Linux без шаблона Excel" % len(rows)}
     env = dict(os.environ, PYTHONIOENCODING="utf-8")
     r1 = subprocess.run([sys.executable, "make_excel_report.py", day], cwd=TOOLS_DIR,
                         capture_output=True, text=True, encoding="utf-8", env=env, timeout=600)
