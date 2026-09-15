@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MES — терминал участка, интерактивный макет</title>
+<style>
+:root{font-family:"Segoe UI",Arial,sans-serif;color:#17252d;background:#edf1f3;font-synthesis:none}
+*{box-sizing:border-box}body{margin:0}button{font:inherit;cursor:pointer}button:disabled{cursor:default}
+.demo{padding:10px 24px;background:#dbe4ea;color:#344d5d;font-size:14px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.demo select{font:inherit;padding:7px;background:white;border:1px solid #a2b2be;border-radius:5px}
+header{display:flex;justify-content:space-between;gap:20px;align-items:center;padding:22px 30px;background:white;border-bottom:1px solid #ced7dd}
+h1{font-size:29px;margin:0 0 6px;letter-spacing:-.5px}.muted{color:#556875}.identity{text-align:right}.identity strong{display:block;margin-bottom:6px}
+.connection{font-size:15px;color:#236542}.notice{margin:20px 30px 0;padding:16px 20px;border-left:5px solid #b77005;background:#fff2d6;color:#694103;font-size:18px;line-height:1.5}
+.summary{display:flex;gap:28px;padding:22px 30px 10px;font-size:17px;flex-wrap:wrap}.summary strong{font-size:23px;margin-right:6px}
+main{padding:14px 30px 26px}.looms{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.loom{padding:24px;text-align:left;background:white;border:1px solid #cad5dc;border-left:6px solid #388060;border-radius:10px;min-height:210px;display:flex;flex-direction:column;gap:15px;position:relative;color:inherit}
+.loom:hover{border-color:#647c8b}.loom:focus-visible,.reason:focus-visible,button:focus-visible{outline:3px solid #126fa9;outline-offset:3px}
+.loom.stop{border-left-color:#c23d32;background:#fffafa}.loom.auto{border-left-color:#b77916}.loom.saved{border-left-color:#337db2}
+.loom-top{display:flex;justify-content:space-between;align-items:center;gap:14px}.number{font-size:36px;font-weight:750;letter-spacing:-1px}.status{font-size:16px;font-weight:600}
+.stop .status{color:#a82c25}.auto .status{color:#835008}.saved .status{color:#235f91}.running .status{color:#206444}
+.title{font-size:22px;font-weight:600}.detail{font-size:16px;color:#536875}.action{font-size:18px;font-weight:650;color:#1d628a;margin-top:auto}.stop .action{color:#ab3027}
+.loom:disabled{opacity:.65}.footer{padding:0 30px 26px;font-size:15px;color:#536875}.success{background:#e0f1e7;color:#235b40;padding:16px 20px;margin:0 30px 24px;border-radius:6px;font-size:18px}
+dialog{border:1px solid #c3d0d7;border-radius:12px;padding:26px;width:min(650px,95vw);color:inherit;box-shadow:0 20px 60px #13293533}
+dialog::backdrop{background:#15293488}dialog h2{font-size:29px;margin:0 0 12px}.reasons{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:24px 0}
+.reason{min-height:78px;background:#f2f6f8;color:#1b4058;border:1px solid #b7cbd8;border-radius:8px;padding:16px;font-size:20px;font-weight:600}
+.reason:hover{background:#dfedf6}.close{padding:13px 23px;min-height:52px;border:1px solid #b8c8d2;background:white;border-radius:6px}.dialog-bottom{display:flex;justify-content:space-between;align-items:center;gap:14px}
+[hidden]{display:none!important}@media(max-width:650px){header{padding:18px;align-items:flex-start}h1{font-size:24px}.identity{font-size:14px}main{padding:14px 16px}.looms{grid-template-columns:1fr}.loom{min-height:180px}.summary{padding:20px 16px 5px;gap:14px}.notice{margin:16px}.reasons{grid-template-columns:1fr}.reason{min-height:64px}.demo{padding:10px 16px}}
+</style>
+<div class="demo"><strong>Интерактивный макет · вымышленные данные</strong><label>Ситуация <select id="scenario"><option value="normal">Работа участка</option><option value="stale">Toyota не обновляется</option><option value="offline">Нет связи с MES</option><option value="signedout">Требуется вход</option></select></label><button id="reset" class="close">Начать заново</button></div>
+<header><div><h1>Участок D1–D4</h1><div class="muted">Смена A · 07:00–15:00</div></div><div class="identity"><strong id="operator">Оператор участка</strong><span class="connection" id="connection">MES на связи · Toyota: снимок 15 с назад</span></div></header>
+<div class="notice" id="notice" role="alert" hidden></div>
+<div class="summary"><span><strong id="needs">1</strong>нужно указать причину</span><span><strong>2</strong>работают</span><span><strong>1</strong>обрыв утка</span></div>
+<main><div class="looms" id="looms"></div></main>
+<div class="success" id="success" role="status" hidden></div>
+<div class="footer">Нажмите на остановившийся станок. Его место на экране всегда остаётся прежним.</div>
+<dialog id="dialog" aria-labelledby="dialog-title"><h2 id="dialog-title">D1 · причина остановки</h2><p class="detail" id="dialog-info"></p><div id="reasons" class="reasons"></div><div class="dialog-bottom"><button class="close" id="close">Назад к станкам</button><span id="saving" role="status"></span></div></dialog>
+<script>
+const root=document;
+const $=id=>root.getElementById(id);
+const model=[{id:'D1',kind:'stop',status:'Стоит · 08:42',title:'Нужно указать причину',detail:'Toyota: ручной останов',action:'Указать причину'},
+ {id:'D2',kind:'running',status:'Работает',title:'Заказ 1708 · полотенце 70 × 140',detail:'Скорость 510 об/мин',action:'Посмотреть состояние'},
+ {id:'D3',kind:'running',status:'Работает',title:'Заказ 1708 · полотенце 70 × 140',detail:'Скорость 498 об/мин',action:'Посмотреть состояние'},
+ {id:'D4',kind:'auto',status:'Стоит · 00:38',title:'Обрыв утка',detail:'Причину определил станок',action:'Посмотреть состояние'}];
+let reason=null,scenario='normal',selected=null,saving=false,revision=0;
+function render(){
+ const blocked=scenario!=='normal';
+ $('needs').textContent=reason?'0':'1';$('operator').textContent=scenario==='signedout'?'Вход не выполнен':'Оператор участка';
+ $('connection').textContent=scenario==='offline'?'MES: нет связи':scenario==='stale'?'MES на связи · Toyota: снимок 5 мин назад':'MES на связи · Toyota: снимок 15 с назад';
+ $('connection').style.color=blocked?'#875300':'#236542';
+ $('notice').hidden=!blocked;
+ $('notice').textContent={stale:'Toyota не обновляет состояние. Показан последний снимок; время остановов заморожено. Дождитесь свежих данных.',offline:'Нет связи с MES. Запись недоступна. Ничего не сохранено локально; после восстановления связи проверьте состояние станка.',signedout:'Для ввода причин нужен вход сотрудника. Просмотр состояния доступен.'}[scenario]||'';
+ $('looms').replaceChildren();
+ model.forEach(m=>{
+  const saved=m.id==='D1'&&reason;const b=document.createElement('button');b.className='loom '+(saved?'saved':m.kind);b.type='button';b.disabled=blocked;
+  b.setAttribute('aria-label',m.id+' · '+(saved?reason:m.title));
+  const top=document.createElement('span');top.className='loom-top';
+  const num=document.createElement('span');num.className='number';num.textContent=m.id;top.append(num);
+  const st=document.createElement('span');st.className='status';st.textContent=m.status;top.append(st);b.append(top);
+  for(const [cls,value] of [['title',saved?reason:m.title],['detail',saved?'Причина записана оператором участка':m.detail],['action',saved?'Изменить причину':m.action]]){
+   const el=document.createElement('span');el.className=cls;el.textContent=value;b.append(el);
+  }
+  b.onclick=()=>open(m);$('looms').append(b);
+ });
+}
+function open(m){
+ selected=m;$('dialog-title').textContent=m.id+' · '+(m.kind==='stop'?'причина остановки':'состояние');
+ $('dialog-info').textContent=m.kind==='stop'?'Выберите причину одним нажатием. Она будет сохранена для текущего останова.':m.kind==='running'?'Станок работает. Причина остановки не требуется.':'Toyota определила обрыв утка. Дополнительная ручная причина сейчас не требуется.';
+ $('reasons').replaceChildren();$('saving').textContent='';
+ if(m.kind==='stop')for(const label of ['Вызов электрика','Техническое обслуживание','Наладка','Замена навоя']){
+  const b=document.createElement('button');b.type='button';b.className='reason';b.textContent=label;b.onclick=()=>save(label);$('reasons').append(b);
+ }
+ $('dialog').showModal();
+}
+async function save(label){
+ if(saving||scenario!=='normal')return;saving=true;const current=revision;
+ $('reasons').querySelectorAll('button').forEach(b=>b.disabled=true);$('close').disabled=true;$('saving').textContent='Сохраняем…';
+ await new Promise(resolve=>setTimeout(resolve,450));
+ if(current!==revision){saving=false;return;}
+ reason=label;saving=false;$('close').disabled=false;$('dialog').close();render();
+ $('success').hidden=false;$('success').textContent='D1 · '+label+' — сохранено в демонстрации.';
+}
+$('close').onclick=()=>$('dialog').close();$('dialog').addEventListener('cancel',e=>{if(saving)e.preventDefault();});
+$('scenario').onchange=e=>{revision++;scenario=e.target.value;saving=false;$('close').disabled=false;$('dialog').close();$('success').hidden=true;render();};
+$('reset').onclick=()=>{revision++;reason=null;scenario='normal';saving=false;$('scenario').value='normal';$('dialog').close();$('close').disabled=false;$('success').hidden=true;render();};
+render();
+</script>
+</html>
