@@ -1,55 +1,72 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Цех: отчёты и зарплата</title>
+<title>Ткацкий цех</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 :root{
-  --page:#f4f3ef; --surface:#fcfcfb; --surface-2:#efeee9; --ink:#14130f; --ink-2:#52514e;
-  --muted:#898781; --hair:#e1e0d9; --rule:#c3c2b7; --accent:#2a78d6;
-  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --good:#0ca30c; --critical:#d03b3b;
+  /* Холодный серый суровья и индиго красителя: цвета цеха, а не «тёплый крем» шаблонов */
+  --page:#eef1f4; --surface:#ffffff; --surface-2:#f3f5f7; --ink:#16202b; --ink-2:#465262;
+  --muted:#6b7683; --hair:#e1e5ea; --rule:#c7ced6; --accent:#2f5fd0;
+  --s1:#2f5fd0; --s2:#eb6834; --s3:#1baf7a; --good:#138a4b; --critical:#c8362e;
 }
 @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
-  --page:#0d0d0d; --surface:#1a1a19; --surface-2:#232321; --ink:#fff; --ink-2:#c3c2b7;
-  --muted:#898781; --hair:#2c2c2a; --rule:#383835; --accent:#3987e5;
-  --s1:#3987e5; --s2:#d95926; --s3:#199e70;
+  --page:#11151a; --surface:#181d23; --surface-2:#1f262d; --ink:#eef2f6; --ink-2:#b6c0cb;
+  --muted:#8994a0; --hair:#262e36; --rule:#36414c; --accent:#4a78e8;
+  --s1:#4a78e8; --s2:#d95926; --s3:#199e70; --good:#3fbf7a; --critical:#ef6a60;
 }}
 :root[data-theme="dark"]{
-  --page:#0d0d0d; --surface:#1a1a19; --surface-2:#232321; --ink:#fff; --ink-2:#c3c2b7;
-  --muted:#898781; --hair:#2c2c2a; --rule:#383835; --accent:#3987e5;
-  --s1:#3987e5; --s2:#d95926; --s3:#199e70;
+  --page:#11151a; --surface:#181d23; --surface-2:#1f262d; --ink:#eef2f6; --ink-2:#b6c0cb;
+  --muted:#8994a0; --hair:#262e36; --rule:#36414c; --accent:#4a78e8;
+  --s1:#4a78e8; --s2:#d95926; --s3:#199e70; --good:#3fbf7a; --critical:#ef6a60;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--page);color:var(--ink);font-family:"IBM Plex Sans",system-ui,"Segoe UI",sans-serif;font-size:14px;line-height:1.45}
-.wrap{max-width:none;margin:0 auto;padding:16px 16px 60px;display:flex;flex-direction:column;gap:16px}
-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--rule);padding-bottom:10px}
-h1{margin:0;font-size:19px;font-weight:600;letter-spacing:-.01em}
-nav{display:flex;gap:6px;flex-wrap:wrap}
-nav button{font:inherit;padding:7px 14px;background:var(--surface);color:var(--ink);border:1px solid var(--rule);border-radius:3px;cursor:pointer}
-nav button[aria-current="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
-/* На телефоне 15 вкладок занимали пять рядов (250 px) — одна прокручиваемая строка */
-@media (max-width:640px){
-  nav{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;padding-bottom:4px;margin:0 -16px;padding-inline:16px}
-  nav button{flex:0 0 auto;padding:7px 12px}
-  header{align-items:stretch}
+/* Слева — меню разделов, сгруппированное по работе (сейчас в цеху, смена, план, отчёты,
+   справочники); справа — раздел. На узком экране меню выдвигается кнопкой «Меню». */
+.wrap{max-width:none;margin:0;padding:14px 22px 60px 254px;display:flex;flex-direction:column;gap:14px;min-height:100vh}
+header{position:fixed;top:0;left:0;bottom:0;width:232px;z-index:20;display:flex;flex-direction:column;gap:6px;
+  padding:16px 10px 12px;background:var(--surface);border-right:1px solid var(--rule);overflow-y:auto}
+h1{margin:0 8px 6px;font-size:17px;font-weight:600;line-height:1.2}
+h1 small{display:block;margin-top:2px;font-size:12px;font-weight:400;color:var(--muted)}
+nav{display:flex;flex-direction:column;gap:1px}
+nav .grp{margin:12px 10px 3px;font-size:12px;color:var(--muted)}
+nav button{font:inherit;text-align:left;padding:6px 10px;background:none;color:var(--ink);border:0;
+  border-left:3px solid transparent;border-radius:0 4px 4px 0;cursor:pointer}
+nav button:hover{background:var(--surface-2)}
+nav button[aria-current="true"]{background:color-mix(in srgb,var(--accent) 11%,transparent);border-left-color:var(--accent);font-weight:600}
+header .meta{margin-top:auto;padding:10px 10px 0;border-top:1px solid var(--hair);font-size:12px;color:var(--ink-2);line-height:1.5}
+header .meta a{color:var(--accent)}
+.topbar{display:flex;align-items:center;gap:10px;min-height:34px}
+.topbar h2{margin:0;font-size:21px;font-weight:600;letter-spacing:-.01em}
+#menu-btn{display:none}
+@media (max-width:999px){
+  .wrap{padding:0 14px 60px}
+  header{transform:translateX(-100%);transition:transform .18s ease;box-shadow:0 0 40px rgba(0,0,0,.28)}
+  body.menu-open header{transform:none}
+  body.menu-open::after{content:"";position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:19}
+  .topbar{position:sticky;top:0;z-index:15;background:var(--page);margin:0 -14px;padding:8px 14px;border-bottom:1px solid var(--rule)}
+  .topbar h2{font-size:17px}
+  #menu-btn{display:inline-flex}
 }
+@media (prefers-reduced-motion:reduce){ header{transition:none} }
 .bar{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;background:var(--surface);border:1px solid var(--hair);padding:11px}
 .f{display:flex;flex-direction:column;gap:4px}
-.f label{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.f label{font-size:12px;color:var(--ink-2)}
 select,input,button.act{font:inherit;padding:6px 9px;background:var(--surface);color:var(--ink);border:1px solid var(--rule);border-radius:3px}
 button.act{cursor:pointer}
 button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(146px,1fr));gap:1px;background:var(--hair);border:1px solid var(--hair)}
 .tile{background:var(--surface);padding:11px 13px;display:flex;flex-direction:column;gap:2px}
-.tile .l{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.tile .l{font-size:12px;color:var(--ink-2)}
 .tile .v{font-size:24px;font-weight:600;line-height:1.05}
 .tile .v small{font-size:12px;font-weight:500;color:var(--ink-2)}
 .tbl-wrap{overflow:auto;border:1px solid var(--hair);background:var(--surface);max-height:72vh}
 table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{padding:6px 8px;text-align:left;border-bottom:1px solid var(--hair);white-space:nowrap}
-th{position:sticky;top:0;background:var(--surface);font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:600;z-index:1}
+th{position:sticky;top:0;background:var(--surface);font-size:12px;color:var(--ink-2);font-weight:600;z-index:1}
 thead tr.grp th{top:0;background:var(--surface-2);text-align:center;color:var(--ink-2);border-bottom:1px solid var(--rule)}
 thead tr.cols th{top:26px}
 th.n,td.n{text-align:right;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
@@ -61,6 +78,12 @@ tfoot td{position:sticky;bottom:0;font-weight:600;background:var(--surface-2);bo
 .note{color:var(--muted);font-size:12px;max-width:78ch}
 .msg{padding:8px 11px;border:1px solid var(--rule);background:var(--surface-2);font-size:13px;overflow-wrap:anywhere}
 .msg.err{border-color:var(--critical);color:var(--critical)}
+/* Сообщения приложения — всплывают внизу справа: успех гаснет сам, ошибка ждёт, пока её закроют */
+#msg{position:fixed;right:16px;bottom:16px;z-index:60;width:max-content;max-width:min(480px,calc(100vw - 32px));
+  display:flex;gap:12px;align-items:flex-start;padding:10px 10px 10px 14px;background:var(--surface);color:var(--ink);
+  border:1px solid var(--rule);border-left:4px solid var(--good);box-shadow:0 10px 30px rgba(0,0,0,.2)}
+#msg.err{border-color:var(--critical);border-left-color:var(--critical);color:var(--ink)}
+#msg .x{border:0;background:none;color:var(--muted);font-size:18px;line-height:1;cursor:pointer;padding:0 2px}
 /* !important: иначе класс проигрывает стилю, прописанному прямо в теге, и
    форма входа остаётся поверх приложения даже после успешного входа */
 .hidden{display:none !important}
@@ -96,7 +119,7 @@ body.locked .wrap > *:not(#gate){display:none}
 .chip{padding:5px 10px;border:1px solid var(--rule);background:var(--surface);color:var(--ink);font:inherit;border-radius:999px;font-size:12px;cursor:pointer}
 .chip:disabled{opacity:.6;cursor:default}
 .chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
-.sect{margin:18px 0 6px;font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.sect{margin:20px 0 8px;font-size:15px;color:var(--ink);font-weight:600}
 .keybox{font-family:"IBM Plex Mono",monospace;padding:9px 11px;border:1px dashed var(--accent);
         background:var(--surface-2);word-break:break-all;font-size:13px}
 th.none-col,td.none-col{background:color-mix(in srgb,var(--critical) 8%,transparent)}
@@ -145,7 +168,7 @@ dialog.ls .btns{display:flex;gap:8px;justify-content:flex-end}
 .pick-o span{color:var(--muted);font-size:12px}
 .pick-o.hi{background:color-mix(in srgb,var(--accent) 24%,transparent)}
 .pick-o.cur b{color:var(--accent)}
-.pick-h{padding:6px 10px 2px;color:var(--muted);font-size:11px;letter-spacing:.04em;text-transform:uppercase}
+.pick-h{padding:6px 10px 2px;color:var(--muted);font-size:12px}
 .pick-empty{padding:6px 10px;color:var(--muted)}
 /* производственный отчёт: группы колонок сворачиваются щелчком по заголовку */
 /* Колонки по содержимому, а не поровну: таблица не растягивается на лишнее место,
@@ -218,31 +241,55 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
 #lp-table td.d .nt{color:var(--muted);font-style:italic}
 #lp-table td.lm{position:sticky;left:0;background:var(--surface);font-weight:600;z-index:1}
 #lp-table th:first-child{left:0;z-index:2}
+/* Разделы внутри вкладки (План): вместо одной длинной страницы — по одному делу на экран */
+.seg{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--rule)}
+.seg button{font:inherit;padding:8px 14px;margin-bottom:-1px;border:0;border-bottom:3px solid transparent;
+  background:none;color:var(--ink-2);cursor:pointer}
+.seg button:hover{color:var(--ink)}
+.seg button[aria-selected="true"]{border-bottom-color:var(--accent);color:var(--ink);font-weight:600}
+.pane{display:flex;flex-direction:column;gap:10px}
+/* Заправка: станок и дизайн остаются на месте при прокрутке вбок, шапка — по местам пряжи */
+#sg-table .stk{position:sticky;background:var(--surface);z-index:1}
+#sg-table .s0{left:0;width:30px;min-width:30px;max-width:30px}
+#sg-table .s1{left:30px;width:58px;min-width:58px;max-width:58px}
+#sg-table .s2{left:88px;min-width:96px;box-shadow:inset -1px 0 0 var(--rule)}
+#sg-table thead .stk{z-index:3}
+#sg-table tr.cols th{top:var(--sg-h1,30px)}
+#sg-table tbody tr:hover .stk{background:var(--surface-2)}
 </style>
 
 <div class="wrap">
   <header>
-    <h1>Цех: отчёты и зарплата</h1>
-    <nav>
-      <button data-tab="report" aria-current="true">Производственный отчёт</button>
-      <button data-tab="setup">Заправка</button>
+    <h1>Ткацкий цех<small>40 станков Toyota</small></h1>
+    <nav aria-label="Разделы">
+      <div class="grp">Сейчас в цеху</div>
       <button data-tab="dash">Дашборд</button>
-      <button data-tab="plan">План</button>
-      <button data-tab="salary">Зарплата</button>
+      <button data-tab="tickets">Тикеты</button>
+      <button data-tab="walk">Обход цеха</button>
+      <div class="grp">Смена</div>
+      <button data-tab="setup">Заправка</button>
       <button data-tab="assign">Расстановка</button>
-      <button data-tab="people">Операторы</button>
-      <button data-tab="kpi">KPI</button>
+      <div class="grp">Планирование</div>
+      <button data-tab="plan">План</button>
+      <div class="grp">Отчёты</div>
+      <button data-tab="report" aria-current="true">Производственный отчёт</button>
       <button data-tab="explorer">Простои</button>
       <button data-tab="bottle">Узкие места</button>
       <button data-tab="manual">Ручные остановы</button>
-      <button data-tab="tickets">Тикеты</button>
-      <button data-tab="walk">Обход цеха</button>
+      <button data-tab="kpi">KPI</button>
+      <button data-tab="salary">Зарплата</button>
+      <div class="grp">Справочники</div>
+      <button data-tab="people">Операторы</button>
       <button data-tab="settings">Настройки</button>
       <button data-tab="users">Пользователи</button>
     </nav>
     <div class="meta" id="whoami"></div>
   </header>
-  <div id="msg" class="msg hidden"></div>
+  <div class="topbar">
+    <button class="act" id="menu-btn" aria-label="Открыть меню разделов" aria-expanded="false">☰ Меню</button>
+    <h2 id="page-title">Производственный отчёт</h2>
+  </div>
+  <div id="msg" class="msg hidden" role="status"></div>
 
   <!-- ВХОД -->
   <div id="gate" class="hidden">
@@ -425,7 +472,14 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
 
   <!-- ПЛАН -->
   <section id="tab-plan" class="hidden">
-    <h3 class="sect" style="margin-top:0">План цеха по станкам</h3>
+    <div class="seg" role="tablist" aria-label="Разделы плана">
+      <button role="tab" data-pane="loom" aria-selected="true">По станкам</button>
+      <button role="tab" data-pane="orders" aria-selected="false">Заказы и сроки</button>
+      <button role="tab" data-pane="ppt" aria-selected="false">Сверка PPT</button>
+      <button role="tab" data-pane="onec" aria-selected="false">Обмен с 1С</button>
+      <button role="tab" data-pane="codes" aria-selected="false">Коды ткани</button>
+    </div>
+    <div class="pane" data-pane="loom" role="tabpanel">
     <div class="bar">
       <div class="f"><label for="lp-from">С</label><input id="lp-from" size="10" autocomplete="off"></div>
       <div class="f"><label for="lp-to">По</label><input id="lp-to" size="10" autocomplete="off"></div>
@@ -479,8 +533,9 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
         </div>
       </form>
     </dialog>
+    </div>
 
-    <h3 class="sect">Сверка PPT: 1С и счётчики станков</h3>
+    <div class="pane hidden" data-pane="ppt" role="tabpanel">
     <p class="note">PPT по счётчикам — пики ÷ ряды станка за день, где в плане стоит изделие с
       техкартой 1С (дни, где соткано меньше 50 рядов, не считаются). Расхождение больше 5% отмечено.
       «Проверьте PPT в 1С» — расхождение повторяется не меньше трёх дней, когда код ткани на станке
@@ -501,8 +556,9 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
           <th>Код на станке</th><th>Вывод</th></tr></thead><tbody></tbody></table>
       </div>
     </details>
+    </div>
 
-    <h3 class="sect">Сообщения из 1С</h3>
+    <div class="pane hidden" data-pane="onec" role="tabpanel">
     <p class="note">Каждое сообщение 1С хранится целиком, как пришло (последние 5000), вместе с нашим
       ответом. Разобранное лежит в техкартах: изделие, GSM, вес, PPT, панели, пряжа с лотами и граммами,
       количество и срок — это список заказов слева.</p>
@@ -517,8 +573,9 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
         <div style="margin-top:10px"><button class="act" value="close">Закрыть</button></div>
       </form>
     </dialog>
+    </div>
 
-    <h3 class="sect">Заказы</h3>
+    <div class="pane hidden" data-pane="orders" role="tabpanel">
     <div class="bar">
       <div class="f"><label for="pl-order">Заказ</label><input id="pl-order" size="10" autocomplete="off"></div>
       <div class="f"><label for="pl-product">Изделие</label><input id="pl-product" size="20" list="pl-products" autocomplete="off">
@@ -555,8 +612,10 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
     </div>
     <p class="note">Введённое здесь главнее техкарты и расчёта по счётчикам. Когда 1С начнёт
       присылать weftPerOneRow, заполнять вручную не придётся.</p>
+    </div>
 
-    <h3 class="sect">Коды ткани на станках, которые не опознаны как артикул 1С</h3>
+    <div class="pane hidden" data-pane="codes" role="tabpanel">
+    <h3 class="sect" style="margin-top:0">Коды ткани на станках, которые не опознаны как артикул 1С</h3>
     <p class="note">Код ткани набирают на станке руками, артикул живёт в 1С. Пока их не связать,
       заказ из 1С не видит, что станок уже ткёт его. Связать нужно один раз.</p>
     <div class="tbl-wrap" style="max-height:40vh">
@@ -572,6 +631,7 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
         <thead><tr><th>Код на станке</th><th>Артикул 1С</th><th>Кто связал</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
+    </div>
     </div>
   </section>
 
@@ -926,14 +986,33 @@ const api = async (path, body) => {
   if (j.error) throw new Error(j.error);
   return j;
 };
-const say = (text, isErr) => { const m = $("#msg"); m.textContent = text; m.className = "msg" + (isErr ? " err" : "");
-  if (!text) m.classList.add("hidden"); setTimeout(()=>m.classList.add("hidden"), 6000); };
+// Сообщение внизу справа: «Сохранено» гаснет через 4 с, ошибка висит, пока её не закроют —
+// раньше она пропадала через 6 с, и прочитать, что именно не так, не успевали.
+let SAY_T = null;
+const say = (text, isErr) => {
+  const m = $("#msg");
+  clearTimeout(SAY_T);
+  if (!text) { m.classList.add("hidden"); return; }
+  m.className = "msg" + (isErr ? " err" : "");
+  m.setAttribute("role", isErr ? "alert" : "status");
+  m.innerHTML = `<span></span><button type="button" class="x" aria-label="Закрыть сообщение">×</button>`;
+  m.firstChild.textContent = text;
+  m.querySelector(".x").onclick = () => m.classList.add("hidden");
+  if (!isErr) SAY_T = setTimeout(() => m.classList.add("hidden"), 4000);
+};
 
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  const t = b.dataset.tab;
   document.querySelectorAll("nav button").forEach(x => x.setAttribute("aria-current", x === b));
   document.querySelectorAll("section").forEach(s => s.classList.add("hidden"));
-  $("#tab-" + b.dataset.tab).classList.remove("hidden");
-  const t = b.dataset.tab;
+  $("#tab-" + t).classList.remove("hidden");
+  $("#page-title").textContent = b.textContent;
+  document.title = b.textContent + " — Ткацкий цех";
+  // Раздел — в адресе (#setup): обновление страницы и кнопка «Назад» возвращают туда же.
+  if (location.hash !== "#" + t) history[NAV_PUSH ? "pushState" : "replaceState"](null, "", "#" + t);
+  try { localStorage.setItem("tab", t); } catch (e) {}
+  document.body.classList.remove("menu-open");
+  $("#menu-btn").setAttribute("aria-expanded", "false");
   if (t === "report") repStick();       // отступы шапки меряются только на видимой вкладке
   if (t === "tickets") loadTickets();   // тикеты — живые, всегда свежие
   // Остальное не перекачиваем при каждом щелчке по вкладке: план — это пять
@@ -953,6 +1032,32 @@ function onTab(key, load, fresh = 30000) {
   TAB_AT[key] = Date.now();
   load();
 }
+// Открыть раздел по имени (из адреса или запомненный). push — шаг в истории браузера.
+let NAV_PUSH = true;
+function openTab(t, push = false) {
+  const b = t && document.querySelector(`nav button[data-tab="${CSS.escape(t)}"]:not(.hidden)`);
+  if (!b) return false;
+  NAV_PUSH = push; b.click(); NAV_PUSH = true;
+  return true;
+}
+window.addEventListener("popstate", () => openTab(location.hash.slice(1)));
+// Группа меню без доступных разделов (нет прав) — не показываем и её заголовок.
+function syncNavGroups() {
+  document.querySelectorAll("nav .grp").forEach(g => {
+    let n = g.nextElementSibling, any = false;
+    while (n && !n.classList.contains("grp")) { if (!n.classList.contains("hidden")) any = true; n = n.nextElementSibling; }
+    g.classList.toggle("hidden", !any);
+  });
+}
+$("#menu-btn").onclick = e => {
+  e.stopPropagation();
+  const open = document.body.classList.toggle("menu-open");
+  $("#menu-btn").setAttribute("aria-expanded", open);
+};
+document.addEventListener("click", e => {
+  if (document.body.classList.contains("menu-open") && !e.target.closest("header")) document.body.classList.remove("menu-open");
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape") document.body.classList.remove("menu-open"); });
 
 let SHIFTS = [], OPERATORS = [], ME = null, PERMS = [], ROLES = {};
 const shiftLabel = s => `${s.day.replace(/\./g,"/")} · смена ${s.shift}`;
@@ -972,12 +1077,13 @@ async function whoAmI() {
   }
   gate.classList.add("hidden");
   document.body.classList.remove("locked");
-  $("#whoami").innerHTML = `${ME.name} · ${ROLES[ME.role] || ME.role} — <a href="#" id="logout">выйти</a>`;
+  $("#whoami").innerHTML = `<b>${esc(ME.name)}</b><br>${esc(ROLES[ME.role] || ME.role)}<br><a href="#" id="logout">Выйти</a>`;
   $("#logout").onclick = async (e) => { e.preventDefault(); await api("/api/logout", {}); location.reload(); };
   document.querySelectorAll("nav button").forEach(b => {
     const need = TAB_PERM[b.dataset.tab];
     b.classList.toggle("hidden", !!need && !can(need));
   });
+  syncNavGroups();
   $("#u-role").innerHTML = Object.entries(ROLES).map(([k,v])=>`<option value="${k}">${v}</option>`).join("");
   if (can("users")) renderUsers();
   return true;
@@ -1138,6 +1244,16 @@ async function loadDash() {
 }
 $("#dash-go").onclick = loadDash;
 $("#dash-only").onchange = loadDash;
+
+/* План: разделы (по станкам, заказы, сверка PPT, 1С, коды ткани) вместо одной длинной страницы */
+function planPane(p) {
+  if (!document.querySelector(`#tab-plan .pane[data-pane="${p}"]`)) p = "loom";
+  document.querySelectorAll("#tab-plan .seg button").forEach(b => b.setAttribute("aria-selected", b.dataset.pane === p));
+  document.querySelectorAll("#tab-plan .pane").forEach(x => x.classList.toggle("hidden", x.dataset.pane !== p));
+  try { localStorage.setItem("plan-pane", p); } catch (e) {}
+}
+document.querySelectorAll("#tab-plan .seg button").forEach(b => b.onclick = () => planPane(b.dataset.pane));
+try { planPane(localStorage.getItem("plan-pane") || "loom"); } catch (e) { planPane("loom"); }
 
 /* --- план: заказ, станок, успеваем или нет --- */
 let PLAN_CLOSED = false;
@@ -1920,6 +2036,10 @@ async function boot() {
     renderOperators();
     loadYarns();
     loadReport(true);   // true — перескочить на последний завершённый день
+    // Открыть раздел из адреса (#setup) или тот, где работали в прошлый раз.
+    let last = null;
+    try { last = localStorage.getItem("tab"); } catch (e) {}
+    if (!openTab(location.hash.slice(1))) openTab(last) || openTab("report");
   } catch (e) { say("Не удалось загрузить данные: " + e.message, true); }
 }
 
@@ -2492,12 +2612,16 @@ async function loadGrid(force) {
 
 function renderGrid() {
   const edit = can("assign"), sep = c => c.sep ? ' class="sep"' : "";
-  $("#sg-table thead").innerHTML = `<tr><th><input type="checkbox" id="sg-all" aria-label="Отметить все станки"></th>
-    <th>Станок</th><th>Дизайн</th><th>Код ткани</th>${SG_COLS.map(c =>
-      `<th class="${c.num ? "n" : ""}${c.sep ? " sep" : ""}">${c.t}</th>`).join("")}</tr>`;
+  // Две строки шапки: сверху — место пряжи («Ворс», «Кромка кручён.»), под ним «пряжа» и «лот».
+  const grp = [`<th colspan="4"></th>`, `<th colspan="${SG_NUMS.length}" class="sep">Параметры</th>`,
+    ...SG_COLS.filter(c => c.yarn).map(c => `<th colspan="2" class="sep">${c.t}</th>`)].join("");
+  $("#sg-table thead").innerHTML = `<tr class="grp">${grp}</tr><tr class="cols">
+    <th class="stk s0"><input type="checkbox" id="sg-all" aria-label="Отметить все станки"></th>
+    <th class="stk s1">Станок</th><th class="stk s2">Дизайн</th><th>Код ткани</th>${SG_COLS.map(c =>
+      `<th class="${c.num ? "n" : ""}${c.sep ? " sep" : ""}">${c.yarn ? "пряжа" : c.lot ? "лот" : c.t}</th>`).join("")}</tr>`;
   $("#sg-table tbody").innerHTML = SG.rows.map((r, ri) => `<tr data-r="${ri}"${sgInFilter(r) ? "" : ' class="hidden"'}>
-    <td><input type="checkbox" class="sg-pick" aria-label="Отметить ${esc(r.loom)}"></td>
-    <td><strong>${esc(r.loom)}</strong></td><td>${esc(r.design || "")}</td><td class="note">${esc(r.cloth || "")}</td>
+    <td class="stk s0"><input type="checkbox" class="sg-pick" aria-label="Отметить ${esc(r.loom)}"></td>
+    <td class="stk s1"><strong>${esc(r.loom)}</strong></td><td class="stk s2">${esc(r.design || "")}</td><td class="note">${esc(r.cloth || "")}</td>
     ${SG_COLS.map((c, ci) => `<td${sep(c)}><input class="sg${r.manual[c.k] ? "" : " ref"}${c.num ? " num" : ""}${c.yarn ? " yw" : ""}"
       data-r="${ri}" data-c="${ci}" value="${esc(SG_ORIG[ri][c.k])}"${c.yarn ? ` data-pick="yarn:${c.slot}"` : c.lot ? ` data-pick="lot:${c.slot}"` : ""}
       ${edit ? "" : " readonly"} autocomplete="off" aria-label="${esc(r.loom)}: ${c.t}"></td>`).join("")}</tr>`).join("")
@@ -2509,6 +2633,8 @@ function renderGrid() {
     ? `Справочные значения — из отчёта за ${SG.report_day.replace(/\./g, "/")}.` : "";
   ["#sg-save", "#sg-fill", "#sg-row", "#sg-undo"].forEach(s => { $(s).disabled = !edit; });
   sgState();
+  const gh = $("#sg-table tr.grp").offsetHeight;          // вторая строка шапки прилипает под первой
+  if (gh) $("#sg-table").style.setProperty("--sg-h1", gh + "px");
 }
 
 function sgCheckYarn(i) {
