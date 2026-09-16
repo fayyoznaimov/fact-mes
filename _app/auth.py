@@ -49,6 +49,7 @@ PERMISSIONS = {
 SECTIONS = {
     "dash": ("Дашборд", "Dashboard"),
     "cards": ("Карточки станков", "Machine cards"),
+    "wall": ("Доска цеха", "Shop floor board"),
     "tickets": ("Тикеты", "Tickets"),
     "walk": ("Обход цеха", "Shop floor walk"),
     "setup": ("Заправка", "Machine setup"),

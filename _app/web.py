@@ -89,9 +89,9 @@ GUARD = {
 # Терминалу нужна собственная учётная запись с разрешённым разделом «Дашборд».
 PUBLIC_GET = {"/api/me", "/api/health", "/api/docs"}
 GET_SECTIONS = {
-    "/api/live": ("dash", "tickets", "walk"),
-    "/api/stream": ("dash", "tickets", "walk", "cards"),
-    "/api/forecast": ("dash",),
+    "/api/live": ("dash", "tickets", "walk", "wall"),
+    "/api/stream": ("dash", "tickets", "walk", "cards", "wall"),
+    "/api/forecast": ("dash", "wall"),
     "/api/cards": ("dash", "setup", "cards"),
     "/api/tickets": ("tickets", "dash", "history"),
     "/api/shifts": tuple(auth.SECTIONS),

@@ -203,6 +203,15 @@ class HttpAccessTest(AccessTest):
             with self.subTest(path=path):
                 self.assertEqual(self.request(path, "POST", {}, self.plan_token)[0], 403)
 
+    def test_http_wall_without_dashboard(self):
+        self.make('wall_only', access=self.custom(['wall']))
+        token = auth.login('wall_only', 'test-password')
+        self.assertEqual(self.request('/wall', token=token)[0], 200)
+        with patch.object(web, 'live_payload', return_value={'looms': []}):
+            self.assertEqual(self.request('/api/live', token=token)[0], 200)
+        self.assertEqual(self.request('/api/dashboard', token=token)[0], 403)
+        self.assertEqual(self.request('/api/loom_plan', token=token)[0], 403)
+
     def test_http_cards_without_dashboard_or_plan(self):
         self.make('cards_only', access=self.custom(['cards']))
         token = auth.login('cards_only', 'test-password')

@@ -5,6 +5,7 @@
   const dictionary = {
     'Ткацкий цех':'Weaving MES','Производство':'Production','Скрыть меню':'Hide menu','Открыть меню':'Show menu',
     'Разделы':'Sections','Сейчас в цеху':'Shop floor','Дашборд':'Dashboard','Тикеты':'Tickets',
+    'Доска цеха':'Shop floor board',
     'Обход цеха':'Shop floor walk','Смена':'Shift','Заправка':'Machine setup','Расстановка':'Shift assignments',
     'Планирование':'Planning','План':'Plan','Отчёты':'Reports','Производственный отчёт':'Production report',
     'Простои':'Downtime','История станков':'Machine history','Ручные остановы':'Manual stops',
