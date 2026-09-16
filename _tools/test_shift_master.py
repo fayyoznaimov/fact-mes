@@ -21,20 +21,23 @@ class ShiftMasterTest(unittest.TestCase):
                 self.assertEqual(user['must_change'], 1)
                 self.assertIn('cards', user['sections'])
                 self.assertNotIn('dash', user['sections'])
-                self.assertNotIn('plan', user['sections'])
+                self.assertIn('plan', user['sections'])
                 self.assertTrue(auth.can(user, 'assign'))
                 self.assertTrue(auth.can(user, 'tickets'))
                 for action in ('users', 'people', 'settings', 'plan_edit', 'setup_edit'):
                     self.assertFalse(auth.can(user, action))
-                with patch.object(people, 'ensure_shift_docs'), patch.object(people, 'save_assignments'), patch.object(people, 'get_shift_doc'):
+                with patch.object(people, 'ensure_shift_docs'), patch.object(people, 'get_shift_doc'):
                     conn = storage.shop()
                     conn.execute("INSERT INTO shift_doc(day,shift) VALUES ('2026.09.16','A')")
                     conn.commit()
                     conn.close()
                     people.save_shift_doc('2026.09.16', 'A', {'foreman_id': 999}, 'master608')
                 conn = storage.shop()
-                self.assertEqual(conn.execute('SELECT foreman_id FROM shift_doc').fetchone()[0], user['employee_id'])
+                self.assertIsNone(conn.execute('SELECT foreman_id FROM shift_doc').fetchone()[0])
+                self.assertEqual(conn.execute('SELECT operator_id FROM shift_master').fetchone()[0], user['employee_id'])
                 conn.close()
+                with patch.object(people, 'get_shift_doc'):
+                    people.confirm_shift_doc('2026.09.16', 'A', 'master608')
                 with self.assertRaises(ValueError):
                     provision.provision([dict(login='master608', name='Duplicate', code='608')])
                 self.assertIsNotNone(auth.login(record['login'], record['password']))

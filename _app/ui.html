@@ -780,6 +780,7 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
     <div class="grid2" style="margin-top:10px">
       <div>
         <div class="bar" style="margin-bottom:8px">
+          <div class="f"><label for="as-search">Код или имя оператора</label><input id="as-search" type="search" placeholder="Введите код или имя" autocomplete="off"></div>
           <div class="f"><label for="as-bulk">Оператор для отмеченных станков</label><select id="as-bulk"></select></div>
           <div class="f"><label>&nbsp;</label><button class="act" id="as-apply">Назначить</button></div>
           <div class="f"><label>&nbsp;</label><button class="act" id="as-prev">Как в прошлую такую смену</button></div>
@@ -794,7 +795,7 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
         </div>
       </div>
       <div class="bar" style="flex-direction:column;align-items:stretch;gap:12px">
-        <div class="f"><label for="as-foreman">Мастер смены</label><select id="as-foreman"></select>
+        <div class="f hidden"><label for="as-foreman">Мастер смены</label><select id="as-foreman"></select>
           <span class="note" id="as-foreman-note"></span></div>
         <div class="f"><label>Мастерицы смены</label><div class="chips" id="as-masters"></div></div>
         <div class="f"><label for="as-note">Примечание</label><input id="as-note" autocomplete="off"></div>
@@ -3198,6 +3199,7 @@ $("#as-all").onchange = e => document.querySelectorAll("#as-table tbody input[ty
   .forEach(c => { if (!c.disabled) c.checked = e.target.checked; });
 $("#as-apply").onclick = () => {
   const id = $("#as-bulk").value;
+  if ($("#as-search").value.trim() && !id) return say("Выберите оператора из списка", true);
   document.querySelectorAll("#as-table tbody tr").forEach(tr => {
     const cb = tr.querySelector("input[type=checkbox]"), sel = tr.querySelector("select");
     if (cb && cb.checked && sel) sel.value = id;
@@ -3205,6 +3207,17 @@ $("#as-apply").onclick = () => {
   asSummary();
 };
 const opLabel = o => `${esc(o.name)} (${esc(o.code)})`;
+
+function filterAssignOperators() {
+  const search = $("#as-search").value.trim().toLocaleLowerCase();
+  const selected = $("#as-bulk").value;
+  const ops = OPERATORS.filter(o => o.role === "operator" && o.active
+    && `${o.code} ${o.name}`.toLocaleLowerCase().includes(search));
+  $("#as-bulk").innerHTML = `<option value="">${search ? "— выберите оператора —" : "—"}</option>`
+    + ops.map(o => `<option value="${o.id}">${opLabel(o)}</option>`).join("");
+  if (ops.some(o => String(o.id) === selected)) $("#as-bulk").value = selected;
+}
+$("#as-search").oninput = filterAssignOperators;
 
 async function loadAssign() {
   if (!AS_SH) { const n = shiftNow(); $("#as-day").value = n.day; AS_SH = n.sh; }
@@ -3219,14 +3232,14 @@ async function loadAssign() {
       && (o.active || d.assignments.some(a => a.operator_id === o.id)));
     const opts = id => `<option value="">—</option>` + ops.map(o =>
       `<option value="${o.id}"${o.id === id ? " selected" : ""}>${opLabel(o)}</option>`).join("");
-    $("#as-bulk").innerHTML = opts(null);
+    filterAssignOperators();
     $("#as-table tbody").innerHTML = d.assignments.map(a => `<tr>
       <td><input type="checkbox" aria-label="Отметить ${esc(a.loom)}"${edit ? "" : " disabled"}></td>
       <td><strong>${esc(a.loom)}</strong></td>
       <td><select data-loom="${esc(a.loom)}"${edit ? "" : " disabled"}>${opts(a.operator_id)}</select></td></tr>`).join("")
       || `<tr><td colspan="3" class="note">Станков нет.</td></tr>`;
     const ownMaster = ME?.role === "master" ? ME.employee_id : null;
-    const selectedMaster = ownMaster || doc.foreman_id;
+    const selectedMaster = doc.foreman_id;
     const foremen = OPERATORS.filter(o => o.role === "foreman" && (o.active || o.id === selectedMaster));
     $("#as-foreman").innerHTML = `<option value="">— не указан —</option>` + foremen.map(o =>
       `<option value="${o.id}"${o.id === selectedMaster ? " selected" : ""}>${opLabel(o)}</option>`).join("");
@@ -3234,8 +3247,9 @@ async function loadAssign() {
     $("#as-foreman-note").textContent = foremen.length ? ""
       : "Мастеров в справочнике нет — добавьте на вкладке «Операторы» с ролью «мастер».";
     const masters = OPERATORS.filter(o => o.role === "master" && (o.active || d.masters.includes(o.id)));
+    const selectedMasters = ownMaster && !locked ? [ownMaster] : d.masters;
     $("#as-masters").innerHTML = masters.map(m => `<button class="chip" data-id="${m.id}"
-        aria-pressed="${d.masters.includes(m.id)}"${edit ? "" : " disabled"}>${opLabel(m)}</button>`).join("")
+        aria-pressed="${selectedMasters.includes(m.id)}"${edit && !ownMaster ? "" : " disabled"}>${opLabel(m)}</button>`).join("")
       || `<span class="note">Мастериц в справочнике нет — добавьте на вкладке «Операторы».</span>`;
     document.querySelectorAll("#as-masters .chip").forEach(c => c.onclick = () =>
       c.setAttribute("aria-pressed", c.getAttribute("aria-pressed") !== "true"));

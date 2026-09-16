@@ -447,10 +447,13 @@ def save_shift_doc(day, shift, body, who=""):
     finally:
         conn.close()
     if linked:
-        body = dict(body, foreman_id=linked["operator_id"])
+        body = dict(body, masters=[linked["operator_id"]])
     db = shop()
     try:
         _check_open(db, day, shift)
+        if linked:
+            existing = _doc(db, day, shift)
+            body['foreman_id'] = existing['foreman_id'] if existing else None
     finally:
         db.close()
     ensure_shift_docs(day)
@@ -468,14 +471,16 @@ def save_shift_doc(day, shift, body, who=""):
 
 
 def confirm_shift_doc(day, shift, who="", confirmed=True):
-    """Утвердить (или открыть для правки). Без мастера смены не утверждаем."""
+    """Утвердить расстановку с ответственной мастерицей или мастером."""
     db = shop()
     try:
         doc = _doc(db, day, shift)
         if not doc:
             raise ValueError("документа нет")
-        if confirmed and not doc["foreman_id"]:
-            raise ValueError("укажите мастера смены")
+        has_master = db.execute('SELECT 1 FROM shift_master WHERE day=? AND shift=?',
+                                (day, shift)).fetchone()
+        if confirmed and not doc["foreman_id"] and not has_master:
+            raise ValueError("укажите мастерицу смены")
         db.execute("UPDATE shift_doc SET status=?, confirmed_by=?, confirmed_at=? WHERE day=? AND shift=?",
                    ("confirmed" if confirmed else "draft", who if confirmed else None,
                     _now() if confirmed else None, day, shift))

@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / '_app'))
 import auth
 import storage
 
-ACCESS = {'sections': ['cards', 'assign', 'tickets', 'manual', 'history'],
+ACCESS = {'sections': ['cards', 'assign', 'tickets', 'manual', 'history', 'plan'],
           'permissions': ['assign', 'tickets']}
 
 
@@ -33,9 +33,9 @@ def provision(records):
                 raise ValueError('Неоднозначный табельный номер: ' + str(record['code']))
             if matches:
                 employee = matches[0]['id']
-                conn.execute("UPDATE operator SET role='foreman', active=1 WHERE id=?", (employee,))
+                conn.execute("UPDATE operator SET role='master', active=1 WHERE id=?", (employee,))
             else:
-                employee = conn.execute("INSERT INTO operator(code,name,role) VALUES (?,?,'foreman')",
+                employee = conn.execute("INSERT INTO operator(code,name,role) VALUES (?,?,'master')",
                                         (str(record['code']), record['name'])).lastrowid
             password = secrets.token_urlsafe(12)
             salt = secrets.token_hex(16)
