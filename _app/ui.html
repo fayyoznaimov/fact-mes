@@ -238,6 +238,11 @@ body.rep-full #tab-report .tbl-wrap{margin-top:0 !important;max-height:calc(100v
 .lp-flt button{font:inherit;font-size:12px;padding:5px 8px;border:1px solid var(--rule);border-radius:4px;background:var(--surface);color:var(--ink-2);cursor:pointer}
 .lp-flt button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
 .lp-orders{max-height:56vh;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:2px}
+.lp-wrap.orders-hidden{grid-template-columns:minmax(0,1fr)}
+.lp-wrap.orders-hidden .lp-pal{display:none}
+#lp-scroll{touch-action:pan-x pan-y}
+#lp-scroll.panning{cursor:grabbing;user-select:none}
+#lp-pan[aria-pressed="true"]{background:#dbeafe;border-color:#2563eb;color:#174593}
 .lp-orders .oc{padding:9px;border-radius:4px}
 .oc{border:1px solid var(--hair);border-left:4px solid hsl(var(--h) 60% 50%);background:var(--surface);padding:5px 8px;cursor:grab;font-size:12px;line-height:1.35}
 .oc:hover{border-color:var(--rule)}
@@ -565,6 +570,8 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
         <button class="act" id="lp-prev" title="Сдвинуть показанный период на неделю назад">← 7 дней</button>
         <button class="act" id="lp-today">Сегодня</button>
         <button class="act" id="lp-next" title="Сдвинуть показанный период на неделю вперёд">7 дней →</button>
+        <button class="act" id="lp-toggle-orders" aria-expanded="true">Скрыть заказы</button>
+        <button class="act" id="lp-pan" aria-pressed="false">Перемещать таблицу</button>
       </div>
     </div>
     <div class="bar lp-editbar">
@@ -590,7 +597,7 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
         <div id="lp-orders" class="lp-orders"></div>
         <div id="lp-card" class="lp-card hidden"></div>
       </aside>
-      <div class="tbl-wrap" style="max-height:72vh">
+      <div class="tbl-wrap" id="lp-scroll" style="max-height:72vh">
         <table id="lp-table"><thead></thead><tbody></tbody></table>
       </div>
     </div>
@@ -1954,6 +1961,30 @@ function lpMovePeriod(offset) {
 $("#lp-prev").onclick = () => lpMovePeriod(-7);
 $("#lp-next").onclick = () => lpMovePeriod(7);
 $("#lp-today").onclick = () => lpMovePeriod(null);
+$("#lp-toggle-orders").onclick = () => {
+  const hidden = document.querySelector('.lp-wrap').classList.toggle('orders-hidden');
+  $('#lp-toggle-orders').textContent = tr(hidden ? 'Показать заказы' : 'Скрыть заказы');
+  $('#lp-toggle-orders').setAttribute('aria-expanded', String(!hidden));
+};
+let LP_PAN = false, LP_DRAG = null;
+$('#lp-pan').onclick = () => { LP_PAN = !LP_PAN; $('#lp-pan').setAttribute('aria-pressed', String(LP_PAN)); };
+$('#lp-scroll').addEventListener('pointerdown', e => {
+  if (!LP_PAN || e.button !== 0) return;
+  e.preventDefault();e.stopPropagation();
+  LP_DRAG = {x:e.clientX,y:e.clientY,left:$('#lp-scroll').scrollLeft,top:$('#lp-scroll').scrollTop};
+  $('#lp-scroll').setPointerCapture(e.pointerId);$('#lp-scroll').classList.add('panning');
+}, true);
+$('#lp-scroll').addEventListener('pointermove', e => {
+  if(!LP_DRAG)return;
+  $('#lp-scroll').scrollLeft=LP_DRAG.left+LP_DRAG.x-e.clientX;
+  $('#lp-scroll').scrollTop=LP_DRAG.top+LP_DRAG.y-e.clientY;
+});
+['pointerup','pointercancel'].forEach(type=>$('#lp-scroll').addEventListener(type,()=>{
+  LP_DRAG=null;$('#lp-scroll').classList.remove('panning');
+}));
+['click','dblclick','dragstart'].forEach(type=>$('#lp-scroll').addEventListener(type,e=>{
+  if(LP_PAN){e.preventDefault();e.stopImmediatePropagation();}
+},true));
 document.addEventListener("keydown", e => {
   if ($("#tab-plan").classList.contains("hidden") || !LP.g) return;
   if (e.target.closest("input, textarea, select, dialog, button, a, [contenteditable]")) return;
