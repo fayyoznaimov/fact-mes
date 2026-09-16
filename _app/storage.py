@@ -293,6 +293,8 @@ def shop():
     открывала базу 400 раз по 3–5 мс."""
     db = sqlite3.connect(SHOP_DB, timeout=10)
     db.row_factory = sqlite3.Row
+    import productionlog
+    productionlog.register(db)
     db.execute("PRAGMA synchronous=NORMAL")
     if SHOP_DB not in _SCHEMA_READY:
         db.execute("PRAGMA journal_mode=WAL")
@@ -300,6 +302,8 @@ def shop():
         for k, v in DEFAULTS.items():
             db.execute("INSERT OR IGNORE INTO setting (key, value) VALUES (?,?)", (k, v))
         db.commit()
+        productionlog.install(db)
+        productionlog.register(db)
         _SCHEMA_READY.add(SHOP_DB)
     return db
 

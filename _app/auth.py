@@ -192,6 +192,8 @@ LOCK_MIN = 5
 
 def db():
     conn = sqlite3.connect(DB_PATH, timeout=10)
+    import productionlog
+    productionlog.register(conn)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
     return conn

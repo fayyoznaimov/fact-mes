@@ -93,6 +93,11 @@ GET_SECTIONS = {
     "/api/stream": ("dash", "tickets", "walk", "cards", "wall"),
     "/api/forecast": ("dash", "wall"),
     "/api/cards": ("dash", "setup", "cards"),
+    "/api/setup_documents": ("setup",),
+    "/api/yarn_analysis": ("setup", "report"),
+    "/api/assignment_periods": ("assign",),
+    "/api/production_events": ("assign", "setup", "tickets", "history"),
+    "/api/machine_signals": ("history",),
     "/api/tickets": ("tickets", "dash", "history"),
     "/api/shifts": tuple(auth.SECTIONS),
     "/api/report_days": tuple(auth.SECTIONS),
@@ -163,7 +168,10 @@ def current_token(handler):
 
 def current_user(handler):
     """Пользователь текущей сессии по cookie, либо None."""
-    return auth.user_by_token(current_token(handler)) if auth else None
+    user = auth.user_by_token(current_token(handler)) if auth else None
+    import productionlog
+    productionlog.ACTOR.set(user['login'] if user else 'неавторизован')
+    return user
 
 
 def may(user, permission):
@@ -400,6 +408,25 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/cards":
                 return self._send(200, dashboard.cards(q.get("day") or "",
                                                        q.get("shift", "")))
+            if u.path == '/api/setup_documents':
+                return self._send(200, {'documents':loomsetup.documents(q.get('loom',''),before=q.get('before'))})
+            if u.path == '/api/yarn_analysis':
+                return self._send(200, loomsetup.yarn_analysis(q.get('from',''),q.get('to','')))
+            if u.path == '/api/assignment_periods':
+                import productionlog
+                return self._send(200, productionlog.assignment_periods(q.get('day',''),q.get('shift',''),q.get('loom','')))
+            if u.path == '/api/production_events':
+                import productionlog
+                entity=q.get('entity','assignment')
+                sections={'assignment':'assign','shift_master':'assign','shift_doc':'assign',
+                          'loom_setup':'setup','tech_card':'setup','tech_card_yarn':'setup',
+                          'ticket':'tickets','operator':'people','loom_plan':'plan'}
+                if not auth.can_section(current_user(self),sections.get(entity,'users')):
+                    return self._send(403, {'error':'нет доступа к журналу'})
+                return self._send(200, {'events':productionlog.events(entity,q.get('loom',''),record_id=q.get('id'))})
+            if u.path == '/api/machine_signals':
+                import productionlog
+                return self._send(200, productionlog.signal_history(q.get('loom',''),q.get('day',''),q.get('period','day')))
             if u.path == "/api/plan":
                 return self._send(200, {"orders": planning.orders(q.get("closed") == "1"),
                                         "plan_only": planning.plan_only_orders(),
@@ -598,11 +625,11 @@ class Handler(BaseHTTPRequestHandler):
                                                              body.get("how", "prev"), who))
             if u.path == "/api/loom_setup":
                 r = loomsetup.save(body.get("looms") or [], body.get("from_day", ""),
-                                   body.get("values") or {}, who)
+                                   body.get("values") or {}, who, body.get('effective_at'))
                 LOG.info("заправка %s с %s ввёл %s", ", ".join(r["looms"]), r["from_day"], who)
                 return self._send(200, r)
             if u.path == "/api/loom_setup/bulk":
-                r = loomsetup.save_many(body.get("rows") or [], body.get("from_day", ""), who)
+                r = loomsetup.save_many(body.get("rows") or [], body.get("from_day", ""), who, body.get('effective_at'))
                 LOG.info("заправка таблицей: %d станков с %s ввёл %s", len(r["looms"]),
                          r["from_day"], who)
                 return self._send(200, r)

@@ -191,9 +191,20 @@ class HttpAccessTest(AccessTest):
             c.close()
 
     def test_http_production_data_require_login(self):
-        for path in ("/api/live", "/api/stream", "/api/cards", "/api/forecast", "/api/machine_history", "/api/salary"):
+        for path in ("/api/live", "/api/stream", "/api/cards", "/api/forecast", "/api/machine_history", "/api/salary",
+                     '/api/setup_documents','/api/assignment_periods','/api/production_events','/api/machine_signals','/api/yarn_analysis'):
             with self.subTest(path=path):
                 self.assertEqual(self.request(path)[0], 401)
+
+    def test_http_history_endpoints_respect_sections(self):
+        import productionlog
+        self.make('assign_only',access=self.custom(['assign']))
+        token=auth.login('assign_only','test-password')
+        with patch.object(productionlog,'events',return_value=[]), patch.object(productionlog,'assignment_periods',return_value={'periods':[]}):
+            self.assertEqual(self.request('/api/assignment_periods?day=2026.09.16&shift=A',token=token)[0],200)
+            self.assertEqual(self.request('/api/production_events?entity=assignment',token=token)[0],200)
+            for path in ('/api/production_events?entity=ticket','/api/production_events?entity=tech_card','/api/production_events?entity=operator','/api/setup_documents','/api/machine_signals','/api/yarn_analysis'):
+                self.assertEqual(self.request(path,token=token)[0],403)
 
     def test_http_hidden_sections_and_writes_are_forbidden(self):
         for path in ("/api/live", "/api/dashboard", "/api/salary", "/api/settings", "/api/users", "/api/operators", "/api/machine_history"):

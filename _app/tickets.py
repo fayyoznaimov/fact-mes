@@ -130,6 +130,9 @@ def db():
             conn.execute("ALTER TABLE ticket ADD COLUMN escalated_at TEXT")
             conn.commit()
         _migrated = True
+    import productionlog
+    if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='pl_ticket_INSERT'").fetchone():
+        productionlog.install(conn, ('ticket',))
     return conn
 
 

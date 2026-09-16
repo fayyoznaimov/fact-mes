@@ -348,10 +348,14 @@ def handle(method, path, q, body, key, user_can, who):
     elif not (user_can and user_can(USER_PERM[scope])):
         return 401, {"success": False,
                      "error": "нужен ключ API: заголовок Authorization: Bearer <ключ>"}
+    import productionlog
+    token = productionlog.ACTOR.set(who or 'API')
     try:
         return 200, fn(q, body or {}, who)
     except (ValueError, KeyError, TypeError) as e:
         return 400, {"success": False, "error": str(e)}
+    finally:
+        productionlog.ACTOR.reset(token)
 
 
 def openapi():

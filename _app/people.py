@@ -59,8 +59,16 @@ def get_assignments(day, shift):
 
 
 def save_assignments(body):
-    day, sh = body["day"], body["shift"]
     db = shop()
+    try:
+        with db:
+            _save_assignments(db, body)
+    finally:
+        db.close()
+
+
+def _save_assignments(db, body):
+    day, sh = body["day"], body["shift"]
     if "assignments" in body:
         db.execute("DELETE FROM assignment WHERE day=? AND shift=?", (day, sh))
         db.executemany(
@@ -72,10 +80,6 @@ def save_assignments(body):
         db.executemany(
             "INSERT INTO shift_master (day, shift, operator_id) VALUES (?,?,?)",
             [(day, sh, m) for m in body["masters"]])
-    db.commit()
-    db.close()
-
-
 def assign_one(day, shift, loom, operator_id):
     """Назначить оператора на один станок (или снять, если operator_id пуст).
 
@@ -457,16 +461,23 @@ def save_shift_doc(day, shift, body, who=""):
     finally:
         db.close()
     ensure_shift_docs(day)
-    save_assignments({"day": day, "shift": shift,
-                      "assignments": body.get("assignments") or [],
-                      "masters": body.get("masters") or []})
     db = shop()
-    db.execute("UPDATE shift_doc SET foreman_id=?, note=?, updated_by=?, updated_at=?,"
-               " source=COALESCE(source, 'вручную') WHERE day=? AND shift=?",
-               (body.get("foreman_id") or None, (body.get("note") or "").strip()[:300],
-                who, _now(), day, shift))
-    db.commit()
-    db.close()
+    import productionlog
+    token = productionlog.ACTOR.set(who or 'система')
+    try:
+        db.execute('BEGIN IMMEDIATE')
+        _check_open(db, day, shift)
+        _save_assignments(db, {"day": day, "shift": shift,
+                              "assignments": body.get("assignments") or [],
+                              "masters": body.get("masters") or []})
+        db.execute("UPDATE shift_doc SET foreman_id=?, note=?, updated_by=?, updated_at=?,"
+                   " source=COALESCE(source, 'вручную') WHERE day=? AND shift=?",
+                   (body.get("foreman_id") or None, (body.get("note") or "").strip()[:300],
+                    who, _now(), day, shift))
+        db.commit()
+    finally:
+        db.close()
+        productionlog.ACTOR.reset(token)
     return get_shift_doc(day, shift)
 
 
