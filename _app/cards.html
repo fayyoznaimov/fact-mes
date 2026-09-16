@@ -56,6 +56,9 @@ a{color:var(--link)}
     <div class="count stop"><b id="c-stop">—</b><span>стоит</span></div>
     <div class="count"><b id="c-op">—</b><span>с оператором</span></div>
     <div class="count"><b id="c-picks">—</b><span>тыс. пиков</span></div>
+    <div class="count"><b id="c-avg-rpm">—</b><span>средняя RPM · весь цех</span></div>
+    <div class="count"><b id="c-avg-output">—</b><span>средняя выработка · полотенец/ч на станок</span></div>
+    <div class="count"><b id="c-avg-eff">—</b><span>средний КПД смены · весь цех</span></div>
   </div>
 </header>
 
@@ -91,7 +94,7 @@ const dash = v => (v == null || v === "") ? "-" : v;
 function card(r) {
   const st = r.state === "run" ? "run" : r.state === "stop" ? "stop" : "none";
   const status = r.state === "run" ? "Работает"
-    : r.state === "stop" ? `Стоит ${r.state_min != null ? r.state_min + " мин" : ""}`
+    : r.state === "stop" ? `Текущий останов: ${r.state_min != null ? (r.state_min >= 60 ? Math.floor(r.state_min / 60) + " ч " + r.state_min % 60 + " мин" : r.state_min + " мин") : "—"}`
     : "Не определено";
   const op = r.operator;
   return `<div class="card ${st}">
@@ -108,8 +111,6 @@ function card(r) {
       ${op && op.source === "FACT" ? '<span class="v" style="font-size:11px">из FACT</span>' : ""}</div>
     ${r.awaiting_ticket ? '<div class="row tick"><b>Ожидает тикета: ручной останов без причины</b></div>' : ''}
     <div class="row"><span class="k">КПД смены</span><span class="v big">${nf(r.efficiency_pct,1)}%</span></div>
-    <div class="row"><span class="k">Средняя производительность</span><span class="v big">${nf(r.towels_per_hour,1)} полотенец/ч</span></div>
-    <div class="row"><span class="k">Средняя RPM за смену</span><span class="v big">${nf(r.rpm_avg,1)}</span></div>
     <div class="row"><span class="k">RPM сейчас</span><span class="v">${nf(r.rpm)}</span></div>
     <div class="row"><span class="k">Design</span><span class="v">${dash(r.design)}</span></div>
     <div class="row"><span class="k">Cloth_name</span><span class="v">${dash(r.cloth_name)}</span></div>
@@ -121,7 +122,8 @@ function card(r) {
       <span>Основа<b>${nf(r.warp_g_ct)} / ${nf(r.warp_stop_min,1)} мин</b></span>
       <span>Ворс<b>${nf(r.warp_p_ct)} / ${nf(r.pile_stop_min,1)} мин</b></span>
     </div>
-    <div class="row"><span class="k">Всего остановов</span><span class="v big">${nf(r.stops_total)} / ${nf(r.stop_min,1)} мин</span></div>
+    <div class="row"><span class="k">Остановов за смену</span><span class="v big">${nf(r.stops_total)}</span></div>
+    <div class="row"><span class="k">Простой за смену</span><span class="v big">${nf(r.stop_min,1)} мин</span></div>
     <div class="row"><span class="k">Remaining Length</span>
       <span class="v big">${nf(r.remaining_m)}</span><span class="k">м</span>
       ${r.beam_length_m ? `<span class="v" style="font-size:11px">из ${nf(r.beam_length_m)}</span>` : ""}</div>
@@ -145,6 +147,14 @@ async function load() {
     const response = await fetch(url);
     const d = await response.json();
     if (!response.ok) throw new Error(d.error || `HTTP ${response.status}`);
+    // Средние всего цеха не меняются при фильтрации карточек ожидания тикета.
+    const mean = field => {
+      const values = d.rows.filter(r => r.stops_total != null).map(r => r[field] ?? 0);
+      return values.length ? values.reduce((a,b) => a + b, 0) / values.length : null;
+    };
+    $("#c-avg-rpm").textContent = nf(mean('rpm_avg'),1);
+    $("#c-avg-output").textContent = nf(mean('towels_per_hour'),1);
+    $("#c-avg-eff").textContent = nf(mean('efficiency_pct'),1) + '%';
     const rows = d.rows.filter(r => inZone(r.loom)
       && ($("#ticket-filter").value !== "waiting" || r.awaiting_ticket));
     rows.sort((a,b) => Number(b.awaiting_ticket)-Number(a.awaiting_ticket) || (b.state_min||0)-(a.state_min||0));
@@ -159,7 +169,7 @@ async function load() {
       + (d.shift ? ` · смена ${d.shift}` : "") + ` · станков ${rows.length}`;
     $("#foot").textContent = `${d.source === 'fact' ? 'Источник: FACT' : 'Источник: зеркало'} · ${d.stale ? 'ДАННЫЕ УСТАРЕЛИ' : 'возраст снимка: ' + nf(d.snapshot_age_sec) + ' с'}`
       + ` · ручной останов ожидает тикета от ${d.ticket_wait_min} мин`
-      + ' · Средняя RPM = пики / минуты работы. Производительность = полотенца / часы работы и простоя.'
+      + ' · Общие средние — по всем станкам с данными смены, включая стоящие (0 при отсутствии работы), без влияния фильтра. RPM станка = пики / минуты работы; выработка = полотенца / часы работы и простоя.'
       + ` · выработка и обрывы за ${d.day.replace(/\./g,"/")}`
       + (d.operators_from_fact ? ` · операторов из FACT: ${d.operators_from_fact}` : "");
   } catch (e) {
