@@ -201,6 +201,7 @@ def parse_loom(text):
     return {
         "cause": next((f for f in CAUSE_FLAGS if kv.get(f, "").strip() == "1"), "Unknown"),
         "fact_time": fact_time,
+        "signals": {k.strip(): clean(v)[:500] for k, v in kv.items()},
         "model": clean(kv.get("mac_type2")),
         "cloth_name": clean(kv.get("Cloth_name")),
         "style_name": clean(kv.get("Style_name")),
@@ -255,7 +256,7 @@ def snapshot(src, state_dir=None, workers=8, prev=None, full=True):
 
     def one(name):
         if not need(name):
-            return name, dict(old[name]["details"])
+            return name, dict(old[name]["details"], fact_time=old[name].get('details_at'))
         ip = (layout.get(name) or looms.get(name) or {}).get("ip")
         try:
             return name, parse_loom(read("%s/%s/loom/%s.txt" % (OPESTATE, d, loom_file(ip))))
@@ -277,6 +278,7 @@ def snapshot(src, state_dir=None, workers=8, prev=None, full=True):
         if det.get("fact_time"):
             fact_times.append(det["fact_time"])
         st["details"] = {k: v for k, v in det.items() if k not in ("cause", "fact_time")}
+        st['details_at'] = det.get('fact_time')
         if st["running"]:
             st["cause"] = "Run"
         else:

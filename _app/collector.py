@@ -181,6 +181,8 @@ class Collector:
             d = dirs[1]
             snap = livestate.snapshot(self.src, d, prev=prev, full=full)
         livestate.save(snap)
+        import productionlog
+        productionlog.archive_sample(snap)
         if snap.get("full"):
             self.full_at = time.time()
         self.last_dir = d

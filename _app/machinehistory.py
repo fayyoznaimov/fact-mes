@@ -134,6 +134,47 @@ def timeline(day="", period="day", looms=""):
         return _cached(chosen, period, selected, storage.FACT_DB, storage.SHOP_DB, int(monotonic() // 30))
 
 
+def add_observations(row, archive, start, end, now):
+    """Заполнять пробелы только между согласующимися соседними снимками.
+
+    Не протягивать состояние через разрыв связи или незамеченный перезапуск.
+    Журнал остановов имеет приоритет перед минутными снимками.
+    """
+    observed, previous = [], None
+    for at, machines in archive:
+        value = machines.get(row['loom'])
+        if not value or value.get('state') in ('Unknown', ''):
+            previous = None
+            continue
+        if previous:
+            pa, pv = previous
+            gap = at - pa
+            if (0 < gap <= 120 and at <= now and value.get('running') == pv.get('running')
+                    and value.get('cause') == pv.get('cause') and (value.get('state_sec') or 0) >= gap):
+                a, b = max(start, pa), min(end, at)
+                if b > a:
+                    observed.append(dict(start=a,end=b,kind='observed_run' if value.get('running') else 'observed_stop'))
+        previous = at, value
+    if not observed:
+        return
+    points = sorted({v for s in row['segments'] + observed for v in (s['start'],s['end'])})
+    result, si, oi = [], 0, 0
+    for a,b in zip(points,points[1:]):
+        while si < len(row['segments']) and row['segments'][si]['end'] <= a:si += 1
+        while oi < len(observed) and observed[oi]['end'] <= a:oi += 1
+        if si >= len(row['segments']):break
+        kind = row['segments'][si]['kind']
+        if kind == 'unknown' and oi < len(observed) and observed[oi]['start'] <= a:
+            kind = observed[oi]['kind']
+        if result and result[-1]['kind'] == kind:
+            result[-1]['end'] = b
+        else:
+            result.append(dict(start=a,end=b,kind=kind))
+    row['segments'] = result
+    row['totals'] = {k:sum(s['end']-s['start'] for s in result if s['kind']==k)
+                     for k in ('stop','estimated_run','unknown','future','observed_run','observed_stop')}
+
+
 @lru_cache(maxsize=4)
 def _cached(day, period, selected, fact_path, shop_path, bucket):
     return _load(day, period, selected)
@@ -195,6 +236,10 @@ def _load(day, period, selected):
                                      for e in row["events"]) - row["totals"]["stop"]
             row["tickets"] = []
             result.append(row)
+    import productionlog
+    archive = productionlog.sample_archive(start, min(end, now))
+    for row in result:
+        add_observations(row, archive, start, end, now)
     # Тикеты — отдельный источник. Их интервалы не заменяют сигналы Toyota.
     with closing(storage.shop_readonly()) as db:
         if db.execute("SELECT 1 FROM sqlite_master WHERE name='ticket'").fetchone() and chosen:
