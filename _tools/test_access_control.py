@@ -203,6 +203,16 @@ class HttpAccessTest(AccessTest):
             with self.subTest(path=path):
                 self.assertEqual(self.request(path, "POST", {}, self.plan_token)[0], 403)
 
+    def test_http_cards_without_dashboard_or_plan(self):
+        self.make('cards_only', access=self.custom(['cards']))
+        token = auth.login('cards_only', 'test-password')
+        self.assertEqual(self.request('/cards', token=token)[0], 200)
+        with patch.object(web.dashboard, 'cards', return_value={'rows': []}):
+            self.assertEqual(self.request('/api/cards', token=token)[0], 200)
+        for path in ('/api/forecast', '/api/loom_plan', '/api/users'):
+            self.assertEqual(self.request(path, token=token)[0], 403)
+        self.assertTrue(web.may_read(auth.user_by_token(token), '/api/stream'))
+
     def test_http_allowed_plan_read_write(self):
         with patch.object(web.loomplan, "grid", return_value={"rows": []}) as read:
             self.assertEqual(self.request("/api/loom_plan", token=self.plan_token)[0], 200)

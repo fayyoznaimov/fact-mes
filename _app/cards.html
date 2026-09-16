@@ -2,19 +2,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 :root{
-  --bg:#3a3a3a; --card:#414141; --rule:#4e4e4e; --ink:#f2f2f2; --muted:#a9a9a9;
-  --run:#4caf50; --stop:#e05b52; --warn:#e8a33d; --accent:#f2d13c; --link:#6fb7ff;
+  --bg:#f6f8fb; --card:#fff; --rule:#dbe2ea; --ink:#182333; --muted:#53647a;
+  --run:#16803c; --stop:#bd3028; --warn:#945700; --accent:#725700; --link:#175fc0;
   --font:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font)}
 header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:10px 16px;
-       border-bottom:1px solid var(--rule);background:#333}
+       border-bottom:1px solid var(--rule);background:var(--card)}
 h1{margin:0;font-size:17px;font-weight:600}
 .sub{color:var(--muted);font-size:13px}
 .counts{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
-.count{border:1px solid var(--rule);border-radius:3px;padding:4px 10px;min-width:86px;background:#383838}
+.count{border:1px solid var(--rule);border-radius:3px;padding:4px 10px;min-width:86px;background:var(--card)}
 .count b{display:block;font-family:var(--mono);font-size:19px;line-height:1.1;font-variant-numeric:tabular-nums}
 .count span{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .count.run b{color:var(--run)} .count.stop b{color:var(--stop)}

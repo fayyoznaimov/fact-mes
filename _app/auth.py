@@ -48,6 +48,7 @@ PERMISSIONS = {
 # расширяет возможности существующих пользователей и не требует их перезаписи.
 SECTIONS = {
     "dash": ("Дашборд", "Dashboard"),
+    "cards": ("Карточки станков", "Machine cards"),
     "tickets": ("Тикеты", "Tickets"),
     "walk": ("Обход цеха", "Shop floor walk"),
     "setup": ("Заправка", "Machine setup"),

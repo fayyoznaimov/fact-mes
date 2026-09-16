@@ -329,6 +329,7 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
     <nav aria-label="Разделы">
       <div class="grp">Сейчас в цеху</div>
       <button data-tab="dash">Дашборд</button>
+      <button data-tab="cards">Карточки станков</button>
       <button data-tab="tickets">Тикеты</button>
       <button data-tab="walk">Обход цеха</button>
       <div class="grp">Смена</div>
@@ -1002,6 +1003,9 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
     </div>
   </section>
 
+  <section id="tab-cards" class="hidden">
+    <iframe id="machine-cards-frame" title="Карточки станков" style="width:100%;height:calc(100vh - 110px);border:0;background:white"></iframe>
+  </section>
   <!-- РУЧНЫЕ ОСТАНОВЫ: как Manual Stoppages Summary в LDS -->
   <section id="tab-manual" class="hidden">
     <div class="bar">
@@ -1100,6 +1104,7 @@ const nf = (x,d=0) => (x==null||x==="") ? "" : Number(x).toLocaleString(document
 const ICONS = {
   menu:'M4 6h16M4 12h16M4 18h16',close:'m14 6-6 6 6 6',
   dash:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
+  cards:'M3 4h8v16H3zM14 4h7v16h-7zM5 8h4M5 12h4M16 8h3M16 12h3',
   tickets:'M5 3h14v18l-3-2-4 2-4-2-3 2zM8 8h8M8 12h5',
   walk:'M4 5h6v6H4zM14 13h6v6h-6zM10 8h6v5M7 11v5h7',
   setup:'m14 6 4-4 4 4-4 4M14 6l4 4-10 10-4-4zM3 3l5 5',
@@ -1149,6 +1154,10 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("nav button").forEach(x => x.setAttribute("aria-current", x === b));
   document.querySelectorAll("section").forEach(s => s.classList.add("hidden"));
   $("#tab-" + t).classList.remove("hidden");
+  const cardsFrame = $("#machine-cards-frame");
+  if (t === "cards") {
+    if (!cardsFrame.getAttribute("src")) cardsFrame.src = "/cards";
+  } else cardsFrame.removeAttribute("src");
   $("#page-title").textContent = tr(b.dataset.labelRu);
   document.title = tr(b.dataset.labelRu) + " — " + tr("Ткацкий цех");
   // Раздел — в адресе (#setup): обновление страницы и кнопка «Назад» возвращают туда же.
