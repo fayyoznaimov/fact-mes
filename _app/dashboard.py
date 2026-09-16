@@ -321,7 +321,22 @@ def loom_label(loom):
 
 def cards(day="", letter=""):
     """Карточка на каждый станок — то, что висит на мониторе в цехе."""
-    day = day or datetime.now().strftime("%Y.%m.%d")
+    if not day and not letter:
+        day, letter = tickets.current_shift().rsplit('.', 1)
+    day = day or tickets.current_shift()[:10]
+    with fact() as db:
+        selected = db.execute('SELECT * FROM shift_full WHERE day=?' +
+                              (' AND letter=?' if letter else ''),
+                              (day, letter) if letter else (day,)).fetchall()
+    stats = {}
+    fields = ('run_min', 'stop_min', 'picks', 'pieces', 'stops_total', 'weft_ct',
+              'warp_ct', 'top_ct', 'weft_stop_min', 'warp_stop_min', 'top_stop_min')
+    for item in selected:
+        total = stats.setdefault(item['loom'], dict.fromkeys(fields, 0))
+        for field in fields:
+            total[field] += item[field] or 0
+    board = tickets.board()
+    live = {r['loom']: r for r in board['looms']}
     base = rows(day, letter)
     details = loom_details()
     picks = _picks_by_shift(day)
@@ -330,6 +345,10 @@ def cards(day="", letter=""):
 
     out = []
     for r in base["rows"]:
+        stat = stats.get(r['loom'])
+        state = live.get(r['loom'], {})
+        run = stat['run_min'] if stat else 0
+        elapsed = run + (stat['stop_min'] if stat else 0)
         d = details.get(r["loom"], {})
         op = r["operator"]
         if not op and fact_ops.get(r["loom"], {}).get("name"):
@@ -343,6 +362,18 @@ def cards(day="", letter=""):
         t = r["ticket"]
         cat = cats.get((t or {}).get("category") or "")
         out.append({
+            'rpm_avg': round(stat['picks'] / run, 1) if stat and run > 0 else None,
+            'efficiency_pct': round(100 * run / elapsed, 1) if elapsed else None,
+            'towels_per_hour': round(stat['pieces'] * r['panels'] * 60 / elapsed, 1) if elapsed else None,
+            'stops_total': stat['stops_total'] if stat else None,
+            'stop_min': round(stat['stop_min'], 1) if stat else None,
+            'weft_stop_min': round(stat['weft_stop_min'], 1) if stat else None,
+            'warp_stop_min': round(stat['warp_stop_min'], 1) if stat else None,
+            'pile_stop_min': round(stat['top_stop_min'], 1) if stat else None,
+            'awaiting_ticket': bool(not board.get('stale') and not board.get('error')
+                                    and state.get('cause') == 'Manual' and not state.get('running')
+                                    and not state.get('ticket_category')
+                                    and state.get('state_sec', 0) >= board['andon']['warn_min'] * 60),
             "loom": r["loom"], "label": loom_label(r["loom"]),
             "model": ("Toyota " + d["model"]) if d.get("model") and d["model"] != "none" else "",
             "state": r["state"], "state_min": r["state_min"],
@@ -356,14 +387,20 @@ def cards(day="", letter=""):
             "rpm": d.get("rpm") or r["rpm_now"],
             "design": r["design"], "article": r["article"],
             "cloth_name": d.get("cloth_name") or r["style_fact"],
-            "weft_ct": r["weft_ct"], "warp_p_ct": r["top_ct"], "warp_g_ct": r["warp_ct"],
+            "weft_ct": stat['weft_ct'] if stat else None,
+            "warp_p_ct": stat['top_ct'] if stat else None,
+            "warp_g_ct": stat['warp_ct'] if stat else None,
             "remaining_m": d.get("remaining_m"), "beam_length_m": d.get("beam_length_m"),
-            "picks_total": r["kpicks"],
-            "towels": r["towels"], "panels": r["panels"], "rows_woven": r["pieces"],
+            "picks_total": round(stat['picks'] / 1000, 1) if stat else None,
+            "towels": round(stat['pieces'] * r['panels']) if stat else None,
+            "panels": r["panels"], "rows_woven": stat['pieces'] if stat else None,
             "shift_a": p.get("A"), "shift_b": p.get("B"), "shift_c": p.get("C"),
         })
 
     return {"day": day, "shift": letter, "rows": out,
+            'source': board['source'], 'snapshot_age_sec': board.get('snapshot_age_sec'),
+            'stale': board.get('stale') or bool(board.get('error')),
+            'ticket_wait_min': board['andon']['warn_min'],
             "totals": base["totals"],
             "operators_from_fact": sum(1 for r in out
                                        if (r["operator"] or {}).get("source") == "FACT")}

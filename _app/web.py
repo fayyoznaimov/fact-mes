@@ -398,7 +398,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(403, {"error": "нет доступа к техкартам"})
                 return self._send(200, page_bytes("cards.html"), "text/html; charset=utf-8")
             if u.path == "/api/cards":
-                return self._send(200, dashboard.cards(q.get("day") or tickets.current_shift()[:10],
+                return self._send(200, dashboard.cards(q.get("day") or "",
                                                        q.get("shift", "")))
             if u.path == "/api/plan":
                 return self._send(200, {"orders": planning.orders(q.get("closed") == "1"),

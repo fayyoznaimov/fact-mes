@@ -50,6 +50,7 @@ a{color:var(--link)}
 <header>
   <h1>Карточки станков</h1>
   <div class="sub" id="head-sub">—</div>
+  <label>Показывать <select id="ticket-filter"><option value="all">Все станки</option><option value="waiting">Ожидают тикета</option></select></label>
   <div class="counts">
     <div class="count run"><b id="c-run">—</b><span>работает</span></div>
     <div class="count stop"><b id="c-stop">—</b><span>стоит</span></div>
@@ -105,19 +106,22 @@ function card(r) {
     <div class="row"><span class="k">Operator</span>
       <span class="v big">${op ? `${op.name}${op.code ? " " + op.code : ""}` : "-"}</span>
       ${op && op.source === "FACT" ? '<span class="v" style="font-size:11px">из FACT</span>' : ""}</div>
-    <div class="row"><span class="k">OEE shift</span><span class="v big">${nf(r.oee_shift,1)}%</span>
-      <span class="k">24h</span><span class="v">${nf(r.oee_24h,1)}%</span></div>
-    <div class="row"><span class="k">RPM</span><span class="v big">${nf(r.rpm)}</span></div>
+    ${r.awaiting_ticket ? '<div class="row tick"><b>Ожидает тикета: ручной останов без причины</b></div>' : ''}
+    <div class="row"><span class="k">КПД смены</span><span class="v big">${nf(r.efficiency_pct,1)}%</span></div>
+    <div class="row"><span class="k">Средняя производительность</span><span class="v big">${nf(r.towels_per_hour,1)} полотенец/ч</span></div>
+    <div class="row"><span class="k">Средняя RPM за смену</span><span class="v big">${nf(r.rpm_avg,1)}</span></div>
+    <div class="row"><span class="k">RPM сейчас</span><span class="v">${nf(r.rpm)}</span></div>
     <div class="row"><span class="k">Design</span><span class="v">${dash(r.design)}</span></div>
     <div class="row"><span class="k">Cloth_name</span><span class="v">${dash(r.cloth_name)}</span></div>
     <div class="row ${r.ticket ? "tick" : "dim"}"><span class="k">Tiket:</span>
       <span class="v">${r.ticket ? `${r.ticket.ru} | ${r.ticket.en}` : "-"}</span></div>
 
     <div class="stops">
-      <span>WeftStop<b>${nf(r.weft_ct)}</b></span>
-      <span>WarpStopP<b>${nf(r.warp_p_ct)}</b></span>
-      <span>WarpStopG<b>${nf(r.warp_g_ct)}</b></span>
+      <span>Уток<b>${nf(r.weft_ct)} / ${nf(r.weft_stop_min,1)} мин</b></span>
+      <span>Основа<b>${nf(r.warp_g_ct)} / ${nf(r.warp_stop_min,1)} мин</b></span>
+      <span>Ворс<b>${nf(r.warp_p_ct)} / ${nf(r.pile_stop_min,1)} мин</b></span>
     </div>
+    <div class="row"><span class="k">Всего остановов</span><span class="v big">${nf(r.stops_total)} / ${nf(r.stop_min,1)} мин</span></div>
     <div class="row"><span class="k">Remaining Length</span>
       <span class="v big">${nf(r.remaining_m)}</span><span class="k">м</span>
       ${r.beam_length_m ? `<span class="v" style="font-size:11px">из ${nf(r.beam_length_m)}</span>` : ""}</div>
@@ -138,9 +142,13 @@ async function load() {
   try {
     const url = "/api/cards" + (DAY ? `?day=${encodeURIComponent(DAY)}` : "?")
       + (SHIFT ? `&shift=${encodeURIComponent(SHIFT)}` : "");
-    const d = await fetch(url).then(r => r.json());
-    const rows = d.rows.filter(r => inZone(r.loom));
-    $("#grid").innerHTML = rows.map(card).join("");
+    const response = await fetch(url);
+    const d = await response.json();
+    if (!response.ok) throw new Error(d.error || `HTTP ${response.status}`);
+    const rows = d.rows.filter(r => inZone(r.loom)
+      && ($("#ticket-filter").value !== "waiting" || r.awaiting_ticket));
+    rows.sort((a,b) => Number(b.awaiting_ticket)-Number(a.awaiting_ticket) || (b.state_min||0)-(a.state_min||0));
+    $("#grid").innerHTML = rows.map(card).join("") || '<p>Нет станков по выбранному фильтру.</p>';
 
     const run = rows.filter(r => r.state === "run").length;
     $("#c-run").textContent = run;
@@ -149,7 +157,9 @@ async function load() {
     $("#c-picks").textContent = Math.round(rows.reduce((s, r) => s + (r.picks_total || 0), 0));
     $("#head-sub").textContent = `${d.day.replace(/\./g,"/")}`
       + (d.shift ? ` · смена ${d.shift}` : "") + ` · станков ${rows.length}`;
-    $("#foot").textContent = `Обновлено ${new Date().toLocaleTimeString("ru-RU")}`
+    $("#foot").textContent = `${d.source === 'fact' ? 'Источник: FACT' : 'Источник: зеркало'} · ${d.stale ? 'ДАННЫЕ УСТАРЕЛИ' : 'возраст снимка: ' + nf(d.snapshot_age_sec) + ' с'}`
+      + ` · ручной останов ожидает тикета от ${d.ticket_wait_min} мин`
+      + ' · Средняя RPM = пики / минуты работы. Производительность = полотенца / часы работы и простоя.'
       + ` · выработка и обрывы за ${d.day.replace(/\./g,"/")}`
       + (d.operators_from_fact ? ` · операторов из FACT: ${d.operators_from_fact}` : "");
   } catch (e) {
@@ -157,6 +167,7 @@ async function load() {
   }
 }
 
+$("#ticket-filter").onchange = load;
 load();
 /* Толчки с сервера: карточки перечитываются, как только поменялось состояние
    станков, а не раз в 20 секунд. Если поток оборвался — работаем опросом, пока
