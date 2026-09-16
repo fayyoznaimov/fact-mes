@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / '_app'))
 import auth
 import storage
 
-ACCESS = {'sections': ['cards', 'wall', 'assign', 'tickets', 'manual', 'history', 'plan'],
+ACCESS = {'sections': ['cards', 'wall', 'assign', 'tickets', 'manual', 'history', 'plan', 'report', 'setup'],
           'permissions': ['assign', 'tickets']}
 
 
