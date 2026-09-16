@@ -19,6 +19,9 @@ class ShiftMasterTest(unittest.TestCase):
                 user = auth.user_by_token(token)
                 self.assertEqual(user['role'], 'master')
                 self.assertEqual(user['must_change'], 1)
+                self.assertIn('cards', user['sections'])
+                self.assertNotIn('dash', user['sections'])
+                self.assertNotIn('plan', user['sections'])
                 self.assertTrue(auth.can(user, 'assign'))
                 self.assertTrue(auth.can(user, 'tickets'))
                 for action in ('users', 'people', 'settings', 'plan_edit', 'setup_edit'):
