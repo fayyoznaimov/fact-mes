@@ -346,7 +346,7 @@ def day_summary(day):
 IDX_WARP_OUT, IDX_DOFF, IDX_MANUAL, IDX_POWER, IDX_OTHER = 6, 7, 8, 9, 10
 
 # Длинные остановы, которые станок называет сам: в LDS это «Knotting» и съём.
-LDS_MACHINE = {"warp_out": "Конец навоя (узловязка)", "doffing": "Съём ткани"}
+LDS_MACHINE = {"warp_out": "Конец навоя", "doffing": "Съём ткани"}
 LDS_NAMES = {**{c["id"]: c["reason"] for c in tickets.CATEGORIES}, **LDS_MACHINE,
              "unexplained": "Без причины", "power": "Обесточен"}
 LDS_ORDER = [c["id"] for c in tickets.CATEGORIES] + ["warp_out", "doffing", "unexplained", "power"]
