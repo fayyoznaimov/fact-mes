@@ -437,6 +437,17 @@ def _check_open(db, day, shift):
 
 
 def save_shift_doc(day, shift, body, who=""):
+    # Личность мастера определяет сервер, а не значение из формы браузера.
+    import auth
+    conn = auth.db()
+    try:
+        linked = conn.execute(
+            "SELECT e.operator_id FROM app_user_employee e JOIN app_user u ON u.id=e.user_id"
+            " WHERE u.login=? AND u.active=1 AND u.role='master'", (who,)).fetchone()
+    finally:
+        conn.close()
+    if linked:
+        body = dict(body, foreman_id=linked["operator_id"])
     db = shop()
     try:
         _check_open(db, day, shift)

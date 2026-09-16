@@ -1012,6 +1012,7 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
         <option value="loom">станок</option></select></div>
       <div class="f"><label>&nbsp;</label><button class="act primary" id="mn-go">Показать</button></div>
     </div>
+    <p><button class="act primary" id="mn-reason">Указать причину ручного простоя / создать тикет</button></p>
     <div class="tiles" id="mn-tiles" style="margin-top:14px"></div>
     <p class="note">Shed Eff — работа всего парка к календарному времени, включая станки без
       работы. Time Eff — наш КПД. Tot. Stop — длинные остановы (ручные, конец навоя, съём, по
@@ -1291,6 +1292,7 @@ $("#login-form").onsubmit = async (e) => {
     return;
   }
   // Временный пароль надо сменить. Пока новый не задан — вход не завершаем,
+  if (r.user?.role === "master" && r.user.employee_id) history.replaceState(null, "", "#assign");
   // иначе человек остаётся с паролем, которого не знает.
   if (r.user && r.user.must_change) {
     $("#login-new").classList.remove("hidden");
@@ -2176,6 +2178,7 @@ async function loadManual() {
   } catch (e) { say("Сводка ручных остановов не загрузилась: " + e.message, true); }
 }
 $("#mn-go").onclick = loadManual;
+$("#mn-reason").onclick = () => openTab("tickets");
 $("#mn-group").onchange = loadManual;
 
 /* --- план: связка кодов ткани и пики на изделие --- */
@@ -3213,10 +3216,12 @@ async function loadAssign() {
       <td><strong>${esc(a.loom)}</strong></td>
       <td><select data-loom="${esc(a.loom)}"${edit ? "" : " disabled"}>${opts(a.operator_id)}</select></td></tr>`).join("")
       || `<tr><td colspan="3" class="note">Станков нет.</td></tr>`;
-    const foremen = OPERATORS.filter(o => o.role === "foreman" && (o.active || o.id === doc.foreman_id));
+    const ownMaster = ME?.role === "master" ? ME.employee_id : null;
+    const selectedMaster = ownMaster || doc.foreman_id;
+    const foremen = OPERATORS.filter(o => o.role === "foreman" && (o.active || o.id === selectedMaster));
     $("#as-foreman").innerHTML = `<option value="">— не указан —</option>` + foremen.map(o =>
-      `<option value="${o.id}"${o.id === doc.foreman_id ? " selected" : ""}>${opLabel(o)}</option>`).join("");
-    $("#as-foreman").disabled = !edit;
+      `<option value="${o.id}"${o.id === selectedMaster ? " selected" : ""}>${opLabel(o)}</option>`).join("");
+    $("#as-foreman").disabled = !edit || !!ownMaster;
     $("#as-foreman-note").textContent = foremen.length ? ""
       : "Мастеров в справочнике нет — добавьте на вкладке «Операторы» с ролью «мастер».";
     const masters = OPERATORS.filter(o => o.role === "master" && (o.active || d.masters.includes(o.id)));

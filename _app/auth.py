@@ -25,7 +25,7 @@ ITERATIONS = 120_000
 
 ROLES = {
     "admin": "Администратор",
-    "master": "Мастер",
+    "master": "Мастер смены",
     "operator": "Оператор",
     "viewer": "Наблюдатель",
 }
@@ -173,6 +173,10 @@ CREATE INDEX IF NOT EXISTS idx_fail_at ON login_fail(at);
 CREATE TABLE IF NOT EXISTS app_user_access (
     user_id INTEGER PRIMARY KEY REFERENCES app_user(id),
     access_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS app_user_employee (
+    user_id INTEGER PRIMARY KEY REFERENCES app_user(id),
+    operator_id INTEGER NOT NULL UNIQUE REFERENCES operator(id)
 );
 """
 
@@ -367,6 +371,8 @@ def user_by_token(token):
                  (datetime.now().astimezone().isoformat(timespec="seconds"), token))
     conn.commit()
     user = _user_access({k: row[k] for k in ("id", "login", "name", "role", "must_change", "access_json")})
+    link = conn.execute("SELECT operator_id FROM app_user_employee WHERE user_id=?", (row["id"],)).fetchone()
+    user["employee_id"] = link["operator_id"] if link else None
     conn.close()
     return user
 
