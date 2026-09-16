@@ -280,4 +280,54 @@ def check_payroll(db, payload):
 register(Kind("payroll", "Зарплатная ведомость", "ЗП", "payroll", "salary", check_payroll,
               lock_check=False))
 
-__all__ = ["documents"]
+
+# --- утверждённый производственный отчёт ---------------------------------------
+
+def check_report(db, payload):
+    import reports
+    date_from, date_to = payload.get("from") or "", payload.get("to") or ""
+    try:
+        data = reports.report_period(date_from, date_to)
+    except ValueError as e:
+        return {"title": "Производственный отчёт", "errors": [str(e)]}
+    errors, warnings = [], []
+    if date_to >= _today():
+        errors.append("день %s ещё не закончился: утверждают только прошедшие дни" % date_to)
+    if not data["rows"]:
+        errors.append("за период нет смен Toyota")
+    replaces = payload.get("supersedes_id")
+    same = db.execute("SELECT id, number FROM doc WHERE type='report' AND status='posted'"
+                      " AND period_from=? AND period_to=?", (date_from, date_to)).fetchall()
+    for r in same:
+        if not (replaces and int(replaces) == r["id"]):
+            errors.append("отчёт за этот период уже утверждён: %s — замените его" % r["number"])
+    if data["days_without_report"]:
+        warnings.append("дневной отчёт не собран за %d дн.: %s — нет изделия и килограммов" % (
+            len(data["days_without_report"]), ", ".join(data["days_without_report"][:10])))
+    unknown = [r["loom"] for r in data["rows"] if not r["towels_known"]]
+    if unknown:
+        warnings.append("полотенца не посчитаны (нет панелей): " + ", ".join(unknown[:15]))
+    expected = (_day(date_to, "") - _day(date_from, "")).days + 1
+    if len(data["days"]) < expected:
+        warnings.append("смены есть только за %d из %d дней" % (len(data["days"]), expected))
+    changes = []
+    if replaces:
+        old = db.execute("SELECT result_json FROM doc WHERE id=? AND type='report'", (int(replaces),)).fetchone()
+        if old:
+            before = {r["loom"]: r for r in json.loads(old[0]).get("result", {}).get("rows", [])}
+            after = {r["loom"]: r for r in data["rows"]}
+            for loom in sorted(set(before) | set(after), key=loomsetup._loom_key):
+                b, a = before.get(loom) or {}, after.get(loom) or {}
+                for field, title in (("picks", "пики"), ("towels", "полотенца"), ("kg", "кг"), ("effic", "КПД, %")):
+                    if b.get(field) != a.get(field):
+                        changes.append(dict(loom=loom, field=field, title=title, before=b.get(field), after=a.get(field)))
+    t = data["totals"]
+    return {"title": "Производственный отчёт %s–%s" % (date_from, date_to), "period": (date_from, date_to),
+            "errors": errors, "warnings": warnings, "changes": changes,
+            "summary": {"from": date_from, "to": date_to, "looms": t["looms"], "days": t["days"],
+                        "effic": t["effic"], "towels": t["towels"], "kg": t["kg"], "picks": t["picks"]},
+            "result": {"rows": data["rows"], "totals": t}}
+
+
+register(Kind("report", "Производственный отчёт", "ОТЧ", "export", "report", check_report, lock_check=False))
+

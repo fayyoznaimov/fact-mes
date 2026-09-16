@@ -73,6 +73,7 @@ header .meta a{color:var(--accent)}
 .f label{font-size:12px;color:var(--ink-2)}
 select,input,button.act{font:inherit;padding:6px 9px;background:var(--surface);color:var(--ink);border:1px solid var(--rule);border-radius:3px}
 button.act{cursor:pointer}
+button.act:disabled{opacity:.5;cursor:not-allowed}
 button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(146px,1fr));gap:1px;background:var(--hair);border:1px solid var(--hair)}
@@ -165,6 +166,25 @@ dialog.ls h3{margin:0;font-size:16px}
 .ls-yarn th[scope=row]{position:static;text-align:left;font-size:13px;color:var(--ink-2);text-transform:none;letter-spacing:0}
 .ls-yarn input{width:100%}
 dialog.ls .btns{display:flex;gap:8px;justify-content:flex-end}
+/* Проверка документа перед проведением: сначала вердикт, потом что мешает, потом что изменится */
+dialog.doc{width:min(940px,95vw);max-height:92vh}
+dialog.doc form{max-height:92vh;overflow:auto}
+.doc-verdict{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--rule);border-left-width:4px;font-weight:600}
+.doc-verdict.ok{border-left-color:var(--good)}
+.doc-verdict.warn{border-left-color:#c98a12}
+.doc-verdict.err{border-left-color:var(--critical)}
+.doc-verdict small{font-weight:400;color:var(--ink-2)}
+.doc-list{margin:0;padding:0 0 0 18px;display:flex;flex-direction:column;gap:3px;font-size:13px}
+.doc-list.err li{color:var(--critical)}
+.doc-list.warn li::marker{color:#c98a12}
+.doc-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:6px 16px;font-size:13px}
+.doc-meta span{color:var(--muted)}
+.doc-status{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;border:1px solid var(--rule)}
+.doc-status.posted{color:var(--good);border-color:var(--good)}
+.doc-status.cancelled{color:var(--critical);border-color:var(--critical)}
+.was{color:var(--muted);text-decoration:line-through}
+dialog.doc h4{margin:6px 0 0}
+dialog.doc .ack{display:flex;gap:8px;align-items:flex-start;font-size:13px}
 /* таблица заправки: ячейки-поля, как в Excel */
 #sg-table td{padding:2px 3px}
 #sg-table input.sg{width:100%;min-width:66px;font:13px "IBM Plex Mono",monospace;padding:4px 5px;
@@ -410,6 +430,10 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
     <div class="bar">
       <div class="f"><label for="rep-day">День</label><select id="rep-day"></select></div>
       <div class="f"><label>&nbsp;</label><button class="act primary" id="rep-full" title="Только таблица, на весь экран. Выход — Esc">Развернуть отчёт</button></div>
+      <div class="f"><label for="rp-from">За период с</label><input id="rp-from" type="date"></div>
+      <div class="f"><label for="rp-to">по</label><input id="rp-to" type="date"></div>
+      <div class="f"><label>&nbsp;</label><button class="act" id="rp-go">Отчёт за период</button></div>
+      <div class="f"><label>&nbsp;</label><button class="act" id="rp-list">Утверждённые отчёты</button></div>
       <div class="f"><label>&nbsp;</label><button class="act" id="rep-excel">Скачать Excel</button></div>
       <div class="f"><label for="rep-flag">Показывать</label><select id="rep-flag">
         <option value="all">все станки</option><option value="red">только с красным</option>
@@ -458,7 +482,7 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
       <p class="note">Запись действует с указанного дня, пока станок не перезаправят. Пустое поле —
         значение берётся из справочника артикулов и техкарты 1С.</p>
       <div class="btns"><button class="act" value="cancel" formnovalidate>Отмена</button>
-        <button class="act primary" id="ls-save" type="button">Сохранить</button></div>
+        <button class="act primary" id="ls-save" type="button">Проверить и провести…</button></div>
     </form></dialog>
     <div class="legend">
       <span><i style="background:#FF0000"></i>плохо: КПД 1–69, ворс 41+, уток и основа 61+, прочие 21+, «Итого» 121+</span>
@@ -477,7 +501,7 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
       <button class="act" id="ya-open">Анализ по пряже</button>
       <div class="f"><label for="sg-filter">Станки</label><input id="sg-filter" size="10"
         placeholder="D, J1-J14" autocomplete="off"></div>
-      <div class="f"><label>&nbsp;</label><button class="act primary" id="sg-save">Сохранить изменения</button></div>
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="sg-save">Проверить и провести…</button></div>
       <div class="f"><label>&nbsp;</label><button class="act" id="sg-fill">Значение — на отмеченные</button></div>
       <div class="f"><label>&nbsp;</label><button class="act" id="sg-row">Строку — на отмеченные</button></div>
       <div class="f"><label>&nbsp;</label><button class="act" id="sg-same">Отметить с тем же кодом ткани</button></div>
@@ -746,6 +770,14 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
       <div class="f"><label>&nbsp;</label><button class="act primary" id="sal-go">Посчитать</button></div>
       <div class="f"><label>&nbsp;</label><button class="act" id="sal-copy">Повторить расстановку прошлой смены</button></div>
     </div>
+    <div class="bar" style="margin-top:6px">
+      <div class="f"><label for="pr-from">Ведомость с</label><input id="pr-from" type="date"></div>
+      <div class="f"><label for="pr-to">по</label><input id="pr-to" type="date"></div>
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="pr-check">Сформировать ведомость…</button></div>
+      <div class="f"><label>&nbsp;</label><button class="act" id="pr-list">Проведённые ведомости</button></div>
+    </div>
+    <p class="note">Ведомость — документ за любой период из закрытых смен: итоги замораживаются при проведении.
+      Если потом поправят расстановку или ставку, «Сверить» покажет расхождение; исправляют новой ведомостью взамен прежней.</p>
     <div class="tiles" id="sal-tiles" style="margin-top:14px"></div>
     <p class="note" id="sal-note"></p>
     <div class="tbl-wrap">
@@ -1076,12 +1108,17 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
   <!-- НАСТРОЙКИ -->
   <section id="tab-settings" class="hidden">
     <div class="bar">
-      <div class="f"><label for="set-rate">Ставка, сум</label><input id="set-rate" size="10"></div>
+      <div class="f"><label for="set-from">Действует с</label><input id="set-from" type="date"></div>
+      <div class="f"><label for="set-rate">Ставка, сум</label><input id="set-rate" size="10" inputmode="decimal"></div>
       <div class="f"><label for="set-unit">За что</label><select id="set-unit">
         <option value="kpick">за 1000 пиков</option><option value="pick">за один пик</option></select></div>
-      <div class="f"><label>&nbsp;</label><button class="act primary" id="set-save">Сохранить</button></div>
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="set-save">Проверить и провести…</button></div>
     </div>
-    <p class="note">Зарплата оператора за смену = сумма пиков по всем его станкам × ставка. Проверьте единицу: станок даёт около 220 тысяч пиков за смену.</p>
+    <p class="note">Зарплата оператора за смену = сумма пиков по всем его станкам × ставка, действовавшая в день смены.
+      Новая ставка — документ с датой начала: прошлые смены и проведённые ведомости не пересчитываются.
+      Проверьте единицу: станок даёт около 220 тысяч пиков за смену.</p>
+    <div class="tbl-wrap" style="margin-top:8px"><table id="set-rates"><thead><tr><th>Действует с</th><th class="n">Ставка, сум</th>
+      <th>За что</th><th>Документ</th><th>Кто</th><th>Когда</th></tr></thead><tbody></tbody></table></div>
 
     <h3 class="sect">Андон: станок стоит без тикета</h3>
     <div class="bar">
@@ -2360,7 +2397,7 @@ async function boot() {
     $("#ex-to").value = days.days[0];
     $("#wk-shift").innerHTML = shOpts;
     $("#wk-shift").value = 1;          // последняя завершённая смена
-    $("#set-rate").value = set.rate; $("#set-unit").value = set.rate_unit;
+    if(canSection("settings"))loadRates();
     $("#an-warn").value = set.andon_warn_min; $("#an-alarm").value = set.andon_alarm_min;
     $("#an-notify").value = set.andon_notify_min;
     // вкладка «Ручные остановы» — те же дни, по умолчанию последние 30
@@ -2486,17 +2523,13 @@ $("#ls-save").onclick = async () => {
                   ppt: $("#ls-ppt").value, panels: $("#ls-panels").value};
   document.querySelectorAll("#ls-yarns input").forEach(i => { values[i.dataset.f] = i.value; });
   const looms = [r.loom, ...($("#ls-same").checked ? lsSame(r) : [])];
-  $("#ls-save").disabled = true;
-  try {
-    if(!$('#ls-time').value)throw new Error('Укажите время начала заправки');
-    const res = await api("/api/loom_setup", {looms, from_day: $("#ls-from").value.replace(/-/g, "."), values,
-      effective_at:$('#ls-from').value+'T'+$('#ls-time').value+':00+05:00'});
-    $("#ls-dlg").close();
-    say(`Заправка записана: ${res.looms.join(", ")} с ${res.from_day.replace(/\./g, "/")}; `
-      + `отчёт пересчитан за ${res.days.length} дн.`);
-    loadReport(false);
-  } catch (e) { say("Не записалось: " + e.message, true); }
-  finally { $("#ls-save").disabled = false; }
+  if(!$('#ls-time').value)return say('Укажите время начала заправки', true);
+  const res = await docConfirm("setup", {from_day: $("#ls-from").value.replace(/-/g, "."),
+    effective_at: $('#ls-from').value+'T'+$('#ls-time').value+':00+05:00',
+    rows: looms.map(loom => ({loom, values}))});
+  if (!res) return;
+  $("#ls-dlg").close();
+  loadReport(false);
 };
 
 /* Колонки отчёта описаны один раз: из этого описания строятся шапка, строки,
@@ -3098,16 +3131,10 @@ $("#sg-save").onclick = async () => {
   if (!changed.length) return say("Изменений нет");
   const rows = changed.map(r => ({loom: SG.rows[r].loom,
     values: Object.fromEntries(SG_COLS.map((c, ci) => [c.k, sgCell(r, ci).value]))}));
-  $("#sg-save").disabled = true;
-  try {
-    if(!$('#sg-time').value)throw new Error('Укажите время начала заправки');
-    const res = await api("/api/loom_setup/bulk", {from_day: dash2dot($("#sg-day").value), rows,
-      effective_at:$('#sg-day').value+'T'+$('#sg-time').value+':00+05:00'});
-    say(`Сохранено станков: ${res.looms.length}, с ${res.from_day.replace(/\./g, "/")}; `
-      + `отчёт пересчитан за ${res.days.length} дн.`);
-    await loadGrid(true);
-  } catch (e) { say("Не сохранилось: " + e.message, true); }
-  finally { $("#sg-save").disabled = false; }
+  if(!$('#sg-time').value)return say('Укажите время начала заправки', true);
+  const res = await docConfirm("setup", {from_day: dash2dot($("#sg-day").value), rows,
+    effective_at: $('#sg-day').value+'T'+$('#sg-time').value+':00+05:00'});
+  if (res) await loadGrid(true);
 };
 
 function renderYarns() {
@@ -3636,11 +3663,21 @@ $("#rep-excel").onclick = async () => {
 };
 
 /* --- настройки --- */
+async function loadRates(){
+  try{
+    const r=await api('/api/rates');
+    $('#set-rate').value=r.rate; $('#set-unit').value=r.unit;
+    if(!$('#set-from').value)$('#set-from').value=r.day.replace(/\./g,'-');
+    $('#set-rates tbody').innerHTML=r.periods.map(p=>`<tr${p.status==='cancelled'?' style="opacity:.55"':''}>
+      <td>${esc(p.valid_from.replace(/\./g,'/'))}</td><td class="n">${nf(p.rate,2)}</td><td>${p.unit==='kpick'?'за 1000 пиков':'за пик'}</td>
+      <td>${p.doc_id?`<button class="act" data-doc="${p.doc_id}">${esc(p.number)}</button> ${docStatus(p.status)}`:'<span class="note">начальная настройка</span>'}</td>
+      <td>${esc(p.set_by)}</td><td>${esc(archiveTime(p.set_at).slice(0,16))}</td></tr>`).join('');
+  }catch(e){say(e.message,true);}
+}
 $("#set-save").onclick = async () => {
-  try {
-    await api("/api/settings", { rate: $("#set-rate").value.trim(), rate_unit: $("#set-unit").value });
-    say("Ставка сохранена");
-  } catch (e) { say("Не сохранилось: " + e.message, true); }
+  const r = await docConfirm("rate", {valid_from: dash2dot($("#set-from").value), rate: $("#set-rate").value.trim(),
+                                     unit: $("#set-unit").value});
+  if (r) loadRates();
 };
 
 /* --- История станков: только API журнала, без демонстрационных данных. --- */
@@ -3814,4 +3851,175 @@ async function loadMachineSignals(loom,day,period){
 }
 
 boot();
+
+/* --- Документы: проверка → подтверждение → проведение ---
+   Сервер проверяет ввод и показывает, что изменится; провести можно только то,
+   что человек видел. Если данные изменились, пока окно было открыто, сервер
+   вернёт новую проверку, и её нужно подтвердить заново. */
+const docDialog=document.createElement('dialog');
+docDialog.className='ls doc';
+docDialog.innerHTML='<form method="dialog"><h3 id="doc-title"></h3><div id="doc-body"></div>'+
+  '<label class="f"><span>Комментарий к документу</span><input id="doc-comment" maxlength="300" autocomplete="off"></label>'+
+  '<label class="ack hidden" id="doc-ack-wrap"><input type="checkbox" id="doc-ack"> <span>Предупреждения прочитаны — провести документ так</span></label>'+
+  '<div class="btns"><button class="act" value="cancel" formnovalidate>Вернуться к правке</button><button class="act primary" id="doc-post" type="button">Провести</button></div></form>';
+document.body.appendChild(docDialog);
+const docStatus=s=>`<span class="doc-status ${s}">${s==='posted'?'проведён':'отменён'}</span>`;
+const docVal=v=>v==null||v===''?'<span class="note">по справочнику</span>':esc(typeof v==='number'?nf(v,Number.isInteger(v)?0:3):v);
+const docMoney=v=>nf(Math.round(v||0))+'<small> сум</small>';
+const DOC_VIEW={
+  setup:{tiles:c=>[['Станков',c.summary.looms],['С изменениями',c.summary.changed_looms],['Полей меняется',c.summary.changed_fields]],
+    changes:c=>'<h4>Что изменится</h4>'+archiveTable(['Станок','Поле','Было','Станет'],c.changes.map(x=>[esc(x.loom),esc(x.title),`<span class="was">${docVal(x.before)}</span>`,`<b>${docVal(x.after)}</b>`]))},
+  rate:{tiles:c=>[['Ставка',nf(c.summary.rate,2)+'<small> сум</small>'],['Действует с',esc((c.summary.valid_from||'').replace(/\./g,'/'))]],
+    changes:c=>'<h4>Что изменится</h4>'+archiveTable(['','Было','Станет'],c.changes.map(x=>[esc(x.title),`<span class="was">${docVal(x.before)}</span>`,`<b>${docVal(x.after)}</b>`]))},
+  payroll:{tiles:c=>[['К выплате',docMoney(c.summary.salary)],['Операторов',c.summary.operators],['Смен',c.summary.shifts],['Не распределено',docMoney(c.summary.unassigned_salary)]],
+    changes:c=>(c.changes.length?'<h4>Отличия от заменяемой ведомости</h4>'+archiveTable(['Оператор','Было, сум','Станет, сум'],c.changes.map(x=>[esc(x.title),x.before==null?'—':nf(x.before),x.after==null?'—':'<b>'+nf(x.after)+'</b>'])):'')+
+      '<h4>Начисление</h4>'+archiveTable(['Код','Оператор','Смен','Тыс. пиков','Сумма, сум'],(c.result.operators||[]).map(o=>[esc(o.code),esc(o.name),o.shifts,nf(o.kpicks,1),'<b>'+nf(o.salary)+'</b>']))}
+};
+const REP_PERIOD_HEAD=['Станок','Дней','Смен','Дизайн','GSM','КПД, %','Тыс. пиков','Ряды','Полотенца','Кг','Ворс','Уток','Грунт','Прочие'];
+const repPeriodRows=rows=>rows.map(r=>[esc(r.loom),r.days,r.shifts,esc(r.designs.join(', ')||'—'),esc(r.gsm.join(', ')||'—'),r.effic==null?'—':nf(r.effic,1),nf(r.picks/1000,0),nf(r.rows),r.towels_known?nf(r.towels):nf(r.towels)+' <span class="note">неполн.</span>',nf(r.kg,1),r.pile,r.weft,r.ground,r.other]);
+const repPeriodTotal=t=>['<b>Итого</b>',t.days,'','','',t.effic==null?'—':'<b>'+nf(t.effic,1)+'</b>','<b>'+nf(t.picks/1000,0)+'</b>','<b>'+nf(t.rows)+'</b>','<b>'+nf(t.towels)+'</b>','<b>'+nf(t.kg,1)+'</b>',t.pile,t.weft,t.ground,t.other];
+DOC_VIEW.report={tiles:c=>[['Станков',c.summary.looms],['Дней',c.summary.days],['КПД',c.summary.effic==null?'—':nf(c.summary.effic,1)+'<small> %</small>'],['Полотенца',nf(c.summary.towels)],['Кг',nf(c.summary.kg,1)]],
+  changes:c=>(c.changes.length?'<h4>Отличия от заменяемого отчёта</h4>'+archiveTable(['Станок','Показатель','Было','Станет'],c.changes.map(x=>[esc(x.loom),esc(x.title),'<span class="was">'+esc(x.before??'—')+'</span>','<b>'+esc(x.after??'—')+'</b>'])):'')+
+    (c.result.rows?'<h4>Отчёт</h4>'+archiveTable(REP_PERIOD_HEAD,[...repPeriodRows(c.result.rows),repPeriodTotal(c.result.totals)]):'')};
+const docTiles=(v,c)=>v.tiles?'<div class="tiles" style="margin-top:10px">'+v.tiles(c).map(([l,x])=>`<div class="tile"><span class="l">${esc(l)}</span><span class="v">${x}</span></div>`).join('')+'</div>':'';
+function docRender(c, note){
+  const v=DOC_VIEW[c.type]||{};
+  const e=c.errors.length, w=c.warnings.length;
+  $('#doc-title').textContent=c.title||c.type_title;
+  $('#doc-body').innerHTML=(note?`<p class="bad">${esc(note)}</p>`:'')+
+    `<div class="doc-verdict ${e?'err':w?'warn':'ok'}">${e?`Провести нельзя: ошибок ${e}`:w?`Можно провести — прочитайте предупреждения (${w})`:'Проверено: можно проводить'}<small>${esc(c.type_title)}</small></div>`+
+    docTiles(v,c)+
+    (e?'<h4>Ошибки — исправьте и проверьте снова</h4><ul class="doc-list err">'+c.errors.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>':'')+
+    (w?'<h4>Предупреждения</h4><ul class="doc-list warn">'+c.warnings.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>':'')+
+    (v.changes&&!e?v.changes(c):'');
+  const mayPost=c.may_post!==false;
+  if(!mayPost)$('#doc-body').insertAdjacentHTML('beforeend','<p class="note">Просмотр: провести этот документ может пользователь с соответствующим правом.</p>');
+  $('#doc-post').classList.toggle('hidden',!mayPost);
+  $('#doc-ack-wrap').classList.toggle('hidden',!w||!!e||!mayPost);
+  $('#doc-ack').checked=false;
+  const sync=()=>{$('#doc-post').disabled=!mayPost||!!e||(w>0&&!$('#doc-ack').checked);};
+  $('#doc-ack').onchange=sync; sync();
+}
+function docConfirm(type, payload){
+  return new Promise(async resolve=>{
+    let checked=null, done=null;
+    $('#doc-title').textContent='Проверка документа'; $('#doc-body').innerHTML='<p class="note">Сервер проверяет документ…</p>';
+    $('#doc-comment').value=''; $('#doc-post').disabled=true; $('#doc-ack-wrap').classList.add('hidden');
+    docDialog.onclose=()=>resolve(done);
+    docDialog.showModal();
+    $('#doc-post').onclick=async()=>{
+      if(!checked)return;
+      $('#doc-post').disabled=true;
+      try{
+        const r=await fetch('/api/documents/post',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({type,payload,checksum:checked.checksum,comment:$('#doc-comment').value})});
+        const j=await r.json();
+        if(r.status===409&&j.preview){ checked=j.preview; return docRender(checked,j.error); }
+        if(j.error)throw new Error(j.error);
+        done=j; docDialog.close();
+        const err=j.after&&j.after.after_error;
+        say(`Проведён документ ${j.number}`+(j.after&&j.after.days?`; отчёт пересчитан за ${j.after.days.length} дн.`:'')+
+            (err?`; пересборка отчёта не удалась: ${err}`:''), !!err);
+      }catch(e){ say('Документ не проведён: '+e.message,true); $('#doc-post').disabled=false; }
+    };
+    try{ checked=await api('/api/documents/preview',{type,payload}); docRender(checked); }
+    catch(e){ $('#doc-body').innerHTML='<p class="bad">'+esc(e.message)+'</p>'; }
+  });
+}
+let DOC_KINDS={};
+async function docKinds(){
+  if(!Object.keys(DOC_KINDS).length){const r=await api('/api/documents?limit=1');DOC_KINDS=Object.fromEntries(r.kinds.map(k=>[k.id,k]));}
+  return DOC_KINDS;
+}
+async function openDocument(id){
+  openArchive('Документ');
+  try{
+    const d=await api('/api/documents/get?id='+encodeURIComponent(id));
+    const kinds=await docKinds();
+    const v=DOC_VIEW[d.type]||{};
+    const c={...d,errors:[],summary:d.summary||{},changes:d.changes||[],result:d.result||{},warnings:d.warnings||[]};
+    const canCancel=d.status==='posted'&&d.type!=='setup'&&(kinds[d.type]||{}).can_post;
+    const canVerify=['payroll','report'].includes(d.type);
+    $('#archive-title').textContent=`${d.number} · ${d.title}`;
+    $('#archive-body').innerHTML=`<div class="doc-meta">
+        <div><span>Статус</span><br>${docStatus(d.status)}</div>
+        <div><span>Провёл</span><br>${esc(d.created_by)} · ${esc(archiveTime(d.created_at).slice(0,16))}</div>
+        ${d.period_from?`<div><span>Период</span><br>${esc(d.period_from)}${d.period_to?' – '+esc(d.period_to):''}</div>`:''}
+        ${d.status==='cancelled'?`<div><span>Отменил</span><br>${esc(d.cancelled_by)} · ${esc(archiveTime(d.cancelled_at).slice(0,16))}<br>${esc(d.cancel_reason)}</div>`:''}
+        ${d.supersedes_id?`<div><span>Заменяет</span><br><button class="act" data-doc="${d.supersedes_id}">документ № ${d.supersedes_id}</button></div>`:''}
+        ${d.replaced_by.length?`<div><span>Заменён</span><br>${d.replaced_by.map(x=>`<button class="act" data-doc="${x.id}">${esc(x.number)}</button>`).join(' ')}</div>`:''}
+      </div>${d.comment?`<p>Комментарий: ${esc(d.comment)}</p>`:''}`+
+      docTiles(v,c)+
+      (c.warnings.length?'<h4>Предупреждения, которые видел проводивший</h4><ul class="doc-list warn">'+c.warnings.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>':'')+
+      (v.changes?v.changes(c):'')+
+      '<h4>История документа</h4>'+archiveTable(['Действие','Когда','Кто','Статус'],d.history.map(h=>[esc(auditNames[h.action]||h.action),esc(archiveTime(h.at)),esc(h.actor),esc(((h.after||h.before||{}).status)==='cancelled'?'отменён':'проведён')]))+
+      `<div class="bar" style="margin-top:10px">${canVerify?'<button class="act" id="doc-verify">Сверить с текущими данными</button>':''}
+        ${canCancel?'<button class="act" id="doc-cancel">Отменить документ…</button>':''}</div><div id="doc-verify-out"></div>`;
+    if($('#doc-verify'))$('#doc-verify').onclick=async()=>{
+      const out=$('#doc-verify-out'); out.innerHTML='<p class="note">Пересчитываю…</p>';
+      try{
+        const r=await api('/api/documents/verify?id='+d.id);
+        if(r.same){out.innerHTML='<div class="doc-verdict ok">Совпадает с текущими данными</div>';return;}
+        let table;
+        if(d.type==='payroll'){
+          const b=Object.fromEntries((r.posted.result.operators||[]).map(o=>[o.operator_id,o])), a=Object.fromEntries((r.now.result.operators||[]).map(o=>[o.operator_id,o]));
+          const ids=[...new Set([...Object.keys(b),...Object.keys(a)])].filter(k=>(b[k]||{}).salary!==(a[k]||{}).salary);
+          table=archiveTable(['Оператор','В ведомости, сум','Сейчас, сум'],ids.map(k=>[esc((a[k]||b[k]).name),b[k]?nf(b[k].salary):'—',a[k]?'<b>'+nf(a[k].salary)+'</b>':'—']));
+        }else{
+          const b=Object.fromEntries((r.posted.result.rows||[]).map(x=>[x.loom,x])), a=Object.fromEntries((r.now.result.rows||[]).map(x=>[x.loom,x]));
+          const diff=[];
+          for(const loom of [...new Set([...Object.keys(b),...Object.keys(a)])])for(const [f,t] of [['picks','Пики'],['towels','Полотенца'],['kg','Кг'],['effic','КПД, %']])
+            if((b[loom]||{})[f]!==(a[loom]||{})[f])diff.push([esc(loom),t,esc((b[loom]||{})[f]??'—'),'<b>'+esc((a[loom]||{})[f]??'—')+'</b>']);
+          table=archiveTable(['Станок','Показатель','В утверждённом','Сейчас'],diff);
+        }
+        const what=d.type==='payroll'?'новая ведомость':'новый отчёт';
+        out.innerHTML=`<div class="doc-verdict warn">Данные изменились после проведения. Исправление — ${what} взамен этого документа.</div>`+table+
+          ((kinds[d.type]||{}).can_post&&d.status==='posted'?`<button class="act primary" id="doc-replace">Провести ${what} взамен…</button>`:'');
+        if($('#doc-replace'))$('#doc-replace').onclick=async()=>{archiveDialog.close();const n=await docConfirm(d.type,{from:d.period_from,to:d.period_to,supersedes_id:d.id});if(n)openDocument(n.id);};
+      }catch(e){out.innerHTML='<p class="bad">'+esc(e.message)+'</p>';}
+    };
+    if($('#doc-cancel'))$('#doc-cancel').onclick=async()=>{
+      const reason=prompt(tr('Причина отмены документа')+' '+d.number+':');
+      if(reason==null)return;
+      try{await api('/api/documents/cancel',{id:d.id,reason});say('Документ '+d.number+' отменён');openDocument(d.id);if(d.type==='rate')loadRates();}
+      catch(e){say('Не отменён: '+e.message,true);}
+    };
+  }catch(e){$('#archive-body').textContent=e.message;}
+}
+async function docList(type, title){
+  openArchive(title);
+  try{
+    const r=await api('/api/documents?'+new URLSearchParams({type}));
+    DOC_KINDS=Object.fromEntries(r.kinds.map(k=>[k.id,k]));
+    $('#archive-body').innerHTML=r.documents.length?archiveTable(['Номер','Документ','Статус','Итог','Провёл','Когда'],r.documents.map(d=>[
+      `<button class="act" data-doc="${d.id}">${esc(d.number)}</button>`,esc(d.title),docStatus(d.status)+(d.cancel_reason?'<br><span class="note">'+esc(d.cancel_reason)+'</span>':''),
+      type==='payroll'?docMoney(d.summary.salary):type==='setup'?`${d.summary.looms||0} ст.`:type==='rate'?nf(d.summary.rate,2):type==='report'?`${nf(d.summary.towels)} полотенец, КПД ${nf(d.summary.effic,1)} %`:'',
+      esc(d.created_by),esc(archiveTime(d.created_at).slice(0,16))])):'<p>Документов пока нет.</p>';
+  }catch(e){$('#archive-body').textContent=e.message;}
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-doc]');if(b){e.preventDefault();openDocument(b.dataset.doc);}});
+$('#pr-check').onclick=async()=>{
+  if(!$('#pr-from').value||!$('#pr-to').value)return say('Укажите период ведомости',true);
+  await docConfirm('payroll',{from:dash2dot($('#pr-from').value),to:dash2dot($('#pr-to').value)});
+};
+$('#pr-list').onclick=()=>docList('payroll','Зарплатные ведомости');
+$('#rp-list').onclick=()=>docList('report','Утверждённые производственные отчёты');
+$('#rp-go').onclick=async()=>{
+  const from=dash2dot($('#rp-from').value), to=dash2dot($('#rp-to').value);
+  if(!from||!to)return say('Укажите период отчёта',true);
+  openArchive('Производственный отчёт за период');
+  try{
+    const r=await api('/api/report_period?'+new URLSearchParams({from,to}));
+    const t=r.totals;
+    $('#archive-title').textContent=`Производственный отчёт ${from.replace(/\./g,'/')} – ${to.replace(/\./g,'/')}`;
+    $('#archive-body').innerHTML=docTiles(DOC_VIEW.report,{summary:{looms:t.looms,days:t.days,effic:t.effic,towels:t.towels,kg:t.kg}})+
+      (r.days_without_report.length?`<p class="note">Дневной отчёт не собран: ${esc(r.days_without_report.join(', '))} — нет изделия и килограммов.</p>`:'')+
+      '<p class="note">КПД, пики и ряды — из смен Toyota; изделие, панели и килограммы — из дневного отчёта каждого дня.</p>'+
+      archiveTable(REP_PERIOD_HEAD,[...repPeriodRows(r.rows),repPeriodTotal(t)])+
+      '<div class="bar" style="margin-top:10px"><button class="act primary" id="rp-approve">Утвердить отчёт…</button></div>';
+    $('#rp-approve').onclick=async()=>{archiveDialog.close();const d=await docConfirm('report',{from,to});if(d)openDocument(d.id);};
+  }catch(e){$('#archive-body').innerHTML='<p class="bad">'+esc(e.message)+'</p>';}
+};
+(()=>{const y=new Date(Date.now()+5*3600e3-864e5).toISOString().slice(0,10);$('#rp-to').value=y;$('#rp-from').value=y.slice(0,8)+'01';})();
+(()=>{const iso=new Date(Date.now()+5*3600e3-864e5).toISOString().slice(0,10);$('#pr-to').value=iso;$('#pr-from').value=iso.slice(0,8)+'01';})();
 </script>

@@ -92,6 +92,78 @@ def report_days():
             "SELECT DISTINCT day FROM report_daily ORDER BY day DESC")]
 
 
+PERIOD_MAX_DAYS = 366
+
+
+def report_period(date_from, date_to):
+    """Производственный отчёт за любой период: итоги по станкам.
+
+    Время работы, пики и ряды — из смен Toyota (shift_full), изделие, панели и
+    килограммы — из дневного отчёта (report_daily) каждого дня: заправка за
+    период могла меняться, поэтому полотенца считаются по дням."""
+    try:
+        first = datetime.strptime(date_from or "", "%Y.%m.%d")
+        last = datetime.strptime(date_to or "", "%Y.%m.%d")
+    except ValueError:
+        raise ValueError("период: нужны даты вида 2026.09.01") from None
+    if first > last:
+        raise ValueError("начало периода позже конца")
+    if (last - first).days + 1 > PERIOD_MAX_DAYS:
+        raise ValueError("период — не больше %d дней" % PERIOD_MAX_DAYS)
+    looms = {}
+    with fact() as db:
+        daily = {(r["day"], r["loom"]): dict(r) for r in db.execute(
+            "SELECT day, loom, design, gsm, panels, achieved_kg, pile_total, weft_total, ground_total,"
+            " other_total FROM report_daily WHERE day BETWEEN ? AND ?", (date_from, date_to))}
+        shifts = db.execute(
+            "SELECT day, loom, COUNT(*) shifts, SUM(run_min) run_min, SUM(stop_min) stop_min, SUM(picks) picks,"
+            " SUM(pieces) pieces, SUM(top_ct) top_ct, SUM(weft_ct) weft_ct, SUM(warp_ct) warp_ct"
+            " FROM shift_full WHERE day BETWEEN ? AND ? GROUP BY day, loom", (date_from, date_to)).fetchall()
+        days = [r[0] for r in db.execute("SELECT DISTINCT day FROM shift_full WHERE day BETWEEN ? AND ?",
+                                         (date_from, date_to))]
+    for s in shifts:
+        d = daily.get((s["day"], s["loom"])) or {}
+        a = looms.setdefault(s["loom"], dict(loom=s["loom"], days=0, shifts=0, run_min=0.0, stop_min=0.0,
+                                             picks=0.0, rows=0, towels=0, towels_known=True, kg=0.0,
+                                             pile=0, weft=0, ground=0, other=0, designs=[], gsm=[]))
+        a["days"] += 1
+        a["shifts"] += s["shifts"]
+        for k in ("run_min", "stop_min", "picks"):
+            a[k] += s[k] or 0
+        a["rows"] += int(s["pieces"] or 0)
+        if d.get("panels"):
+            a["towels"] += int((s["pieces"] or 0) * d["panels"])
+        elif s["pieces"]:
+            a["towels_known"] = False
+        a["kg"] += d.get("achieved_kg") or 0
+        a["pile"] += d.get("pile_total") if d.get("pile_total") is not None else (s["top_ct"] or 0)
+        a["weft"] += d.get("weft_total") if d.get("weft_total") is not None else (s["weft_ct"] or 0)
+        a["ground"] += d.get("ground_total") if d.get("ground_total") is not None else (s["warp_ct"] or 0)
+        a["other"] += d.get("other_total") or 0
+        if d.get("design") and d["design"] not in a["designs"]:
+            a["designs"].append(d["design"])
+        if d.get("gsm") and d["gsm"] not in a["gsm"]:
+            a["gsm"].append(d["gsm"])
+    rows = []
+    for a in sorted(looms.values(), key=lambda x: loomsetup._loom_key(x["loom"])):
+        total = a["run_min"] + a["stop_min"]
+        a.update(effic=round(100 * a["run_min"] / total, 1) if total else None,
+                 run_min=round(a["run_min"]), stop_min=round(a["stop_min"]), picks=round(a["picks"]),
+                 kg=round(a["kg"], 1))
+        rows.append(a)
+    run = sum(r["run_min"] for r in rows)
+    stop = sum(r["stop_min"] for r in rows)
+    totals = dict(looms=len(rows), days=len(days), run_min=run, stop_min=stop,
+                  effic=round(100 * run / (run + stop), 1) if run + stop else None,
+                  picks=sum(r["picks"] for r in rows), rows=sum(r["rows"] for r in rows),
+                  towels=sum(r["towels"] for r in rows), kg=round(sum(r["kg"] for r in rows), 1),
+                  pile=sum(r["pile"] for r in rows), weft=sum(r["weft"] for r in rows),
+                  ground=sum(r["ground"] for r in rows), other=sum(r["other"] for r in rows))
+    missing = sorted({s["day"] for s in shifts} - {d for d, _ in daily})
+    return {"from": date_from, "to": date_to, "rows": rows, "totals": totals, "days": sorted(days),
+            "days_without_report": missing}
+
+
 def all_days():
     with fact() as db:
         return [r[0] for r in db.execute(

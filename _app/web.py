@@ -137,6 +137,7 @@ GET_SECTIONS = {
     "/api/documents/get": tuple(auth.SECTIONS),
     "/api/documents/verify": tuple(auth.SECTIONS),
     "/api/rates": ("salary", "settings"),
+    "/api/report_period": ("report",),
 }
 GET_ACTIONS = {"/api/users": "users", "/api/access_catalog": "users", "/api/keys": "users",
                "/api/logs": "settings", "/api/excel": "export"}
@@ -375,6 +376,8 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/report":
                 return self._send(200, {"day": q.get("day"),
                                         "rows": reports.report_day(q.get("day", ""))})
+            if u.path == "/api/report_period":
+                return self._send(200, reports.report_period(q.get("from", ""), q.get("to", "")))
             if u.path == "/api/report_days":
                 return self._send(200, {"days": reports.report_days()})
             if u.path == "/api/days":
@@ -776,10 +779,16 @@ class Handler(BaseHTTPRequestHandler):
         else:
             name = body.get("type", "")
         k = documents.kind(name)
+        if action == "preview":
+            # Проверка ничего не пишет: её видит всякий, кому открыт раздел, — ведомость
+            # за период для мастерицы, отчёт за период для наблюдателя.
+            if not (may(me, k.permission) or auth.can_section(me, k.section)):
+                return self._send(403, {"error": "нет доступа к документу «%s»" % k.title})
+            checked = documents.preview(name, body.get("payload") or {})
+            checked["may_post"] = may(me, k.permission)
+            return self._send(200, checked)
         if not may(me, k.permission):
             return self._send(403, {"error": "нет прав на документ «%s»" % k.title})
-        if action == "preview":
-            return self._send(200, documents.preview(name, body.get("payload") or {}))
         if action == "post":
             payload = body.get("payload") or {}
             try:

@@ -152,6 +152,27 @@ class DocumentsTest(unittest.TestCase):
         self.assertEqual([d['number'] for d in documents.list_docs(['payroll'], '2026.09.02', '2026.09.02', 'posted')],
                          [r2['number']])
 
+    def test_report_period_approval(self):
+        import reports
+        data = {'rows': [dict(loom='J1', picks=100, towels=10, towels_known=True, kg=1.0, effic=80.0)],
+                'totals': dict(looms=1, days=2, effic=80.0, towels=10, kg=1.0, picks=100),
+                'days': ['2026.09.01', '2026.09.02'], 'days_without_report': ['2026.09.02']}
+        with patch.object(reports, 'report_period', return_value=data):
+            self.assertTrue(any('ещё не закончился' in e for e in
+                                documents.preview('report', {'from': '2026.09.01', 'to': '2026.09.16'})['errors']))
+            payload = {'from': '2026.09.01', 'to': '2026.09.02'}
+            checked = documents.preview('report', payload)
+            self.assertTrue(any('не собран' in w for w in checked['warnings']))
+            r = documents.post('report', payload, checked['checksum'], 'master')
+            self.assertTrue(any('уже утверждён' in e for e in documents.preview('report', payload)['errors']))
+            data['rows'][0]['kg'] = 2.0
+            self.assertFalse(documents.verify(r['id'])['same'])
+            replace = dict(payload, supersedes_id=r['id'])
+            checked = documents.preview('report', replace)
+            self.assertEqual([c['field'] for c in checked['changes']], ['kg'])
+            documents.post('report', replace, checked['checksum'], 'master')
+            self.assertEqual(documents.get(r['id'])['status'], 'cancelled')
+
     def test_unfinished_shift_is_error(self):
         checked = documents.preview('payroll', {'from': '2999.01.01', 'to': '2999.01.01'})
         self.assertTrue(any('не закончились' in e for e in checked['errors']))
