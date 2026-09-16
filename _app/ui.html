@@ -781,8 +781,13 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
     <div class="grid2" style="margin-top:10px">
       <div>
         <div class="bar" style="margin-bottom:8px">
-          <div class="f"><label for="as-search">Код или имя оператора</label><input id="as-search" type="search" placeholder="Введите код или имя" autocomplete="off"></div>
-          <div class="f"><label for="as-bulk">Оператор для отмеченных станков</label><select id="as-bulk"></select></div>
+          <div class="f" id="as-picker" style="position:relative;min-width:280px">
+            <label for="as-search">Оператор для отмеченных станков</label>
+            <input id="as-search" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="as-suggestions" placeholder="Введите код или имя" autocomplete="off">
+            <div id="as-suggestions" role="listbox" class="hidden" style="position:absolute;top:100%;left:0;right:0;z-index:30;background:white;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 6px 20px #0002;max-height:260px;overflow:auto"></div>
+            <select id="as-bulk" hidden aria-hidden="true" tabindex="-1"></select>
+            <span id="as-picked" class="note" aria-live="polite"></span>
+          </div>
           <div class="f"><label>&nbsp;</label><button class="act" id="as-apply">Назначить</button></div>
           <div class="f"><label>&nbsp;</label><button class="act" id="as-prev">Как в прошлую такую смену</button></div>
           <div class="f"><label>&nbsp;</label><button class="act" id="as-fact">Из FACT</button></div>
@@ -3225,8 +3230,61 @@ function filterAssignOperators() {
   $("#as-bulk").innerHTML = `<option value="">${search ? "— выберите оператора —" : "—"}</option>`
     + ops.map(o => `<option value="${o.id}">${opLabel(o)}</option>`).join("");
   if (ops.some(o => String(o.id) === selected)) $("#as-bulk").value = selected;
+  return ops;
 }
-$("#as-search").oninput = filterAssignOperators;
+let AS_SUGGESTIONS = [], AS_SUGGEST_INDEX = -1;
+function closeAssignSuggestions() {
+  $("#as-suggestions").classList.add("hidden");
+  $("#as-search").setAttribute("aria-expanded", "false");
+  $("#as-search").removeAttribute("aria-activedescendant");
+}
+function pickAssignOperator(op) {
+  $("#as-search").value = op.code;
+  filterAssignOperators();
+  $("#as-bulk").value = String(op.id);
+  $("#as-picked").textContent = `${op.code} — ${op.name}`;
+  closeAssignSuggestions();
+}
+function showAssignSuggestions() {
+  AS_SUGGESTIONS = filterAssignOperators().sort((a,b) =>
+    Number(String(b.code) === $("#as-search").value.trim()) - Number(String(a.code) === $("#as-search").value.trim()));
+  AS_SUGGEST_INDEX = -1;
+  $("#as-suggestions").innerHTML = AS_SUGGESTIONS.map((o,i) =>
+    `<button type="button" role="option" aria-selected="false" id="as-option-${i}" data-option="${i}" style="display:block;width:100%;text-align:left;padding:10px;border:0;border-radius:0;background:white;color:#182333"><b>${esc(o.code)}</b> — ${esc(o.name)}</button>`).join("")
+    || `<div style="padding:10px">${tr("Оператор не найден")}</div>`;
+  $("#as-suggestions").classList.remove("hidden");
+  $("#as-search").setAttribute("aria-expanded", "true");
+  $("#as-search").removeAttribute("aria-activedescendant");
+  $("#as-suggestions").querySelectorAll("button").forEach(b => b.onclick = () => pickAssignOperator(AS_SUGGESTIONS[+b.dataset.option]));
+}
+$("#as-search").oninput = () => {
+  $("#as-bulk").value = ""; $("#as-picked").textContent = "";
+  showAssignSuggestions();
+};
+$("#as-search").onfocus = showAssignSuggestions;
+$("#as-search").onkeydown = e => {
+  if (e.key === "Escape") return closeAssignSuggestions();
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    if ($("#as-suggestions").classList.contains("hidden")) showAssignSuggestions();
+    if (!AS_SUGGESTIONS.length) return;
+    AS_SUGGEST_INDEX = AS_SUGGEST_INDEX < 0 ? (e.key === "ArrowDown" ? 0 : AS_SUGGESTIONS.length - 1)
+      : (AS_SUGGEST_INDEX + (e.key === "ArrowDown" ? 1 : -1) + AS_SUGGESTIONS.length) % AS_SUGGESTIONS.length;
+    $("#as-suggestions").querySelectorAll("button").forEach((b,i) => {
+      b.setAttribute("aria-selected", String(i === AS_SUGGEST_INDEX));
+      b.style.background = i === AS_SUGGEST_INDEX ? "#dbeafe" : "white";
+    });
+    const option = $("#as-option-" + AS_SUGGEST_INDEX);
+    $("#as-search").setAttribute("aria-activedescendant", option.id);
+    option.scrollIntoView({block:"nearest"});
+  } else if (e.key === "Enter" && !$("#as-suggestions").classList.contains("hidden")) {
+    e.preventDefault();
+    const op = AS_SUGGESTIONS[Math.max(0, AS_SUGGEST_INDEX)];
+    if (op) pickAssignOperator(op);
+  }
+};
+document.addEventListener("click", e => { if (!$("#as-picker").contains(e.target)) closeAssignSuggestions(); });
+$("#as-picker").addEventListener("focusout", e => { if (!$("#as-picker").contains(e.relatedTarget)) closeAssignSuggestions(); });
 
 async function loadAssign() {
   if (!AS_SH) { const n = shiftNow(); $("#as-day").value = n.day; AS_SH = n.sh; }
