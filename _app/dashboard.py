@@ -384,7 +384,7 @@ def cards(day="", letter=""):
             "ticket": {"ru": cat["name"], "en": cat["en"]} if cat else None,
             "operator": op,
             "oee_shift": d.get("oee_shift"), "oee_24h": d.get("oee_24h"),
-            "rpm": d.get("rpm") or r["rpm_now"],
+            "rpm": r["rpm_now"] if r['state'] == 'run' else 0,
             "design": r["design"], "article": r["article"],
             "cloth_name": d.get("cloth_name") or r["style_fact"],
             "weft_ct": stat['weft_ct'] if stat else None,

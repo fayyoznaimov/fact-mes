@@ -32,6 +32,7 @@ class CardsTest(unittest.TestCase):
             rows.assert_called_with('2026.09.15','C')
             card = result['rows'][0]
             self.assertEqual(card['rpm_avg'],500)
+            self.assertEqual(card['rpm'],0)
             self.assertEqual(card['towels_per_hour'],120)
             self.assertEqual(card['efficiency_pct'],66.7)
             self.assertEqual(card['stops_total'],4)
