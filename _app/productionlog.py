@@ -194,10 +194,65 @@ def events(entity, loom='', limit=200, record_id=None):
             args.append(int(record_id))
         rows=db.execute('SELECT * FROM production_event WHERE '+where+' ORDER BY id DESC LIMIT ?',
                         (*args,min(max(int(limit),1),1000))).fetchall()
-        return [dict(id=r['id'],at=r['at'],actor=r['actor'],action=r['action'],
-                     before=json.loads(r['before_json']) if r['before_json'] else None,
-                     after=json.loads(r['after_json']) if r['after_json'] else None) for r in rows]
+        import changes
+        out=[]
+        for r in rows:
+            e=dict(id=r['id'],at=r['at'],batch=r['batch'],actor=r['actor'],action=r['action'],
+                   before=json.loads(r['before_json']) if r['before_json'] else None,
+                   after=json.loads(r['after_json']) if r['after_json'] else None)
+            e['described']=changes.describe(entity,e)
+            e['described'].pop('raw_before',None);e['described'].pop('raw_after',None)
+            out.append(e)
+        return out
     finally:db.close()
+
+
+def change_log(entities, date_from='', date_to='', actor='', text='', limit=300):
+    """Журнал изменений: операции (одно сохранение) с объектами и реквизитами «было → стало»."""
+    import changes
+    import storage
+    entities=[e for e in entities if e in TABLES]
+    if not entities:
+        return []
+    where=["entity IN (%s)" % ','.join('?'*len(entities)), "action<>'BASELINE'"]
+    args=list(entities)
+    if date_from:
+        where.append('at >= ?');args.append(date_from.replace('.','-'))
+    if date_to:
+        where.append('at < ?');args.append(date_to.replace('.','-')+'T99')
+    if actor:
+        where.append('actor = ?');args.append(actor)
+    db=storage.shop_readonly()
+    try:
+        rows=db.execute('SELECT * FROM production_event WHERE '+' AND '.join(where)+' ORDER BY id DESC LIMIT ?',
+                        (*args,min(max(int(limit),1),3000))).fetchall()
+    finally:db.close()
+    items=[]
+    for r in rows:
+        e=changes.describe(r['entity'],dict(id=r['id'],at=r['at'],actor=r['actor'],action=r['action'],
+                                            before=json.loads(r['before_json']) if r['before_json'] else None,
+                                            after=json.loads(r['after_json']) if r['after_json'] else None))
+        if r['entity']=='doc':
+            e['fields']=[f for f in e['fields'] if f['field'] not in ('payload_json','result_json','checksum')]
+        if e['action']=='UPDATE' and not e['fields']:
+            continue
+        e['batch']=r['batch']
+        if r['entity']=='loom_setup' and r['action']=='INSERT':
+            new=e['raw_after']
+            db=storage.shop_readonly()
+            try:
+                prev=next((json.loads(p['after_json']) for p in db.execute(
+                    "SELECT after_json FROM production_event WHERE entity='loom_setup' AND id<? AND after_json IS NOT NULL"
+                    " AND json_extract(after_json,'$.loom')=? AND json_extract(after_json,'$.from_day')<? ORDER BY id DESC LIMIT 1",
+                    (r['id'],new.get('loom'),new.get('from_day')))),None)
+            finally:db.close()
+            if prev:
+                e['fields']=[f for f in changes.fields('loom_setup',prev,new) if f['field']!='from_day']
+                e['action_text']='Новая заправка вместо заправки с %s' % changes.day_text(prev.get('from_day'))
+        if text and text.lower() not in json.dumps(e,ensure_ascii=False).lower():
+            continue
+        items.append(e)
+    return changes.operations(items)
 
 
 def assignment_periods(day, shift, loom=''):

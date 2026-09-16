@@ -75,11 +75,18 @@ def check_setup(db, payload):
         cur = db.execute("SELECT * FROM loom_setup WHERE loom=? AND from_day<=? ORDER BY from_day DESC LIMIT 1",
                          (loom, from_day)).fetchone()
         cur = dict(cur) if cur else {}
-        diff = [dict(loom=loom, field=f, title=_field_title(f), before=cur.get(f), after=row[f])
-                for f in loomsetup.FIELDS if not _same(cur.get(f), row[f])]
-        if not diff:
+        manual_diff = [f for f in loomsetup.FIELDS if not _same(cur.get(f), row[f])]
+        if not manual_diff:
             unchanged.append(loom)
-        changes.extend(diff)
+        else:
+            import changes as human
+            before_snap = loomsetup.document_snapshot(db, loom, from_day, {f: cur.get(f) for f in loomsetup.FIELDS})
+            after_snap = loomsetup.document_snapshot(db, loom, from_day, row)
+            context = human.setup_context(after_snap)
+            for x in human.setup_fields(before_snap, after_snap):
+                if x["field"] in manual_diff or x["changed"]:
+                    changes.append(dict(x, loom=loom, title=x["label"], context=context,
+                                        since=cur.get("from_day"), since_by=cur.get("set_by")))
         if cur.get("from_day") == from_day:
             warnings.append("%s — заменит заправку с %s, введённую %s %s" % (
                 loom, from_day, cur.get("set_by") or "—", (cur.get("set_at") or "")[:16].replace("T", " ")))
@@ -253,7 +260,7 @@ def check_payroll(db, payload):
                                                           (" …" if len(empty) > 10 else "")))
     if len(rates) > 1:
         warnings.append("в периоде разные ставки: " + "; ".join(
-            "%s сум %s с %s" % (r, UNITS.get(u, u), d) for d, r, u in rates))
+            "%g сум %s с %s" % (r, UNITS.get(u, u), d) for d, r, u in rates))
     operators = sorted(people.values(), key=lambda x: (-x["salary"], x["name"]))
     changes = []
     if replaces:

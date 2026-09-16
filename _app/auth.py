@@ -63,6 +63,7 @@ SECTIONS = {
     "manual": ("Ручные остановы", "Manual stops"),
     "kpi": ("KPI", "KPI"),
     "salary": ("Зарплата", "Payroll"),
+    "docs": ("Документы и журнал изменений", "Documents and change log"),
     "people": ("Операторы", "Operators"),
     "settings": ("Настройки", "Settings"),
     "users": ("Пользователи", "Users"),

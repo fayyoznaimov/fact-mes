@@ -26,6 +26,7 @@ import api
 import auth
 import cache
 import collector
+import changes
 import dashboard
 import documents
 import hub
@@ -86,6 +87,17 @@ GUARD = {
     "/api/loom_plan/cells": "plan_edit",
 }
 
+# Журнал изменений: чей раздел открывает изменения какой таблицы.
+CHANGE_SECTIONS = {
+    "assignment": "assign", "shift_master": "assign", "shift_doc": "assign",
+    "loom_setup": "setup", "tech_card": "setup", "tech_card_yarn": "setup", "tech_card_loom": "setup",
+    "yarn": "setup", "yarn_lot": "setup",
+    "loom_plan": "plan", "cloth_map": "plan", "ppt_manual": "plan", "loom_article": "plan",
+    "plan_order": "plan", "plan_loom": "plan",
+    "ticket": "tickets", "operator": "people", "setting": "settings", "rate_period": "settings",
+    "app_user": "users", "app_user_access": "users", "app_user_employee": "users", "api_key": "users",
+}
+
 # Статика и описание доступны до входа, производственные данные — после входа.
 # Терминалу нужна собственная учётная запись с разрешённым разделом «Дашборд».
 PUBLIC_GET = {"/api/me", "/api/health", "/api/docs"}
@@ -137,6 +149,7 @@ GET_SECTIONS = {
     "/api/documents/get": tuple(auth.SECTIONS),
     "/api/documents/verify": tuple(auth.SECTIONS),
     "/api/rates": ("salary", "settings"),
+    "/api/change_log": tuple(auth.SECTIONS),
     "/api/report_period": ("report",),
 }
 GET_ACTIONS = {"/api/users": "users", "/api/access_catalog": "users", "/api/keys": "users",
@@ -433,6 +446,16 @@ class Handler(BaseHTTPRequestHandler):
                 if not auth.can_section(current_user(self),sections.get(entity,'users')):
                     return self._send(403, {'error':'нет доступа к журналу'})
                 return self._send(200, {'events':productionlog.events(entity,q.get('loom',''),record_id=q.get('id'))})
+            if u.path == "/api/change_log":
+                import productionlog
+                user = current_user(self)
+                wanted = [e for e in (q.get("entity") or ",".join(CHANGE_SECTIONS)).split(",")
+                          if e in CHANGE_SECTIONS and auth.can_section(user, CHANGE_SECTIONS[e])]
+                return self._send(200, {
+                    "operations": productionlog.change_log(wanted, q.get("from", ""), q.get("to", ""),
+                                                           q.get("actor", ""), q.get("q", ""), int(q.get("limit", 300))),
+                    "entities": [{"id": e, "title": changes.ENTITY[e]} for e in CHANGE_SECTIONS
+                                 if auth.can_section(user, CHANGE_SECTIONS[e])]})
             if u.path == "/api/documents":
                 user = current_user(self)
                 documents.kind("setup")             # виды регистрируются при первом обращении

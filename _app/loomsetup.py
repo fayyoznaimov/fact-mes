@@ -170,9 +170,29 @@ def documents(loom='', limit=100, before=None):
         if before:conditions.append('id<?');args.append(int(before))
         rows=db.execute('SELECT * FROM setup_document'+(' WHERE '+' AND '.join(conditions) if conditions else '')+
                         ' ORDER BY id DESC LIMIT ?', (*args,min(max(int(limit),1),500))).fetchall()
-        return [dict(id=r['id'],loom=r['loom'],valid_from=r['valid_from'],created_at=r['created_at'],
-                     author=r['author'],source=r['source'],snapshot=json.loads(r['snapshot_json'])) for r in rows]
+        return [version(db, r) for r in rows]
     finally:db.close()
+
+
+def version(db, r):
+    """Версия заправки станка: что стало, что было в предыдущей версии и откуда значения."""
+    import changes
+    keys = r.keys()
+    snap = json.loads(r['snapshot_json'])
+    prev = db.execute('SELECT * FROM setup_document WHERE loom=? AND id<? ORDER BY id DESC LIMIT 1',
+                      (r['loom'], r['id'])).fetchone()
+    prev_snap = json.loads(prev['snapshot_json']) if prev else None
+    doc = None
+    if 'doc_id' in keys and r['doc_id']:
+        d = db.execute('SELECT number, status FROM doc WHERE id=?', (r['doc_id'],)).fetchone()
+        doc = dict(id=r['doc_id'], number=d['number'], status=d['status']) if d else None
+    number = db.execute('SELECT COUNT(*) FROM setup_document WHERE loom=? AND id<=?', (r['loom'], r['id'])).fetchone()[0]
+    return dict(id=r['id'], loom=r['loom'], valid_from=r['valid_from'], created_at=r['created_at'],
+                author=r['author'], source=r['source'], snapshot=snap, doc=doc, version=number,
+                context=changes.setup_context(snap), previous_context=changes.setup_context(prev_snap) if prev else None,
+                previous=dict(id=prev['id'], author=prev['author'], created_at=prev['created_at'],
+                              valid_from=prev['valid_from']) if prev else None,
+                fields=changes.setup_fields(prev_snap, snap), warning=snap.get('warning'))
 
 
 def yarn_analysis(from_day, to_day):

@@ -11,11 +11,13 @@
   --page:#ffffff; --surface:#ffffff; --surface-2:#f5f7fa; --ink:#16202b; --ink-2:#465262;
   --muted:#6b7683; --hair:#e1e5ea; --rule:#c7ced6; --accent:#2f5fd0;
   --s1:#2f5fd0; --s2:#eb6834; --s3:#1baf7a; --good:#138a4b; --critical:#c8362e;
+  --warn:#b7791f; --change:#eaf0fd;
 }
 :root[data-theme="dark"]{
   --page:#11151a; --surface:#181d23; --surface-2:#1f262d; --ink:#eef2f6; --ink-2:#b6c0cb;
   --muted:#8994a0; --hair:#262e36; --rule:#36414c; --accent:#4a78e8;
   --s1:#4a78e8; --s2:#d95926; --s3:#199e70; --good:#3fbf7a; --critical:#ef6a60;
+  --warn:#e0a43a; --change:#1d2942;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--page);color:var(--ink);font-family:"IBM Plex Sans",system-ui,"Segoe UI",sans-serif;font-size:14px;line-height:1.45}
@@ -185,6 +187,75 @@ dialog.doc form{max-height:92vh;overflow:auto}
 .was{color:var(--muted);text-decoration:line-through}
 dialog.doc h4{margin:6px 0 0}
 dialog.doc .ack{display:flex;gap:8px;align-items:flex-start;font-size:13px}
+/* Раздел «Документы»: слева журнал, справа форма документа. Строка изменения
+   помечена полосой слева: добавлено — зелёная, изменено — янтарная, удалено — красная. */
+.dx{display:grid;grid-template-columns:minmax(260px,340px) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:1000px){.dx{grid-template-columns:1fr}}
+.dx-list{display:flex;flex-direction:column;gap:10px;position:sticky;top:10px;max-height:calc(100vh - 80px);min-height:0}
+.dx-filter{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dx-filter .f{min-width:0}
+.dx-filter .wide{grid-column:1/-1}
+.dx-filter input,.dx-filter select{width:100%}
+.dx-new{display:flex;gap:6px;flex-wrap:wrap}
+#dx-items{list-style:none;margin:0;padding:0;overflow:auto;min-height:120px;border-top:1px solid var(--rule)}
+.dx-group{font-size:12px;color:var(--muted);padding:12px 10px 4px}
+.dx-item{display:grid;grid-template-columns:1fr auto;gap:3px 10px;width:100%;text-align:left;background:none;border:0;
+  border-bottom:1px solid var(--hair);border-left:3px solid transparent;padding:9px 10px;font:inherit;color:inherit;cursor:pointer}
+.dx-item:hover{background:var(--surface-2)}
+.dx-item[aria-current="true"]{border-left-color:var(--accent);background:var(--surface-2)}
+.dx-item:focus-visible,.dx-tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.dx-no{font:500 13px "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.01em}
+.dx-when{font-size:12px;color:var(--muted);text-align:right;white-space:nowrap}
+.dx-title{grid-column:1/-1;font-size:13px;line-height:1.35}
+.dx-meta{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--ink-2)}
+.dx-item.cancelled .dx-title{color:var(--muted);text-decoration:line-through}
+#dx-form{min-width:0;border:1px solid var(--hair);background:var(--surface);padding:18px 20px 22px;display:flex;flex-direction:column;gap:16px}
+.dx-blank{color:var(--ink-2);padding:40px 0;text-align:center}
+.dx-head{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;align-items:flex-start;padding-bottom:14px;border-bottom:1px solid var(--rule)}
+.dx-head h3{margin:6px 0 0;font-size:20px;line-height:1.25;font-weight:600;text-wrap:balance;max-width:52ch}
+.dx-head .dx-id{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.dx-head .dx-no{font-size:15px}
+.dx-actions{display:flex;gap:8px;flex-wrap:wrap}
+.dx-req{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px 22px;margin:0}
+.dx-req div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.dx-req dt{font-size:12px;color:var(--muted)}
+.dx-req dd{margin:0;font-size:14px;overflow-wrap:anywhere}
+.dx-tabs{display:flex;gap:2px;border-bottom:1px solid var(--rule);overflow-x:auto;scrollbar-width:none}
+.dx-tabs button{font:inherit;background:none;border:0;border-bottom:2px solid transparent;padding:8px 12px;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+.dx-tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
+.dx-tabs .count{margin-left:6px;font-size:12px;font-weight:400;color:var(--muted)}
+.dx-obj{display:flex;flex-direction:column;gap:8px;padding:14px 0 4px;border-top:1px solid var(--hair)}
+.dx-obj:first-child{border-top:0;padding-top:0}
+.dx-obj h4{margin:0;font-size:15px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.dx-obj h4 small{font-weight:400;color:var(--muted);font-size:12px}
+.dx-ctx{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px;margin:0;color:var(--muted)}
+.dx-ctx b{font-weight:500;color:var(--ink)}
+.dx-tools{display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:13px}
+table.dx-diff{width:100%}
+table.dx-diff th[scope=row]{text-align:left;font-weight:500;white-space:normal;min-width:150px;position:static;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink)}
+table.dx-diff tr > :first-child{border-left:3px solid transparent}
+table.dx-diff tr.dx-chg > :first-child{border-left-color:var(--warn)}
+table.dx-diff tr.dx-add > :first-child{border-left-color:var(--good)}
+table.dx-diff tr.dx-del > :first-child{border-left-color:var(--critical)}
+table.dx-diff tr.dx-same td,table.dx-diff tr.dx-same th{color:var(--muted)}
+tr.dx-chg .dx-was,tr.dx-del .dx-was{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--rule)}
+tr.dx-chg .dx-now,tr.dx-add .dx-now{font-weight:600;background:var(--change)}
+.dx-src{display:block;font-size:11px;font-weight:400;color:var(--muted)}
+.dx-none{color:var(--muted);font-style:italic;font-weight:400}
+.dx-delta{font-variant-numeric:tabular-nums;white-space:nowrap}
+.dx-pill{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:400;border:1px solid var(--rule);color:var(--ink-2)}
+.dx-pill.add{color:var(--good);border-color:var(--good)}
+.dx-pill.chg{color:var(--warn);border-color:var(--warn)}
+.dx-pill.del{color:var(--critical);border-color:var(--critical)}
+tr.dx-sub td{background:var(--surface-2);font-size:13px}
+button.dx-link{background:none;border:0;padding:0;font:inherit;color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+@media print{
+  body *{visibility:hidden}
+  #dx-form,#dx-form *{visibility:visible}
+  #dx-form{position:absolute;inset:0 auto auto 0;width:100%;border:0;padding:0}
+  .dx-actions,.dx-tabs,.dx-tools{display:none !important}
+}
+
 /* таблица заправки: ячейки-поля, как в Excel */
 #sg-table td{padding:2px 3px}
 #sg-table input.sg{width:100%;min-width:66px;font:13px "IBM Plex Mono",monospace;padding:4px 5px;
@@ -369,6 +440,8 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
       <button data-tab="history">История станков</button>
       <button data-tab="manual">Ручные остановы</button>
       <button data-tab="salary">Зарплата</button>
+      <div class="grp">Учёт</div>
+      <button data-tab="docs">Документы</button>
       <div class="grp">Справочники</div>
       <button data-tab="people">Операторы</button>
       <button data-tab="settings">Настройки</button>
@@ -760,6 +833,35 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
         <tbody></tbody>
       </table>
     </div>
+    </div>
+  </section>
+
+  <!-- ДОКУМЕНТЫ: журнал слева, форма документа справа -->
+  <section id="tab-docs" class="hidden">
+    <div class="dx">
+      <aside class="dx-list" aria-label="Журнал документов">
+        <div class="chips" id="dx-kinds" role="group" aria-label="Что показать">
+          <button class="chip" data-kind="" aria-pressed="true">Все документы</button>
+          <button class="chip" data-kind="setup" aria-pressed="false">Заправка</button>
+          <button class="chip" data-kind="payroll" aria-pressed="false">Ведомости</button>
+          <button class="chip" data-kind="report" aria-pressed="false">Отчёты</button>
+          <button class="chip" data-kind="rate" aria-pressed="false">Ставка</button>
+          <button class="chip" data-kind="log" aria-pressed="false">Журнал изменений</button>
+        </div>
+        <div class="dx-filter">
+          <div class="f"><label for="dx-from">С</label><input id="dx-from" type="date"></div>
+          <div class="f"><label for="dx-to">По</label><input id="dx-to" type="date"></div>
+          <div class="f wide hidden" id="dx-entity-wrap"><label for="dx-entity">Что менялось</label><select id="dx-entity"><option value="">всё, что мне доступно</option></select></div>
+          <div class="f wide"><label for="dx-q">Поиск</label><input id="dx-q" type="search" placeholder="номер, станок, сотрудник, автор" autocomplete="off"></div>
+        </div>
+        <div class="dx-new" id="dx-new">
+          <button class="act" data-new="payroll">Новая ведомость…</button>
+          <button class="act" data-new="report">Утвердить отчёт…</button>
+          <button class="act" data-new="rate">Новая ставка…</button>
+        </div>
+        <ol id="dx-items"></ol>
+      </aside>
+      <article id="dx-form" aria-live="polite"><p class="dx-blank">Выберите документ в журнале слева.</p></article>
     </div>
   </section>
 
@@ -1177,7 +1279,8 @@ const ICONS = {
   salary:'M3 6h18v14H3zM3 6V4h15M16 11h5v5h-5z',
   people:'M16 21v-3a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v3M20 21v-3a4 4 0 0 0-3-4M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8M17 3a4 4 0 0 1 0 8',
   settings:'M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8',
-  users:'M12 3 3 7v6c0 4 9 8 9 8s9-4 9-8V7zM8 12l3 3 5-6'
+  users:'M12 3 3 7v6c0 4 9 8 9 8s9-4 9-8V7zM8 12l3 3 5-6',
+  docs:'M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6'
 };
 const icon = name => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${ICONS[name]||ICONS.report}"/></svg>`;
 document.querySelectorAll('nav button[data-tab]').forEach(b=>{
@@ -1241,6 +1344,7 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   if (t === "settings") onTab("settings", loadKeys);
   if (t === "assign") onTab("assign", loadAssign);
   if (t === "setup") onTab("setup", loadGrid);
+  if (t === "docs") onTab("docs", dxLoad);
   if (t === "report") onTab("report", () => loadReport(true));
   if (t === "explorer") onTab("explorer", loadExplorer);
   if (t === "walk") onTab("walk", loadWalk);
@@ -3791,20 +3895,19 @@ $('#as-history').onclick=async()=>{
   }catch(e){$('#archive-body').textContent=e.message;}
 };
 $('#sd-open').onclick=async()=>{
-  openArchive('Документы заправки');
+  openArchive('Версии заправки');
   try{
     const r=await api('/api/setup_documents');
-    $('#archive-body').innerHTML='<p class="note">Каждое сохранение создаёт новую версию. Время цеха: UTC+5. Документы до включения истории отсутствуют. Поиск по загруженным документам.</p><label>Станок / заказ / пряжа <input id="sd-find" type="search"></label><div id="sd-docs"></div><button class="act" id="sd-more">Загрузить более ранние документы</button>';
+    $('#archive-body').innerHTML='<p class="note">Каждое сохранение заправки — новая версия по станку. Показано, что изменилось относительно предыдущей версии и откуда взято значение. Время цеха: UTC+5.</p><div class="bar"><label>Станок, заказ, пряжа <input id="sd-find" type="search"></label><label class="checks"><input type="checkbox" id="sd-only" checked> Только изменённые реквизиты</label></div><div id="sd-docs"></div><button class="act" id="sd-more">Показать более ранние версии</button>';
     const render=()=>{
-      const filter=$('#sd-find').value.toLowerCase();
-      $('#sd-docs').innerHTML=r.documents.filter(d=>JSON.stringify(d).toLowerCase().includes(filter)).map(d=>{
-        const s=d.snapshot,p=s.plan||{},c=s.tech_card||{},v=s.resolved||s.values||{};
-        const data=[['Заказ',p.order_no],['Номенклатура',p.product_code||c.product_code||p.product],['Дизайн',p.design],['Клиент',p.client],['Размер',c.size||p.size],['GSM',v.gsm],['PPT — прокидки на ряд',v.ppt],['Панели',v.panels],['Вес штуки, кг',v.weight_kg]];
-        return '<details style="margin:12px 0;border:1px solid var(--rule);padding:12px"><summary><b>№ '+d.id+' · '+esc(d.loom)+'</b> · '+esc(archiveTime(d.valid_from))+' · '+esc(p.order_no||'Без заказа')+'</summary><p>Создан: '+esc(archiveTime(d.created_at))+' · '+esc(d.author)+' · Точность: '+esc(s.precision==='minute'?'минута':'день')+'</p>'+archiveTable(['Параметр','Значение'],data.map(([k,v])=>[esc(k),esc(v??'—')]))+
-          archiveTable(['Место пряжи','Пряжа','Лот'],Object.keys(v).filter(k=>k.endsWith('_yarn')).map(k=>[esc(k.replace('_yarn','')),esc(v[k]||'—'),esc(v[k.replace('_yarn','_lot')]||'—')]))+
-          '<details><summary>Снимок исходных параметров и техкарты</summary><pre style="white-space:pre-wrap" data-i18n-skip>'+esc(JSON.stringify(s,null,2))+'</pre></details>'+(s.warning?'<p class="note">'+esc(s.warning)+'</p>':'')+'</details>';
-      }).join('')||'<p>Документов пока нет. Они появятся после сохранения заправки.</p>';
-    };$('#sd-find').oninput=render;render();
+      const filter=$('#sd-find').value.toLowerCase(), only=$('#sd-only').checked;
+      $('#sd-docs').innerHTML=r.documents.filter(d=>JSON.stringify([d.loom,d.context,d.fields,d.author]).toLowerCase().includes(filter)).map(d=>
+        `<div class="dx-obj"><h4>Станок ${esc(d.loom)} <small>версия ${d.version}, действует с ${esc(dxTime(d.valid_from))}</small>${d.doc?` <button class="dx-link" data-doc="${d.doc.id}">${esc(d.doc.number)}</button>`:''}</h4>
+          <p class="dx-ctx"><span>Ввёл <b>${esc(d.author)}</b></span><span>Когда <b>${esc(dxTime(d.created_at))}</b></span><span>${d.previous?`Предыдущая версия <b>${esc(dxTime(d.previous.created_at))}, ${esc(d.previous.author)}</b>`:'Первая запись по станку'}</span></p>
+          ${dxCtx(d.context)}${diffTable(d.fields,{only})}${d.warning?`<p class="note">${esc(d.warning)}</p>`:''}</div>`
+      ).join('')||'<p>Версий пока нет. Они появятся после проведения заправки.</p>';
+    };
+    $('#sd-find').oninput=render;$('#sd-only').onchange=render;render();
     $('#sd-more').disabled=r.documents.length<100;
     $('#sd-more').onclick=async()=>{const b=$('#sd-more');b.disabled=true;try{
       const more=await api('/api/setup_documents?before='+r.documents.at(-1).id);
@@ -3867,19 +3970,18 @@ const docStatus=s=>`<span class="doc-status ${s}">${s==='posted'?'проведё
 const docVal=v=>v==null||v===''?'<span class="note">по справочнику</span>':esc(typeof v==='number'?nf(v,Number.isInteger(v)?0:3):v);
 const docMoney=v=>nf(Math.round(v||0))+'<small> сум</small>';
 const DOC_VIEW={
-  setup:{tiles:c=>[['Станков',c.summary.looms],['С изменениями',c.summary.changed_looms],['Полей меняется',c.summary.changed_fields]],
-    changes:c=>'<h4>Что изменится</h4>'+archiveTable(['Станок','Поле','Было','Станет'],c.changes.map(x=>[esc(x.loom),esc(x.title),`<span class="was">${docVal(x.before)}</span>`,`<b>${docVal(x.after)}</b>`]))},
-  rate:{tiles:c=>[['Ставка',nf(c.summary.rate,2)+'<small> сум</small>'],['Действует с',esc((c.summary.valid_from||'').replace(/\./g,'/'))]],
-    changes:c=>'<h4>Что изменится</h4>'+archiveTable(['','Было','Станет'],c.changes.map(x=>[esc(x.title),`<span class="was">${docVal(x.before)}</span>`,`<b>${docVal(x.after)}</b>`]))},
-  payroll:{tiles:c=>[['К выплате',docMoney(c.summary.salary)],['Операторов',c.summary.operators],['Смен',c.summary.shifts],['Не распределено',docMoney(c.summary.unassigned_salary)]],
-    changes:c=>(c.changes.length?'<h4>Отличия от заменяемой ведомости</h4>'+archiveTable(['Оператор','Было, сум','Станет, сум'],c.changes.map(x=>[esc(x.title),x.before==null?'—':nf(x.before),x.after==null?'—':'<b>'+nf(x.after)+'</b>'])):'')+
-      '<h4>Начисление</h4>'+archiveTable(['Код','Оператор','Смен','Тыс. пиков','Сумма, сум'],(c.result.operators||[]).map(o=>[esc(o.code),esc(o.name),o.shifts,nf(o.kpicks,1),'<b>'+nf(o.salary)+'</b>']))}
+  setup:{tiles:c=>[['Станков',c.summary.looms],['С изменениями',c.summary.changed_looms],['Реквизитов меняется',c.summary.changed_fields]],
+    changes:c=>'<h4>Что изменится</h4>'+dxGroup(c.changes,'loom').map(([loom,rows])=>`<div class="dx-obj"><h4>Станок ${esc(loom)}${rows[0].since?`<small>сейчас действует заправка с ${esc(dxDay(rows[0].since))}, ввёл ${esc(rows[0].since_by||'—')}</small>`:'<small>ручной заправки ещё не было</small>'}</h4>${dxCtx(rows[0].context)}${diffTable(rows,{before:'Сейчас',after:'Станет'})}</div>`).join('')},
+  rate:{tiles:c=>[['Ставка',nf(c.summary.rate,2)+'<small> сум</small>'],['Действует с',esc(dxDay(c.summary.valid_from))]],
+    changes:c=>'<h4>Что изменится</h4>'+diffTable(c.changes.map(x=>({...x,label:x.title,delta:typeof x.before==='number'&&typeof x.after==='number'?x.after-x.before:null})),{before:'Сейчас',after:'Станет'})},
+  payroll:{tiles:c=>[['К выплате',docMoney(c.summary.salary)],['Сотрудников',c.summary.operators],['Смен',c.summary.shifts],['Не распределено',docMoney(c.summary.unassigned_salary)]],
+    changes:c=>(c.changes.length?'<h4>Отличия от заменяемой ведомости</h4>'+dxMoneyDiff(c.changes):'')+'<h4>Начисление</h4>'+dxPayroll(c.result)}
 };
 const REP_PERIOD_HEAD=['Станок','Дней','Смен','Дизайн','GSM','КПД, %','Тыс. пиков','Ряды','Полотенца','Кг','Ворс','Уток','Грунт','Прочие'];
 const repPeriodRows=rows=>rows.map(r=>[esc(r.loom),r.days,r.shifts,esc(r.designs.join(', ')||'—'),esc(r.gsm.join(', ')||'—'),r.effic==null?'—':nf(r.effic,1),nf(r.picks/1000,0),nf(r.rows),r.towels_known?nf(r.towels):nf(r.towels)+' <span class="note">неполн.</span>',nf(r.kg,1),r.pile,r.weft,r.ground,r.other]);
 const repPeriodTotal=t=>['<b>Итого</b>',t.days,'','','',t.effic==null?'—':'<b>'+nf(t.effic,1)+'</b>','<b>'+nf(t.picks/1000,0)+'</b>','<b>'+nf(t.rows)+'</b>','<b>'+nf(t.towels)+'</b>','<b>'+nf(t.kg,1)+'</b>',t.pile,t.weft,t.ground,t.other];
 DOC_VIEW.report={tiles:c=>[['Станков',c.summary.looms],['Дней',c.summary.days],['КПД',c.summary.effic==null?'—':nf(c.summary.effic,1)+'<small> %</small>'],['Полотенца',nf(c.summary.towels)],['Кг',nf(c.summary.kg,1)]],
-  changes:c=>(c.changes.length?'<h4>Отличия от заменяемого отчёта</h4>'+archiveTable(['Станок','Показатель','Было','Станет'],c.changes.map(x=>[esc(x.loom),esc(x.title),'<span class="was">'+esc(x.before??'—')+'</span>','<b>'+esc(x.after??'—')+'</b>'])):'')+
+  changes:c=>(c.changes.length?'<h4>Отличия от заменяемого отчёта</h4>'+dxGroup(c.changes,'loom').map(([loom,rows])=>`<div class="dx-obj"><h4>Станок ${esc(loom)}</h4>${diffTable(rows.map(x=>({...x,label:x.title,delta:typeof x.before==='number'&&typeof x.after==='number'?x.after-x.before:null})))}</div>`).join(''):'')+
     (c.result.rows?'<h4>Отчёт</h4>'+archiveTable(REP_PERIOD_HEAD,[...repPeriodRows(c.result.rows),repPeriodTotal(c.result.totals)]):'')};
 const docTiles=(v,c)=>v.tiles?'<div class="tiles" style="margin-top:10px">'+v.tiles(c).map(([l,x])=>`<div class="tile"><span class="l">${esc(l)}</span><span class="v">${x}</span></div>`).join('')+'</div>':'';
 function docRender(c, note){
@@ -3931,79 +4033,253 @@ async function docKinds(){
   if(!Object.keys(DOC_KINDS).length){const r=await api('/api/documents?limit=1');DOC_KINDS=Object.fromEntries(r.kinds.map(k=>[k.id,k]));}
   return DOC_KINDS;
 }
-async function openDocument(id){
-  openArchive('Документ');
-  try{
-    const d=await api('/api/documents/get?id='+encodeURIComponent(id));
-    const kinds=await docKinds();
-    const v=DOC_VIEW[d.type]||{};
-    const c={...d,errors:[],summary:d.summary||{},changes:d.changes||[],result:d.result||{},warnings:d.warnings||[]};
-    const canCancel=d.status==='posted'&&d.type!=='setup'&&(kinds[d.type]||{}).can_post;
-    const canVerify=['payroll','report'].includes(d.type);
-    $('#archive-title').textContent=`${d.number} · ${d.title}`;
-    $('#archive-body').innerHTML=`<div class="doc-meta">
-        <div><span>Статус</span><br>${docStatus(d.status)}</div>
-        <div><span>Провёл</span><br>${esc(d.created_by)} · ${esc(archiveTime(d.created_at).slice(0,16))}</div>
-        ${d.period_from?`<div><span>Период</span><br>${esc(d.period_from)}${d.period_to?' – '+esc(d.period_to):''}</div>`:''}
-        ${d.status==='cancelled'?`<div><span>Отменил</span><br>${esc(d.cancelled_by)} · ${esc(archiveTime(d.cancelled_at).slice(0,16))}<br>${esc(d.cancel_reason)}</div>`:''}
-        ${d.supersedes_id?`<div><span>Заменяет</span><br><button class="act" data-doc="${d.supersedes_id}">документ № ${d.supersedes_id}</button></div>`:''}
-        ${d.replaced_by.length?`<div><span>Заменён</span><br>${d.replaced_by.map(x=>`<button class="act" data-doc="${x.id}">${esc(x.number)}</button>`).join(' ')}</div>`:''}
-      </div>${d.comment?`<p>Комментарий: ${esc(d.comment)}</p>`:''}`+
-      docTiles(v,c)+
-      (c.warnings.length?'<h4>Предупреждения, которые видел проводивший</h4><ul class="doc-list warn">'+c.warnings.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>':'')+
-      (v.changes?v.changes(c):'')+
-      '<h4>История документа</h4>'+archiveTable(['Действие','Когда','Кто','Статус'],d.history.map(h=>[esc(auditNames[h.action]||h.action),esc(archiveTime(h.at)),esc(h.actor),esc(((h.after||h.before||{}).status)==='cancelled'?'отменён':'проведён')]))+
-      `<div class="bar" style="margin-top:10px">${canVerify?'<button class="act" id="doc-verify">Сверить с текущими данными</button>':''}
-        ${canCancel?'<button class="act" id="doc-cancel">Отменить документ…</button>':''}</div><div id="doc-verify-out"></div>`;
-    if($('#doc-verify'))$('#doc-verify').onclick=async()=>{
-      const out=$('#doc-verify-out'); out.innerHTML='<p class="note">Пересчитываю…</p>';
-      try{
-        const r=await api('/api/documents/verify?id='+d.id);
-        if(r.same){out.innerHTML='<div class="doc-verdict ok">Совпадает с текущими данными</div>';return;}
-        let table;
-        if(d.type==='payroll'){
-          const b=Object.fromEntries((r.posted.result.operators||[]).map(o=>[o.operator_id,o])), a=Object.fromEntries((r.now.result.operators||[]).map(o=>[o.operator_id,o]));
-          const ids=[...new Set([...Object.keys(b),...Object.keys(a)])].filter(k=>(b[k]||{}).salary!==(a[k]||{}).salary);
-          table=archiveTable(['Оператор','В ведомости, сум','Сейчас, сум'],ids.map(k=>[esc((a[k]||b[k]).name),b[k]?nf(b[k].salary):'—',a[k]?'<b>'+nf(a[k].salary)+'</b>':'—']));
-        }else{
-          const b=Object.fromEntries((r.posted.result.rows||[]).map(x=>[x.loom,x])), a=Object.fromEntries((r.now.result.rows||[]).map(x=>[x.loom,x]));
-          const diff=[];
-          for(const loom of [...new Set([...Object.keys(b),...Object.keys(a)])])for(const [f,t] of [['picks','Пики'],['towels','Полотенца'],['kg','Кг'],['effic','КПД, %']])
-            if((b[loom]||{})[f]!==(a[loom]||{})[f])diff.push([esc(loom),t,esc((b[loom]||{})[f]??'—'),'<b>'+esc((a[loom]||{})[f]??'—')+'</b>']);
-          table=archiveTable(['Станок','Показатель','В утверждённом','Сейчас'],diff);
-        }
-        const what=d.type==='payroll'?'новая ведомость':'новый отчёт';
-        out.innerHTML=`<div class="doc-verdict warn">Данные изменились после проведения. Исправление — ${what} взамен этого документа.</div>`+table+
-          ((kinds[d.type]||{}).can_post&&d.status==='posted'?`<button class="act primary" id="doc-replace">Провести ${what} взамен…</button>`:'');
-        if($('#doc-replace'))$('#doc-replace').onclick=async()=>{archiveDialog.close();const n=await docConfirm(d.type,{from:d.period_from,to:d.period_to,supersedes_id:d.id});if(n)openDocument(n.id);};
-      }catch(e){out.innerHTML='<p class="bad">'+esc(e.message)+'</p>';}
-    };
-    if($('#doc-cancel'))$('#doc-cancel').onclick=async()=>{
-      const reason=prompt(tr('Причина отмены документа')+' '+d.number+':');
-      if(reason==null)return;
-      try{await api('/api/documents/cancel',{id:d.id,reason});say('Документ '+d.number+' отменён');openDocument(d.id);if(d.type==='rate')loadRates();}
-      catch(e){say('Не отменён: '+e.message,true);}
-    };
-  }catch(e){$('#archive-body').textContent=e.message;}
+/* --- Раздел «Документы» ---
+   Слева журнал (документы или операции журнала изменений), справа форма:
+   шапка с номером и статусом, реквизиты, вкладки «Содержание», «Изменения»,
+   «Предупреждения», «История». Изменения — как в истории версий 1С:
+   реквизит, было, стало, разница, откуда взято значение. */
+const DX={kind:'',items:[],ops:[],sel:null,doc:null,tab:'content',only:true,verify:null};
+const dxDay=v=>v?String(v).replace(/^(\d{4})[-.](\d\d)[-.](\d\d).*$/,'$3.$2.$1'):'';
+const dxTime=v=>v?String(v).replace(/^(\d{4})[-.](\d\d)[-.](\d\d)[T ](\d\d:\d\d).*$/,'$3.$2.$1 $4'):'—';
+const dxNum=v=>typeof v==='number'?v.toLocaleString(document.documentElement.lang==='en'?'en-GB':'ru-RU',{maximumFractionDigits:Math.abs(v)<10?4:1}):v;
+const dxObjects=n=>n+' '+(n%10===1&&n%100!==11?'объект':n%10>=2&&n%10<=4&&(n%100<10||n%100>=20)?'объекта':'объектов');
+const dxGroup=(rows,key)=>{const m=new Map();rows.forEach(r=>{if(!m.has(r[key]))m.set(r[key],[]);m.get(r[key]).push(r);});return [...m];};
+const dxCtx=ctx=>ctx&&Object.keys(ctx).length?'<p class="dx-ctx">'+Object.entries(ctx).map(([k,v])=>`<span>${esc(k)} <b>${esc(v)}</b></span>`).join('')+'</p>':'';
+function dxVal(v,src){return (v==null||v===''?'<span class="dx-none">пусто</span>':esc(dxNum(v)))+(src?`<span class="dx-src">${esc(src)}</span>`:'');}
+function dxDelta(d){if(d==null||d===0||isNaN(d))return '';return `<span class="dx-delta">${d>0?'+':'−'}${esc(dxNum(Math.abs(Math.round(d*1000)/1000)))}</span>`;}
+function diffTable(rows,{only=false,before='Было',after='Стало'}={}){
+  const shown=only?rows.filter(r=>r.changed!==false):rows;
+  const hidden=rows.length-shown.length;
+  if(!shown.length)return '<p class="note">Реквизиты не менялись.</p>';
+  return `<div class="tbl-wrap"><table class="dx-diff"><thead><tr><th>Реквизит</th><th>${esc(before)}</th><th>${esc(after)}</th><th class="n">Разница</th></tr></thead><tbody>`+
+    shown.map(r=>{
+      const kind=r.changed===false?'same':(r.before==null||r.before==='')&&r.after!=null&&r.after!==''?'add':(r.after==null||r.after==='')&&r.before!=null&&r.before!==''?'del':'chg';
+      return `<tr class="dx-${kind}"><th scope="row">${esc(r.label||r.title||r.field)}</th>
+        <td class="dx-was">${kind==='add'?'<span class="dx-none">не было</span>':dxVal(r.before,r.before_source)}</td>
+        <td class="dx-now">${kind==='del'?'<span class="dx-none">удалено</span>':dxVal(r.after,r.after_source)}</td>
+        <td class="n">${dxDelta(r.delta)}</td></tr>`;}).join('')+
+    '</tbody></table></div>'+(hidden?`<p class="note">Не изменились ещё ${hidden} реквизитов — снимите «Только изменённые», чтобы увидеть все.</p>`:'');
 }
-async function docList(type, title){
-  openArchive(title);
+function dxMoneyDiff(rows){
+  return diffTable(rows.map(x=>({label:x.title,before:x.before,after:x.after,changed:true,
+    delta:x.before!=null&&x.after!=null?x.after-x.before:null})),{before:'Было, сум',after:'Стало, сум'});
+}
+function dxPayroll(result){
+  const ops=result.operators||[], shifts=result.shifts||[];
+  const lines=id=>shifts.flatMap(s=>s.operators.filter(o=>o.operator_id===id).map(o=>({...o,day:s.day,shift:s.shift,rate:s.rate,unit:s.unit})));
+  const body=ops.map(o=>`<tr><td>${esc(o.code)}</td><td><button class="dx-link" data-pay="${o.operator_id}" aria-expanded="false">${esc(o.name)}</button></td>
+      <td class="n">${o.shifts}</td><td class="n">${nf(o.kpicks,1)}</td><td class="n"><b>${nf(o.salary)}</b></td></tr>
+    <tr class="dx-sub hidden" data-pay-rows="${o.operator_id}"><td></td><td colspan="4">${archiveTable(['День','Смена','Станки','Тыс. пиков','Ставка','Сумма, сум'],
+      lines(o.operator_id).map(l=>[esc(dxDay(l.day)),esc(l.shift),esc((l.looms||[]).join(', ')),nf(l.kpicks,1),`${nf(l.rate,2)} ${l.unit==='kpick'?'за 1000 пиков':'за пик'}`,nf(l.salary)]))}</td></tr>`).join('');
+  const unassigned=shifts.filter(s=>s.unassigned_salary>0);
+  return `<div class="tbl-wrap"><table><thead><tr><th>Код</th><th>Сотрудник</th><th class="n">Смен</th><th class="n">Тыс. пиков</th><th class="n">Сумма, сум</th></tr></thead><tbody>${body||'<tr><td colspan="5">Нет начислений.</td></tr>'}</tbody>
+    <tfoot><tr><td colspan="2">Итого</td><td></td><td class="n">${nf(ops.reduce((a,o)=>a+o.kpicks,0),1)}</td><td class="n"><b>${nf(ops.reduce((a,o)=>a+o.salary,0))}</b></td></tr></tfoot></table></div>`+
+    (unassigned.length?'<h4>Не распределено: выработка станков без оператора</h4>'+archiveTable(['День','Смена','Сумма, сум'],unassigned.map(s=>[esc(dxDay(s.day)),esc(s.shift),nf(s.unassigned_salary)])):'');
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-pay]');if(!b)return;
+  const row=document.querySelector(`[data-pay-rows="${b.dataset.pay}"]`);if(!row)return;
+  row.classList.toggle('hidden');b.setAttribute('aria-expanded',!row.classList.contains('hidden'));});
+
+function dxGo(){const b=document.querySelector('nav button[data-tab="docs"]');if(b&&!$('#tab-docs').classList.contains('hidden'))return;if(b)b.click();}
+function dxSetKind(kind){
+  DX.kind=kind;
+  document.querySelectorAll('#dx-kinds .chip').forEach(c=>c.setAttribute('aria-pressed',c.dataset.kind===kind));
+  $('#dx-entity-wrap').classList.toggle('hidden',kind!=='log');
+  $('#dx-new').classList.toggle('hidden',kind==='log');
+}
+document.querySelectorAll('#dx-kinds .chip').forEach(c=>c.onclick=()=>{dxSetKind(c.dataset.kind);DX.sel=null;dxLoad();});
+['#dx-from','#dx-to','#dx-entity'].forEach(id=>$(id).onchange=()=>dxLoad());
+let DX_Q=null;$('#dx-q').oninput=()=>{clearTimeout(DX_Q);DX_Q=setTimeout(dxLoad,250);};
+$('#dx-new').onclick=async e=>{
+  const b=e.target.closest('[data-new]');if(!b)return;
+  const y=new Date(Date.now()+5*3600e3-864e5).toISOString().slice(0,10);
+  const from=dash2dot($('#dx-from').value)||y.slice(0,8).replace(/-/g,'.')+'01', to=dash2dot($('#dx-to').value)||y.replace(/-/g,'.');
+  let d=null;
+  if(b.dataset.new==='payroll')d=await docConfirm('payroll',{from,to});
+  if(b.dataset.new==='report')d=await docConfirm('report',{from,to});
+  if(b.dataset.new==='rate'){document.querySelector('nav button[data-tab="settings"]').click();$('#set-rate').focus();return;}
+  if(d){await dxLoad();dxOpen(d.id);}
+};
+async function dxLoad(){
+  const list=$('#dx-items');
+  list.innerHTML='<li class="dx-group">Загрузка…</li>';
+  const from=dash2dot($('#dx-from').value), to=dash2dot($('#dx-to').value), q=$('#dx-q').value.trim();
   try{
-    const r=await api('/api/documents?'+new URLSearchParams({type}));
+    if(DX.kind==='log'){
+      const r=await api('/api/change_log?'+new URLSearchParams({from,to,q,entity:$('#dx-entity').value}));
+      const sel=$('#dx-entity');
+      if(sel.options.length<2)sel.insertAdjacentHTML('beforeend',r.entities.map(e=>`<option value="${e.id}">${esc(e.title)}</option>`).join(''));
+      DX.ops=r.operations;
+      let day='';
+      list.innerHTML=r.operations.map((o,i)=>{
+        const d=dxDay(o.at), head=d!==day?`<li class="dx-group">${esc(d)}</li>`:''; day=d;
+        const kinds=[...new Set(o.items.map(x=>x.entity_text))];
+        return head+`<li><button class="dx-item" data-op="${i}" aria-current="${DX.sel==='op'+i}">
+          <span class="dx-no">${esc(o.actor)}</span><span class="dx-when">${esc(dxTime(o.at).slice(11))}</span>
+          <span class="dx-title">${esc(o.items[0].object)}${o.items.length>1?` и ещё ${o.items.length-1}`:''}</span>
+          <span class="dx-meta"><span>${esc(kinds.join(', '))}</span><span>${dxObjects(o.items.length)}</span></span></button></li>`;
+      }).join('')||'<li class="dx-group">За этот период изменений нет.</li>';
+      return;
+    }
+    const r=await api('/api/documents?'+new URLSearchParams({type:DX.kind,from,to}));
     DOC_KINDS=Object.fromEntries(r.kinds.map(k=>[k.id,k]));
-    $('#archive-body').innerHTML=r.documents.length?archiveTable(['Номер','Документ','Статус','Итог','Провёл','Когда'],r.documents.map(d=>[
-      `<button class="act" data-doc="${d.id}">${esc(d.number)}</button>`,esc(d.title),docStatus(d.status)+(d.cancel_reason?'<br><span class="note">'+esc(d.cancel_reason)+'</span>':''),
-      type==='payroll'?docMoney(d.summary.salary):type==='setup'?`${d.summary.looms||0} ст.`:type==='rate'?nf(d.summary.rate,2):type==='report'?`${nf(d.summary.towels)} полотенец, КПД ${nf(d.summary.effic,1)} %`:'',
-      esc(d.created_by),esc(archiveTime(d.created_at).slice(0,16))])):'<p>Документов пока нет.</p>';
-  }catch(e){$('#archive-body').textContent=e.message;}
+    const needle=q.toLowerCase();
+    DX.items=r.documents.filter(d=>!needle||(d.search||'').toLowerCase().includes(needle));
+    let day='';
+    list.innerHTML=DX.items.map(d=>{
+      const dd=dxDay(d.created_at), head=dd!==day?`<li class="dx-group">${esc(dd)}</li>`:''; day=dd;
+      return head+`<li><button class="dx-item ${d.status}" data-dx="${d.id}" aria-current="${DX.sel===d.id}">
+        <span class="dx-no">${esc(d.number)}</span><span class="dx-when">${esc(dxTime(d.created_at).slice(11))}</span>
+        <span class="dx-title">${esc(d.title)}</span>
+        <span class="dx-meta">${docStatus(d.status)}<span>${esc(d.created_by)}</span><span>${dxSummary(d)}</span>${d.warnings_count?`<span>предупреждений: ${d.warnings_count}</span>`:''}</span></button></li>`;
+    }).join('')||'<li class="dx-group">Документов нет. Измените период или вид.</li>';
+  }catch(e){list.innerHTML=`<li class="dx-group bad">${esc(e.message)}</li>`;}
+}
+function dxSummary(d){
+  const s=d.summary||{};
+  return d.type==='payroll'?`к выплате ${nf(s.salary)} сум`:d.type==='setup'?`станков: ${s.looms||0}, реквизитов: ${s.changed_fields||0}`:
+    d.type==='rate'?`${nf(s.rate,2)} сум`:d.type==='report'?`полотенец ${nf(s.towels)}, КПД ${nf(s.effic,1)} %`:'';
+}
+$('#dx-items').onclick=e=>{
+  const b=e.target.closest('[data-dx],[data-op]');if(!b)return;
+  document.querySelectorAll('#dx-items .dx-item').forEach(x=>x.setAttribute('aria-current',x===b));
+  if(b.dataset.dx)dxOpen(b.dataset.dx);else dxOperation(+b.dataset.op);
+};
+function dxOperation(i){
+  DX.sel='op'+i;
+  const o=DX.ops[i];
+  $('#dx-form').innerHTML=`<div class="dx-head"><div><div class="dx-id"><span class="dx-pill">${dxObjects(o.items.length)}</span></div>
+      <h3>Изменения ${esc(dxTime(o.at))}</h3></div></div>
+    <dl class="dx-req"><div><dt>Кто</dt><dd>${esc(o.actor)}</dd></div><div><dt>Когда</dt><dd>${esc(dxTime(o.at))}</dd></div>
+      <div><dt>Что менялось</dt><dd>${esc([...new Set(o.items.map(x=>x.entity_text))].join(', '))}</dd></div></dl>
+    <div>${o.items.map(x=>`<div class="dx-obj"><h4>${esc(x.object)} <span class="dx-pill ${x.action==='DELETE'?'del':x.action==='UPDATE'||x.fields.some(f=>f.before!=null)?'chg':'add'}">${esc(x.action_text)}</span></h4>
+      ${diffTable(x.fields,{before:'Было',after:'Стало'})}</div>`).join('')}</div>`;
+}
+async function dxOpen(id){
+  DX.sel=+id; DX.verify=null;
+  $('#dx-form').innerHTML='<p class="dx-blank">Открываю документ…</p>';
+  try{ DX.doc=await api('/api/documents/get?id='+encodeURIComponent(id)); await docKinds(); dxRender(); }
+  catch(e){$('#dx-form').innerHTML=`<p class="dx-blank bad">${esc(e.message)}</p>`;}
+}
+function dxChanges(d){
+  if(d.type==='setup')return (d.looms||[]).reduce((a,l)=>a+l.fields.filter(f=>f.changed).length,0);
+  return (d.changes||[]).length;
+}
+function dxRender(){
+  const d=DX.doc, kinds=DOC_KINDS, k=kinds[d.type]||{};
+  const canCancel=d.status==='posted'&&d.type!=='setup'&&k.can_post;
+  const canReplace=d.status==='posted'&&['payroll','report'].includes(d.type)&&k.can_post;
+  const tabs=[['content','Содержание',null],['changes','Изменения',dxChanges(d)],['warnings','Предупреждения',(d.warnings||[]).length],['history','История',(d.history||[]).length]];
+  if(!tabs.some(t=>t[0]===DX.tab))DX.tab='content';
+  const req=[['Вид',d.type_title],['Проведён',`${d.created_by}, ${dxTime(d.created_at)}`],
+    d.period_from?['Период',d.period_to?`${dxDay(d.period_from)} – ${dxDay(d.period_to)}`:`с ${dxDay(d.period_from)}`]:null,
+    d.comment?['Комментарий',d.comment]:null,
+    d.status==='cancelled'?['Отменён',`${d.cancelled_by}, ${dxTime(d.cancelled_at)}: ${d.cancel_reason}`]:null].filter(Boolean);
+  $('#dx-form').innerHTML=`<div class="dx-head">
+      <div><div class="dx-id"><span class="dx-no">${esc(d.number)}</span>${docStatus(d.status)}</div><h3>${esc(d.title)}</h3></div>
+      <div class="dx-actions">
+        ${['payroll','report'].includes(d.type)?'<button class="act" id="dx-verify">Сверить с текущими данными</button>':''}
+        ${canReplace?'<button class="act" id="dx-replace">Провести взамен…</button>':''}
+        ${canCancel?'<button class="act" id="dx-cancel">Отменить…</button>':''}
+        <button class="act" id="dx-print">Печать</button>
+      </div></div>
+    <dl class="dx-req">${req.map(([t,v])=>`<div><dt>${esc(t)}</dt><dd>${esc(v)}</dd></div>`).join('')}
+      ${d.supersedes?`<div><dt>Заменяет</dt><dd><button class="dx-link" data-doc="${d.supersedes.id}">${esc(d.supersedes.number)}</button> от ${esc(dxTime(d.supersedes.created_at))}</dd></div>`:''}
+      ${d.replaced_by.length?`<div><dt>Заменён документом</dt><dd>${d.replaced_by.map(x=>`<button class="dx-link" data-doc="${x.id}">${esc(x.number)}</button>`).join(', ')}</dd></div>`:''}
+    </dl>
+    ${docTiles(DOC_VIEW[d.type]||{},{...d,summary:d.summary||{}})}
+    <div id="dx-verify-out"></div>
+    <div class="dx-tabs" role="tablist">${tabs.map(([id,t,n])=>`<button role="tab" data-dxtab="${id}" aria-selected="${DX.tab===id}">${t}${n!=null?`<span class="count">${n}</span>`:''}</button>`).join('')}</div>
+    <div id="dx-body" role="tabpanel"></div>`;
+  dxBody();
+  document.querySelectorAll('[data-dxtab]').forEach(b=>b.onclick=()=>{DX.tab=b.dataset.dxtab;document.querySelectorAll('[data-dxtab]').forEach(x=>x.setAttribute('aria-selected',x===b));dxBody();});
+  $('#dx-print').onclick=()=>window.print();
+  if($('#dx-verify'))$('#dx-verify').onclick=dxVerify;
+  if($('#dx-replace'))$('#dx-replace').onclick=async()=>{const n=await docConfirm(d.type,{from:d.period_from,to:d.period_to,supersedes_id:d.id});if(n){await dxLoad();dxOpen(n.id);}};
+  if($('#dx-cancel'))$('#dx-cancel').onclick=async()=>{
+    const reason=prompt(tr('Причина отмены документа')+' '+d.number+':');
+    if(reason==null)return;
+    try{await api('/api/documents/cancel',{id:d.id,reason});say('Документ '+d.number+' отменён');if(d.type==='rate'&&canSection('settings'))loadRates();await dxLoad();dxOpen(d.id);}
+    catch(e){say('Не отменён: '+e.message,true);}
+  };
+}
+function dxBody(){
+  const d=DX.doc, box=$('#dx-body'), tab=DX.tab;
+  if(tab==='warnings'){box.innerHTML=(d.warnings||[]).length?'<p class="note">Эти предупреждения проводивший видел и подтвердил.</p><ul class="doc-list warn">'+d.warnings.map(w=>'<li>'+esc(w)+'</li>').join('')+'</ul>':'<p class="note">Предупреждений при проведении не было.</p>';return;}
+  if(tab==='history'){
+    const rows=(d.history||[]).map(h=>[esc(dxTime(h.at)),esc(h.actor),esc(h.text||h.action)]);
+    if(d.replaced_by.length)rows.push(['','',`Заменён документом ${d.replaced_by.map(x=>`<button class="dx-link" data-doc="${x.id}">${esc(x.number)}</button>`).join(', ')}`]);
+    box.innerHTML=archiveTable(['Когда','Кто','Что сделано'],rows);return;
+  }
+  if(d.type==='setup'){
+    const only=tab==='changes'||DX.only;
+    box.innerHTML=(tab==='content'?`<label class="dx-tools"><input type="checkbox" id="dx-only" ${DX.only?'checked':''}> Только изменённые реквизиты</label>`:'')+
+      (d.looms||[]).map(l=>`<div class="dx-obj"><h4>Станок ${esc(l.loom)} <small>версия ${l.version}${l.previous?`, предыдущая — ${esc(dxTime(l.previous.created_at))}, ввёл ${esc(l.previous.author)}`:', первая запись по станку'}</small></h4>
+        ${dxCtx(l.context)}<p class="dx-ctx"><span>Действует с <b>${esc(dxTime(l.valid_from))}</b></span></p>
+        ${diffTable(l.fields,{only})}${l.warning?`<p class="note">${esc(l.warning)}</p>`:''}</div>`).join('');
+    if($('#dx-only'))$('#dx-only').onchange=e=>{DX.only=e.target.checked;dxBody();};
+    return;
+  }
+  if(d.type==='payroll'){
+    box.innerHTML=tab==='content'?'<p class="note">Нажмите на сотрудника, чтобы увидеть начисление по сменам.</p>'+dxPayroll(d.result||{}):
+      (d.changes||[]).length?`<p class="note">Сравнение с заменённой ведомостью ${d.supersedes?esc(d.supersedes.number):''}.</p>`+dxMoneyDiff(d.changes):'<p class="note">Первая ведомость за этот период: сравнивать не с чем. Изменения после проведения покажет «Сверить с текущими данными».</p>';
+    return;
+  }
+  if(d.type==='report'){
+    const r=d.result||{};
+    box.innerHTML=tab==='content'?archiveTable(REP_PERIOD_HEAD,[...repPeriodRows(r.rows||[]),repPeriodTotal(r.totals||{})]):
+      (d.changes||[]).length?DOC_VIEW.report.changes({...d,result:{}}):'<p class="note">Первый утверждённый отчёт за этот период: сравнивать не с чем.</p>';
+    return;
+  }
+  if(d.type==='rate'){
+    const rows=(d.changes||[]).map(x=>({...x,label:x.title,delta:typeof x.before==='number'&&typeof x.after==='number'?x.after-x.before:null}));
+    box.innerHTML=diffTable(rows,{before:'Действовало',after:'Стало действовать'});
+  }
+}
+async function dxVerify(){
+  const d=DX.doc, out=$('#dx-verify-out');
+  out.innerHTML='<p class="note">Пересчитываю по текущим данным…</p>';
+  try{
+    const r=await api('/api/documents/verify?id='+d.id);
+    if(r.same){out.innerHTML='<div class="doc-verdict ok">Совпадает с текущими данными</div>';return;}
+    let body;
+    if(d.type==='payroll'){
+      const b=Object.fromEntries((r.posted.result.operators||[]).map(o=>[o.operator_id,o])), a=Object.fromEntries((r.now.result.operators||[]).map(o=>[o.operator_id,o]));
+      body=dxMoneyDiff([...new Set([...Object.keys(b),...Object.keys(a)])].filter(id=>(b[id]||{}).salary!==(a[id]||{}).salary)
+        .map(id=>({title:(a[id]||b[id]).name,before:b[id]?b[id].salary:null,after:a[id]?a[id].salary:null})));
+    }else{
+      const b=Object.fromEntries((r.posted.result.rows||[]).map(x=>[x.loom,x])), a=Object.fromEntries((r.now.result.rows||[]).map(x=>[x.loom,x]));
+      body=[...new Set([...Object.keys(b),...Object.keys(a)])].map(loom=>{
+        const rows=[['picks','Пики'],['towels','Полотенца'],['kg','Кг'],['effic','КПД, %']].filter(([f])=>(b[loom]||{})[f]!==(a[loom]||{})[f])
+          .map(([f,t])=>({label:t,before:(b[loom]||{})[f],after:(a[loom]||{})[f],delta:typeof (b[loom]||{})[f]==='number'&&typeof (a[loom]||{})[f]==='number'?a[loom][f]-b[loom][f]:null}));
+        return rows.length?`<div class="dx-obj"><h4>Станок ${esc(loom)}</h4>${diffTable(rows,{before:'В документе',after:'Сейчас'})}</div>`:'';
+      }).join('');
+    }
+    out.innerHTML=`<div class="doc-verdict warn">Данные изменились после проведения. Исправляют новым документом взамен этого.</div>`+body;
+  }catch(e){out.innerHTML='<p class="bad">'+esc(e.message)+'</p>';}
+}
+async function openDocument(id){
+  if(archiveDialog.open)archiveDialog.close();
+  dxGo();
+  if(DX.kind==='log'){dxSetKind('');}
+  await dxLoad();
+  document.querySelectorAll('#dx-items .dx-item').forEach(x=>x.setAttribute('aria-current',x.dataset.dx===String(id)));
+  dxOpen(id);
+}
+async function docList(type){
+  if(archiveDialog.open)archiveDialog.close();
+  dxGo(); dxSetKind(type); DX.sel=null;
+  $('#dx-form').innerHTML='<p class="dx-blank">Выберите документ в журнале слева.</p>';
+  dxLoad();
 }
 document.addEventListener('click',e=>{const b=e.target.closest('[data-doc]');if(b){e.preventDefault();openDocument(b.dataset.doc);}});
 $('#pr-check').onclick=async()=>{
   if(!$('#pr-from').value||!$('#pr-to').value)return say('Укажите период ведомости',true);
-  await docConfirm('payroll',{from:dash2dot($('#pr-from').value),to:dash2dot($('#pr-to').value)});
+  const d=await docConfirm('payroll',{from:dash2dot($('#pr-from').value),to:dash2dot($('#pr-to').value)});
+  if(d)openDocument(d.id);
 };
-$('#pr-list').onclick=()=>docList('payroll','Зарплатные ведомости');
-$('#rp-list').onclick=()=>docList('report','Утверждённые производственные отчёты');
+$('#pr-list').onclick=()=>docList('payroll');
+$('#rp-list').onclick=()=>docList('report');
 $('#rp-go').onclick=async()=>{
   const from=dash2dot($('#rp-from').value), to=dash2dot($('#rp-to').value);
   if(!from||!to)return say('Укажите период отчёта',true);
@@ -4021,5 +4297,6 @@ $('#rp-go').onclick=async()=>{
   }catch(e){$('#archive-body').innerHTML='<p class="bad">'+esc(e.message)+'</p>';}
 };
 (()=>{const y=new Date(Date.now()+5*3600e3-864e5).toISOString().slice(0,10);$('#rp-to').value=y;$('#rp-from').value=y.slice(0,8)+'01';})();
-(()=>{const iso=new Date(Date.now()+5*3600e3-864e5).toISOString().slice(0,10);$('#pr-to').value=iso;$('#pr-from').value=iso.slice(0,8)+'01';})();
+(()=>{const iso=new Date(Date.now()+5*3600e3-864e5).toISOString().slice(0,10);$('#pr-to').value=iso;$('#pr-from').value=iso.slice(0,8)+'01';
+  $('#dx-to').value=new Date(Date.now()+5*3600e3).toISOString().slice(0,10);$('#dx-from').value=new Date(Date.now()+5*3600e3-30*864e5).toISOString().slice(0,10);})();
 </script>

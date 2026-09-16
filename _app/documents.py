@@ -221,6 +221,8 @@ def _row(r, full=False):
     if full:
         d["payload"] = json.loads(r["payload_json"])
         d.update({k: result.get(k) for k in ("warnings", "changes", "result")})
+    d["search"] = " ".join(str(x) for x in (r["number"], r["title"], r["created_by"], r["comment"] or "",
+                                              r["cancel_reason"] or ""))
     return d
 
 
@@ -270,7 +272,21 @@ def get(doc_id):
         for h in d["history"]:      # тело документа в истории не дублируем
             for side in ("before", "after"):
                 if h[side]:
-                    h[side] = {k: v for k, v in h[side].items() if k not in ("payload_json", "result_json")}
+                    h[side] = {k: v for k, v in h[side].items()
+                               if k not in ("payload_json", "result_json", "checksum")}
+            h["text"] = ("Проведён" if h["action"] == "INSERT" else
+                         "Отменён: %s" % (h["after"] or {}).get("cancel_reason") if h["action"] == "UPDATE"
+                         and (h["after"] or {}).get("status") == "cancelled" else h["action"])
+        if r["type"] == "setup":
+            import loomsetup
+            d["looms"] = [loomsetup.version(db, x) for x in
+                          db.execute("SELECT * FROM setup_document WHERE doc_id=? ORDER BY loom", (r["id"],))]
+            for x in d["looms"]:
+                x.pop("snapshot", None)
+        if r["supersedes_id"]:
+            old = db.execute("SELECT number, created_by, created_at FROM doc WHERE id=?", (r["supersedes_id"],)).fetchone()
+            d["supersedes"] = dict(id=r["supersedes_id"], number=old["number"], created_by=old["created_by"],
+                                   created_at=old["created_at"]) if old else None
         return d
     finally:
         db.close()

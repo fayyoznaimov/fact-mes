@@ -173,6 +173,36 @@ class DocumentsTest(unittest.TestCase):
             documents.post('report', replace, checked['checksum'], 'master')
             self.assertEqual(documents.get(r['id'])['status'], 'cancelled')
 
+    def test_change_log_is_readable(self):
+        # Расстановка: удалить и записать заново — одна правка «было → стало», без неизменённых станков.
+        token = productionlog.ACTOR.set('master608')
+        try:
+            self.db.execute("INSERT INTO operator(id,code,name) VALUES(2,'48','Second')")
+            self.db.execute("INSERT INTO assignment VALUES('2026.09.01','A','J2',1)")
+            self.db.commit()
+            db = storage.shop()
+            db.execute("DELETE FROM assignment WHERE day='2026.09.01' AND shift='A'")
+            db.execute("INSERT INTO assignment VALUES('2026.09.01','A','J1',2),('2026.09.01','A','J2',1)")
+            db.commit()
+            db.close()
+        finally:
+            productionlog.ACTOR.reset(token)
+        ops = productionlog.change_log(['assignment'])
+        items = ops[0]['items']
+        self.assertEqual([i['object'] for i in items], ['Станок J1 · 01.09.2026 · смена A'])
+        f = items[0]['fields'][0]
+        self.assertEqual((items[0]['action_text'], f['label'], f['before'], f['after']),
+                         ('Изменено', 'Оператор', '47 — First', '48 — Second'))
+        self.post('setup', {'from_day': '2026.09.10', 'rows': [{'loom': 'J1', 'values': {'ppt': '3000'}}]})
+        self.post('setup', {'from_day': '2026.09.12', 'rows': [{'loom': 'J1', 'values': {'ppt': '3200'}}]})
+        item = productionlog.change_log(['loom_setup'])[0]['items'][0]
+        self.assertIn('вместо заправки с 10.09.2026', item['action_text'])
+        self.assertEqual([(x['label'], x['before'], x['after']) for x in item['fields']],
+                         [('PPT — прокидки на ряд', 3000, 3200)])
+        doc = documents.get(documents.list_docs(['setup'])[0]['id'])
+        ppt = [x for x in doc['looms'][0]['fields'] if x['field'] == 'ppt'][0]
+        self.assertEqual((ppt['before'], ppt['after'], ppt['delta'], ppt['after_source']), (3000, 3200, 200, 'вручную'))
+
     def test_unfinished_shift_is_error(self):
         checked = documents.preview('payroll', {'from': '2999.01.01', 'to': '2999.01.01'})
         self.assertTrue(any('не закончились' in e for e in checked['errors']))
