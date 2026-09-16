@@ -448,7 +448,8 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
         <label class="f"><span>GSM</span><input id="ls-gsm" inputmode="decimal" autocomplete="off"></label>
         <label class="f"><span>Вес штуки, кг</span><input id="ls-weight_kg" inputmode="decimal"
           placeholder="0,635 или 635 г" autocomplete="off"></label>
-        <label class="f"><span>PPT, пиков на изделие</span><input id="ls-ppt" inputmode="numeric" autocomplete="off"></label>
+        <label class="f"><span>PPT — прокидки на ряд</span><input id="ls-ppt" inputmode="numeric" autocomplete="off"></label>
+        <label class="f"><span>Время начала заправки</span><input id="ls-time" type="time" value="07:00" required></label>
         <label class="f"><span>Панелей</span><input id="ls-panels" inputmode="numeric" autocomplete="off"></label>
       </div>
       <table class="ls-yarn"><thead><tr><th></th><th>Пряжа</th><th>Лот</th></tr></thead>
@@ -471,6 +472,9 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
   <section id="tab-setup" class="hidden">
     <div class="bar">
       <div class="f"><label for="sg-day">Заправка с дня</label><input id="sg-day" type="date"></div>
+      <div class="f"><label for="sg-time">Время начала заправки</label><input id="sg-time" type="time" value="07:00" required></div>
+      <button class="act" id="sd-open">Документы заправки</button>
+      <button class="act" id="ya-open">Анализ по пряже</button>
       <div class="f"><label for="sg-filter">Станки</label><input id="sg-filter" size="10"
         placeholder="D, J1-J14" autocomplete="off"></div>
       <div class="f"><label>&nbsp;</label><button class="act primary" id="sg-save">Сохранить изменения</button></div>
@@ -783,6 +787,7 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
       <div class="f"><label>&nbsp;</label><button class="act primary" id="as-save">Сохранить</button></div>
       <div class="f"><label>&nbsp;</label><button class="act" id="as-confirm">Утвердить</button></div>
       <div class="f"><label>&nbsp;</label><button class="act" id="as-print">Печать</button></div>
+      <button class="act" id="as-history">История расстановки</button>
     </div>
     <p class="note" id="as-status" style="margin-top:10px;max-width:none"></p>
     <div class="grid2" style="margin-top:10px">
@@ -2157,7 +2162,7 @@ async function loadTickets() {
     const opts = c => TK_CATS.map(x =>
       `<option value="${x.id}"${x.id===c?" selected":""}>${x.name}</option>`).join("");
     $("#tk-table tbody").innerHTML = t.tickets.map(r => `<tr>
-      <td>${r.loom}</td>
+      <td>${esc(r.loom)} <button class="act" data-ticket-audit="${r.id}" title="История тикета">№ ${r.id}</button></td>
       <td class="n">${r.started_at.slice(5,16).replace("T"," ")}</td>
       <td class="n">${dur(r.duration_sec)}</td>
       <td>${r.cause_ru || "—"}</td>
@@ -2483,7 +2488,9 @@ $("#ls-save").onclick = async () => {
   const looms = [r.loom, ...($("#ls-same").checked ? lsSame(r) : [])];
   $("#ls-save").disabled = true;
   try {
-    const res = await api("/api/loom_setup", {looms, from_day: $("#ls-from").value.replace(/-/g, "."), values});
+    if(!$('#ls-time').value)throw new Error('Укажите время начала заправки');
+    const res = await api("/api/loom_setup", {looms, from_day: $("#ls-from").value.replace(/-/g, "."), values,
+      effective_at:$('#ls-from').value+'T'+$('#ls-time').value+':00+05:00'});
     $("#ls-dlg").close();
     say(`Заправка записана: ${res.looms.join(", ")} с ${res.from_day.replace(/\./g, "/")}; `
       + `отчёт пересчитан за ${res.days.length} дн.`);
@@ -3093,7 +3100,9 @@ $("#sg-save").onclick = async () => {
     values: Object.fromEntries(SG_COLS.map((c, ci) => [c.k, sgCell(r, ci).value]))}));
   $("#sg-save").disabled = true;
   try {
-    const res = await api("/api/loom_setup/bulk", {from_day: dash2dot($("#sg-day").value), rows});
+    if(!$('#sg-time').value)throw new Error('Укажите время начала заправки');
+    const res = await api("/api/loom_setup/bulk", {from_day: dash2dot($("#sg-day").value), rows,
+      effective_at:$('#sg-day').value+'T'+$('#sg-time').value+':00+05:00'});
     say(`Сохранено станков: ${res.looms.length}, с ${res.from_day.replace(/\./g, "/")}; `
       + `отчёт пересчитан за ${res.days.length} дн.`);
     await loadGrid(true);
@@ -3643,6 +3652,7 @@ const mhTime = (s, full=false) => {
 };
 const mhColor = cause => ({Weft:'#df5656',Warp:'#d99829',Warp_top:'#b983db',Manual:'#5f8bd1'}[cause]||'#bd737c');
 $('#mh-go').onclick = loadHistory;
+$('#mh-loom').onchange = loadHistory;
 $('#mh-zoom').onchange = () => { $('#mh-grid').style.width = (+$('#mh-zoom').value*100)+'%'; };
 async function loadHistory() {
   const request = ++MH_REQUEST, selected = $('#mh-loom').value;
@@ -3659,6 +3669,7 @@ async function loadHistory() {
     $('#mh-loom').innerHTML = '<option value="">Все станки</option>'+groups.map(g=>`<option value="row:${esc(g)}">Ряд ${esc(g)}</option>`).join('')+d.catalog.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('');
     $('#mh-loom').value = selected;
     renderHistory();
+    if(d.rows.length===1){MH_ROW=d.rows[0];MH_PAGE=0;renderHistoryDetail();}
   } catch(e) {
     if (request === MH_REQUEST) { MH = null; $('#mh-status').textContent = 'История не загрузилась: '+e.message; }
   } finally { if (request === MH_REQUEST) $('#mh-go').disabled = false; }
@@ -3669,7 +3680,7 @@ function renderHistory() {
   const hours = span/3600, step = hours===24 ? 3 : 1;
   const ticks = Array.from({length:hours/step+1},(_,i)=>`<span style="left:${i*step/hours*100}%">${i===hours/step && hours===24?'24:00':mhTime(MH.start+i*step*3600).slice(0,5)}</span>`).join('');
   $('#mh-grid').innerHTML = `<div class="mh-row mh-axis"><span>Станок</span><div class="mh-ticks">${ticks}</div><span class="mh-total">Простой</span></div>`+MH.rows.map((r,ri)=>{
-    const segs = r.segments.filter(s=>s.kind!=='future').map(s=>rect(s.start,s.end,s.kind==='estimated_run'?'#289661':s.kind==='stop'?'#bd737c':`url(#mh-unknown-${ri})`)).join('');
+    const segs = r.segments.filter(s=>s.kind!=='future').map(s=>rect(s.start,s.end,({estimated_run:'#289661',observed_run:'#147eaf',observed_stop:'#e48655',stop:'#bd737c'}[s.kind]||`url(#mh-unknown-${ri})`),'',s.kind.startsWith('observed')?'Подтверждено соседними снимками FACT':'')).join('');
     const events = r.events.map((e,i)=>rect(e.start,e.end,mhColor(e.cause),`data-event="${i}"`,`${e.reason} · ${mhTime(e.start,true)} — ${mhTime(e.end,true)} · ${mhDuration(e.duration_sec)}`)).join('');
     const tickets = r.tickets.map((t,i)=>`<rect x="${pct(Math.max(MH.start,t.start))}" y="32" height="5" width="${Math.max(0,100*(Math.min(MH.end,t.end,MH.generated_at)-Math.max(MH.start,t.start))/span)}" fill="#348ec1" data-ticket="${i}"><title>Тикет ${t.id}: ${esc(t.reason)}</title></rect>`).join('');
     return `<div class="mh-row" data-row="${ri}"><button type="button" data-loom="${ri}" aria-label="История ${esc(r.loom)}">${esc(r.loom)}</button><svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="${esc(r.loom)}: ${r.events.length} остановов. Подробности по кнопке станка."><defs><pattern id="mh-unknown-${ri}" width="0.7" height="7" patternUnits="userSpaceOnUse"><rect width="0.7" height="7" fill="var(--surface-2)"/><path d="M0 7 L0.7 0" stroke="var(--rule)" stroke-width="0.16"/></pattern></defs>${segs}${events}${tickets}</svg><span class="mh-total">${Math.floor(r.totals.stop/3600)} ч ${Math.floor(r.totals.stop%3600/60)} мин</span></div>`;
@@ -3688,7 +3699,9 @@ $('#mh-grid').onclick = e => {
 };
 function renderHistoryDetail() {
   const r=MH_ROW, box=$('#mh-detail'); box.classList.remove('hidden');
-  box.innerHTML = `<h3>${esc(r.loom)} · ${MH.day}</h3><div>Остановы: <b>${mhDuration(r.totals.stop)}</b> · Работа (расчёт): ${mhDuration(r.totals.estimated_run)} · Неизвестно: ${mhDuration(r.totals.unknown)}</div>
+  box.innerHTML = `<h3>${esc(r.loom)} · ${MH.day}</h3><div>Остановы по журналу: <b>${mhDuration(r.totals.stop)}</b> · Работа (расчёт): ${mhDuration(r.totals.estimated_run)} · Неизвестно: ${mhDuration(r.totals.unknown)}</div>
+    <p class="note">По соседним снимкам FACT: работа ${mhDuration(r.totals.observed_run||0)}, останов ${mhDuration(r.totals.observed_stop||0)}. Пробелы в данных не означают простой.</p>
+    <h4>Сигналы станка</h4><div id="mh-signals">Загружаю сохранённые сигналы…</div>
     ${r.overlap_sec>0?'<p class="note">В журнале есть пересечения. В сумме простой учитывается один раз; исходные события сохранены.</p>':''}
     ${r.invalid_records?'<p class="note">Есть некорректные строки журнала: '+r.invalid_records+'. Они исключены из расчёта.</p>':''}
     <div id="mh-event-detail" role="status">Выберите остановку в списке или на шкале.</div>
@@ -3697,6 +3710,7 @@ function renderHistoryDetail() {
     <details><summary>Сверка со сменными итогами Toyota</summary><div class="tbl-wrap"><table><thead><tr><th>Смена</th><th>Работа по итогу, мин</th><th>Простой по итогу, мин</th><th>По журналу, мин</th><th>Расчёт работы</th></tr></thead><tbody>${r.shift_checks.map(s=>`<tr><td>${esc(s.shift)}</td><td>${s.run_min??'—'}</td><td>${s.stop_min??'—'}</td><td>${nf(s.logged_stop_sec/60,1)}</td><td>${s.can_estimate?'Согласуется':'Недостаточно подтверждений'}</td></tr>`).join('')}</tbody></table></div></details>
     <h4>Тикеты за период · ${r.tickets.length}</h4><p class="note">Время регистрации в MES. Причина относится к тикету; связь с конкретным событием Toyota не установлена.</p><div class="tbl-wrap"><table><thead><tr><th>Тикет</th><th>Начало</th><th>Причина</th><th>Статус</th></tr></thead><tbody>${r.tickets.map((t,i)=>`<tr><td><button class="mh-event" data-detail-ticket="${i}">№ ${t.id}</button></td><td>${mhTime(t.start,true)}</td><td>${esc(t.reason)}</td><td>${t.open?'Не закрыт':'Закрыт'}</td></tr>`).join('')||'<tr><td colspan="4">Тикетов за этот период нет.</td></tr>'}</tbody></table></div>`;
   $('#mh-prev').onclick=()=>{MH_PAGE--;renderHistoryDetail();}; $('#mh-next').onclick=()=>{MH_PAGE++;renderHistoryDetail();};
+  loadMachineSignals(r.loom, MH.day, MH.period);
 }
 function showHistoryEvent(i) {
   const e=MH_ROW.events[i]; if(!e)return;
@@ -3710,6 +3724,94 @@ $('#mh-detail').onclick=e=>{
   const event=e.target.closest('[data-detail-event]'), ticket=e.target.closest('[data-detail-ticket]');
   if(event)showHistoryEvent(+event.dataset.detailEvent); if(ticket)showHistoryTicket(+ticket.dataset.detailTicket);
 };
+
+/* Исторические документы: данные читаются из неизменяемого журнала. */
+const archiveDialog=document.createElement('dialog');
+archiveDialog.style.cssText='width:min(1150px,95vw);max-height:90vh;overflow:auto';
+archiveDialog.innerHTML='<form method="dialog" style="float:right"><button class="act">Закрыть</button></form><h3 id="archive-title"></h3><div id="archive-body"></div>';
+document.body.appendChild(archiveDialog);
+const archiveTime=v=>v?String(v).replace('T',' ').slice(0,19):'—';
+function openArchive(title){$('#archive-title').textContent=tr(title);$('#archive-body').textContent='Загрузка…';if(!archiveDialog.open)archiveDialog.showModal();}
+function archiveTable(headers, rows){return '<div class="tbl-wrap"><table><thead><tr>'+headers.map(x=>'<th>'+esc(tr(x))+'</th>').join('')+'</tr></thead><tbody>'+rows.map(row=>'<tr>'+row.map(x=>'<td>'+x+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';}
+const auditNames={INSERT:'Создано',UPDATE:'Изменено',DELETE:'Удалено',BASELINE:'Состояние до включения истории'};
+async function ticketAudit(id){
+  openArchive('История тикета');
+  try{
+    const r=await api('/api/production_events?entity=ticket&id='+encodeURIComponent(id));
+    $('#archive-body').innerHTML='<h4>№ '+esc(id)+'</h4><p class="note">Время действия в MES и время начала/окончания останова — разные поля. Для старых тикетов точное время создания могло не сохраниться.</p>'+archiveTable(['Действие','Когда','Кем','Начало останова','Завершение','Причина','Комментарий'],r.events.map(e=>{
+      const t=e.after||e.before||{};return [esc(auditNames[e.action]||e.action),esc(archiveTime(e.at)),esc(e.actor),esc(archiveTime(t.started_at)),esc(archiveTime(t.ended_at)),esc((TK_CATS.find(c=>c.id===t.category_id)||{}).name||t.category_id||'—'),esc(t.comment||'—')];
+    }));
+  }catch(e){$('#archive-body').textContent=e.message;}
+}
+$('#tk-table').addEventListener('click',e=>{const b=e.target.closest('[data-ticket-audit]');if(b)ticketAudit(b.dataset.ticketAudit);});
+$('#as-history').onclick=async()=>{
+  openArchive('История расстановки');
+  try{
+    const r=await api('/api/assignment_periods?'+new URLSearchParams({day:$('#as-day').value,shift:AS_SH}));
+    const q={legacy_shift:'Старые данные: точность смены',scheduled:'Назначено до начала смены',recorded:'С момента сохранения'};
+    $('#archive-body').innerHTML='<p>'+esc(r.note)+'</p>'+archiveTable(['Станок','С','До','Оператор','Кем','Точность'],r.periods.map(p=>[esc(p.loom),esc(archiveTime(p.start)),esc(archiveTime(p.end)),esc(p.operator?[(p.operator.operator_code||p.operator.operator_id),p.operator.operator_name].filter(Boolean).join(' — '):'Не назначен'),esc(p.actor),esc(q[p.quality])]))+
+      '<h4>Исправления после окончания смены</h4>'+archiveTable(['Станок','Когда','Кем','Новое назначение'],r.corrections.map(e=>[esc(e.loom),esc(archiveTime(e.at)),esc(e.actor),esc(e.after?[e.after.operator_code,e.after.operator_name].filter(Boolean).join(' — '):'Снято')]));
+  }catch(e){$('#archive-body').textContent=e.message;}
+};
+$('#sd-open').onclick=async()=>{
+  openArchive('Документы заправки');
+  try{
+    const r=await api('/api/setup_documents');
+    $('#archive-body').innerHTML='<p class="note">Каждое сохранение создаёт новую версию. Время цеха: UTC+5. Документы до включения истории отсутствуют. Поиск по загруженным документам.</p><label>Станок / заказ / пряжа <input id="sd-find" type="search"></label><div id="sd-docs"></div><button class="act" id="sd-more">Загрузить более ранние документы</button>';
+    const render=()=>{
+      const filter=$('#sd-find').value.toLowerCase();
+      $('#sd-docs').innerHTML=r.documents.filter(d=>JSON.stringify(d).toLowerCase().includes(filter)).map(d=>{
+        const s=d.snapshot,p=s.plan||{},c=s.tech_card||{},v=s.resolved||s.values||{};
+        const data=[['Заказ',p.order_no],['Номенклатура',p.product_code||c.product_code||p.product],['Дизайн',p.design],['Клиент',p.client],['Размер',c.size||p.size],['GSM',v.gsm],['PPT — прокидки на ряд',v.ppt],['Панели',v.panels],['Вес штуки, кг',v.weight_kg]];
+        return '<details style="margin:12px 0;border:1px solid var(--rule);padding:12px"><summary><b>№ '+d.id+' · '+esc(d.loom)+'</b> · '+esc(archiveTime(d.valid_from))+' · '+esc(p.order_no||'Без заказа')+'</summary><p>Создан: '+esc(archiveTime(d.created_at))+' · '+esc(d.author)+' · Точность: '+esc(s.precision==='minute'?'минута':'день')+'</p>'+archiveTable(['Параметр','Значение'],data.map(([k,v])=>[esc(k),esc(v??'—')]))+
+          archiveTable(['Место пряжи','Пряжа','Лот'],Object.keys(v).filter(k=>k.endsWith('_yarn')).map(k=>[esc(k.replace('_yarn','')),esc(v[k]||'—'),esc(v[k.replace('_yarn','_lot')]||'—')]))+
+          '<details><summary>Снимок исходных параметров и техкарты</summary><pre style="white-space:pre-wrap" data-i18n-skip>'+esc(JSON.stringify(s,null,2))+'</pre></details>'+(s.warning?'<p class="note">'+esc(s.warning)+'</p>':'')+'</details>';
+      }).join('')||'<p>Документов пока нет. Они появятся после сохранения заправки.</p>';
+    };$('#sd-find').oninput=render;render();
+    $('#sd-more').disabled=r.documents.length<100;
+    $('#sd-more').onclick=async()=>{const b=$('#sd-more');b.disabled=true;try{
+      const more=await api('/api/setup_documents?before='+r.documents.at(-1).id);
+      r.documents.push(...more.documents);render();b.disabled=more.documents.length<100;
+    }catch(e){say(e.message,true);b.disabled=false;}};
+  }catch(e){$('#archive-body').textContent=e.message;}
+};
+$('#ya-open').onclick=()=>{
+  openArchive('Анализ по пряже');
+  $('#archive-body').innerHTML='<div class="bar"><label>С <input id="ya-from" type="date"></label><label>По <input id="ya-to" type="date"></label><button class="act" id="ya-go">Показать</button></div><div id="ya-result"></div>';
+  $('#ya-from').value=$('#sg-day').value;$('#ya-to').value=$('#sg-day').value;
+  $('#ya-go').onclick=async()=>{try{
+    const r=await api('/api/yarn_analysis?'+new URLSearchParams({from:$('#ya-from').value,to:$('#ya-to').value}));
+    $('#ya-result').innerHTML='<p>'+esc(r.note)+'</p><p>Учтено станко-смен: '+r.included_shifts+'. Без документа: '+r.excluded.no_document+'; смена заправки: '+r.excluded.mixed_setup+'; незавершённые: '+r.excluded.unfinished+'; неполные итоги: '+r.excluded.incomplete+'; без пряжи: '+r.excluded.no_yarn+'.</p>'+archiveTable(['Место','Пряжа','Лот','Дизайн','GSM','Смен','Ряды Toyota','Полотенца','RPM','Эффективность, %','Обрывы / час работы','Документы'],r.groups.map(g=>[esc(g.slot),esc(g.yarn),esc(g.lot||'—'),esc(g.design||'—'),esc(g.gsm??'—'),g.shifts,g.rows,g.panels_known?g.towels:'—',g.rpm??'—',g.efficiency??'—',g.stops_per_run_hour??'—',esc(g.documents.join(', '))]));
+  }catch(e){$('#ya-result').textContent=e.message;}};
+  $('#ya-go').click();
+};
+async function loadMachineSignals(loom,day,period){
+  const box=$('#mh-signals');
+  try{
+    const r=await api('/api/machine_signals?'+new URLSearchParams({loom,day,period}));
+    if(!box.isConnected)return;
+    if(!r.samples.length){box.textContent='Архив за этот период пуст. Сигналы сохраняются после установки обновления; прошлые значения не выдумываются.';return;}
+    const flatten=(o,p='',out={})=>{Object.entries(o||{}).forEach(([k,v])=>{const key=p?p+'.'+k:k;if(v&&typeof v==='object'&&!Array.isArray(v))flatten(v,key,out);else out[key]=v;});return out;};
+    const samples=r.samples.map(s=>({...s,flat:flatten(s.values)}));
+    const keys=[...new Set(samples.flatMap(s=>Object.keys(s.flat)))].sort();
+    const labels={state:'Состояние',state_sec:'Длительность состояния, с',cause:'Причина Toyota',running:'Работает',rpm:'RPM (исходное значение FACT)',effic_shift:'Эффективность смены, %',effic_24h:'Эффективность за 24 часа, %',stops_shift:'Количество остановов за смену',stops_24h:'Количество остановов за 24 часа',doff_min:'Прогноз съёма ткани, мин',beam_out_min:'Прогноз схода навоя, мин',top_beam_out_min:'Прогноз схода верхнего навоя, мин','details.remaining_m':'Остаток основы, м','details.stop_time_sec':'Текущий останов, с'};
+    box.innerHTML='<p class="note">'+esc(r.note)+' Основное состояние — каждый снимок; подробные сигналы работающего станка могут обновляться раз в 5 минут. RPM из FACT — исходное значение, оно может оставаться ненулевым при останове.</p><label>Сигнал <select id="mh-signal">'+keys.map(k=>'<option value="'+esc(k)+'">'+esc(labels[k]||k)+'</option>').join('')+'</select></label><div id="mh-signal-chart"></div><div id="mh-signal-values"></div>';
+    const draw=()=>{
+      const key=$('#mh-signal').value;
+      const values=samples.map(s=>({at:key.startsWith('details.')?(s.values.details_at||s.at):s.at,v:s.flat[key]}));
+      const numeric=values.filter(s=>s.v!==null&&s.v!==''&&Number.isFinite(Number(s.v)));
+      let chart='';
+      if(numeric.length){
+        const lo=Math.min(...numeric.map(s=>Number(s.v))),hi=Math.max(...numeric.map(s=>Number(s.v))),span=hi-lo||1;
+        const chunks=[];let chunk=[],prev=null;
+        for(const s of values){if(s.v===null||s.v===''||!Number.isFinite(Number(s.v))){if(chunk.length)chunks.push(chunk);chunk=[];prev=null;continue;}if(prev!==null&&s.at-prev>120){chunks.push(chunk);chunk=[];}chunk.push(((s.at-r.start)/(r.end-r.start)*1000).toFixed(2)+','+(150-(Number(s.v)-lo)/span*130).toFixed(2));prev=s.at;}if(chunk.length)chunks.push(chunk);
+        chart='<p>Min: '+esc(lo)+' · Max: '+esc(hi)+'</p><svg viewBox="0 0 1000 170" role="img" aria-label="История выбранного сигнала" style="width:100%;height:170px;background:var(--surface-2)">'+chunks.map(c=>'<polyline points="'+c.join(' ')+'" fill="none" stroke="#147eaf" stroke-width="2"/>').join('')+'</svg>';
+      }
+      $('#mh-signal-chart').innerHTML=chart;
+      $('#mh-signal-values').innerHTML='<p class="note">Последние 200 значений; время источника сигнала (UTC+5).</p>'+archiveTable(['Время','Значение'],values.slice(-200).reverse().map(s=>[esc(mhTime(s.at,true)),esc(s.v??'Нет данных')]));
+    };$('#mh-signal').value=keys.includes('state')?'state':keys[0];$('#mh-signal').onchange=draw;draw();
+  }catch(e){if(box.isConnected)box.textContent=e.message;}
+}
 
 boot();
 </script>

@@ -3,6 +3,17 @@
 (() => {
   'use strict';
   const dictionary = {
+    'Скрыть заказы':'Hide orders','Показать заказы':'Show orders','Перемещать таблицу':'Pan table',
+    'Документы заправки':'Setup documents','История расстановки':'Assignment history',
+    'История тикета':'Ticket history','Анализ по пряже':'Yarn analysis',
+    'PPT — прокидки на ряд':'PPT — picks per row','Время начала заправки':'Setup start time',
+    'Сигналы станка':'Machine signals','Сигнал':'Signal','Точность':'Precision',
+    'Действие':'Action','Когда':'When','Кем':'By','Завершение':'Completion',
+    'Создано':'Created','Изменено':'Changed','Удалено':'Deleted',
+    'С момента сохранения':'From time of saving','Назначено до начала смены':'Assigned before shift start',
+    'Старые данные: точность смены':'Legacy data: shift precision',
+    'Параметр':'Parameter','Место пряжи':'Yarn position','Документы':'Documents',
+    'Время':'Time','Обрывы / час работы':'Breaks / running hour',
     'Ткацкий цех':'Weaving MES','Производство':'Production','Скрыть меню':'Hide menu','Открыть меню':'Show menu',
     'Разделы':'Sections','Сейчас в цеху':'Shop floor','Дашборд':'Dashboard','Тикеты':'Tickets',
     'Доска цеха':'Shop floor board',
