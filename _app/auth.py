@@ -41,6 +41,7 @@ PERMISSIONS = {
     "users": {"admin"},                                     # пользователи и права
     "plan_edit": {"admin", "master"},                       # план отдельно от расстановки
     "setup_edit": {"admin", "master"},                      # заправка отдельно от расстановки
+    "payroll": {"admin"},                                   # проводить зарплатную ведомость
 }
 
 # Разделы и действия независимы: видимость раздела не даёт права менять данные.
@@ -73,7 +74,8 @@ ACTION_INFO = {
     "setup_edit": ("Менять заправку и справочник пряжи", "Edit machine setup and yarns", ["setup", "dash", "settings"]),
     "export": ("Выгружать Excel", "Export Excel", ["report"]),
     "people": ("Редактировать операторов", "Edit operators", ["people"]),
-    "settings": ("Менять настройки", "Edit settings", ["settings"]),
+    "settings": ("Менять настройки и ставку", "Edit settings and rate", ["settings"]),
+    "payroll": ("Проводить зарплатные ведомости", "Post payroll sheets", ["salary"]),
     "users": ("Управлять пользователями и ключами API", "Manage users and API keys", ["users", "settings"]),
 }
 ADMIN_ONLY = {"users"}
@@ -190,12 +192,19 @@ FAIL_WINDOW_MIN = 15
 LOCK_MIN = 5
 
 
+_audited = False
+
+
 def db():
     conn = sqlite3.connect(DB_PATH, timeout=10)
     import productionlog
     productionlog.register(conn)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    global _audited
+    if not _audited:            # пользователи и права — под журналом, без секретов
+        productionlog.install(conn, ("app_user", "app_user_access", "app_user_employee"))
+        _audited = True
     return conn
 
 

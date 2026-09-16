@@ -1,0 +1,283 @@
+"""Виды документов: заправка, ставка, зарплатная ведомость.
+
+Проверка каждого вида возвращает то, что человек увидит перед подтверждением:
+ошибки, предупреждения, изменения «было → станет» и итоги. Проверка не пишет в
+базу и даёт один и тот же результат на одних и тех же данных — по нему
+считается контрольная сумма подтверждения (documents.checksum).
+"""
+import json
+from datetime import datetime, timedelta
+
+import documents
+import loomsetup
+import productionlog
+from documents import Kind, register
+
+SHIFT_START = {"A": 7, "B": 15, "C": 23}
+PAYROLL_MAX_DAYS = 62
+
+
+def _day(value, name):
+    try:
+        return datetime.strptime(value or "", "%Y.%m.%d")
+    except ValueError:
+        raise ValueError("%s: нужна дата вида 2026.09.16" % name) from None
+
+
+def _today():
+    return datetime.now(productionlog.TZ).strftime("%Y.%m.%d")
+
+
+def _same(a, b):
+    if a in (None, "") and b in (None, ""):
+        return True
+    try:
+        return abs(float(a) - float(b)) < 1e-9
+    except (TypeError, ValueError):
+        return str(a) == str(b)
+
+
+# --- заправка ---------------------------------------------------------------
+
+def _field_title(field):
+    if field in loomsetup.NAMES:
+        return loomsetup.NAMES[field]
+    slot, part = field.rsplit("_", 1)
+    return "%s — %s" % (loomsetup.YARN_RU.get(slot, slot), "пряжа" if part == "yarn" else "лот")
+
+
+def check_setup(db, payload):
+    errors, warnings, changes, pairs = [], [], [], []
+    from_day = payload.get("from_day") or ""
+    effective_at = payload.get("effective_at") or None
+    try:
+        _day(from_day, "день заправки")
+        loomsetup.valid_at(from_day, effective_at)
+    except ValueError as e:
+        return {"title": "Заправка", "errors": [str(e)]}
+    seen = set()
+    for r in payload.get("rows") or []:
+        loom = (r.get("loom") or "").strip().upper()
+        if not loom:
+            continue
+        if loom in seen:
+            errors.append("%s — станок повторяется в документе" % loom)
+            continue
+        seen.add(loom)
+        try:
+            pairs.append((loom, loomsetup._clean(r.get("values") or {})))
+        except ValueError as e:
+            errors.append("%s — %s" % (loom, e))
+    if not pairs and not errors:
+        errors.append("не указан ни один станок")
+    unchanged = []
+    for loom, row in pairs:
+        cur = db.execute("SELECT * FROM loom_setup WHERE loom=? AND from_day<=? ORDER BY from_day DESC LIMIT 1",
+                         (loom, from_day)).fetchone()
+        cur = dict(cur) if cur else {}
+        diff = [dict(loom=loom, field=f, title=_field_title(f), before=cur.get(f), after=row[f])
+                for f in loomsetup.FIELDS if not _same(cur.get(f), row[f])]
+        if not diff:
+            unchanged.append(loom)
+        changes.extend(diff)
+        if cur.get("from_day") == from_day:
+            warnings.append("%s — заменит заправку с %s, введённую %s %s" % (
+                loom, from_day, cur.get("set_by") or "—", (cur.get("set_at") or "")[:16].replace("T", " ")))
+        later = db.execute("SELECT MIN(from_day) FROM loom_setup WHERE loom=? AND from_day>?",
+                           (loom, from_day)).fetchone()[0]
+        if later:
+            warnings.append("%s — с %s уже действует более поздняя заправка: эта будет действовать только до неё"
+                            % (loom, later))
+        for slot in loomsetup.YARNS:
+            if row[slot + "_yarn"] and not row[slot + "_lot"]:
+                warnings.append("%s — %s %s без лота" % (loom, loomsetup.YARN_RU[slot], row[slot + "_yarn"]))
+    if pairs and len(unchanged) == len(pairs):
+        errors.append("изменений нет: значения совпадают с действующей заправкой")
+    elif unchanged:
+        warnings.append("без изменений: " + ", ".join(unchanged))
+    today = _today()
+    if from_day > today:
+        warnings.append("заправка с будущего дня %s" % from_day)
+    elif from_day < today:
+        days = (_day(today, "") - _day(from_day, "")).days
+        warnings.append("отчёт будет пересобран с %s (%d дн.)%s" % (
+            from_day, min(days, loomsetup.MAX_DAYS),
+            "; дни старше %d не пересобираются" % loomsetup.MAX_DAYS if days > loomsetup.MAX_DAYS else ""))
+    looms = [loom for loom, _ in pairs]
+    title = "Заправка с %s%s: %s" % (from_day, " " + effective_at[11:16] if effective_at else "",
+                                     ", ".join(looms[:6]) + (" и ещё %d" % (len(looms) - 6) if len(looms) > 6 else ""))
+    return {"title": title, "period": (from_day, None), "errors": errors, "warnings": warnings,
+            "changes": changes,
+            "summary": {"looms": len(pairs), "changed_looms": len(pairs) - len(unchanged),
+                        "changed_fields": len(changes), "from_day": from_day},
+            "result": {"from_day": from_day, "effective_at": effective_at,
+                       "rows": [{"loom": loom, "values": row} for loom, row in pairs]}}
+
+
+def apply_setup(db, doc_id, payload, checked, who):
+    r = checked["result"]
+    loomsetup.store(db, [(x["loom"], x["values"]) for x in r["rows"]], r["from_day"], who,
+                    r["effective_at"], doc_id)
+
+
+def after_setup(payload, checked):
+    return {"days": loomsetup.rebuild(checked["result"]["from_day"])}
+
+
+register(Kind("setup", "Заправка", "ЗАП", "setup_edit", "setup", check_setup, apply_setup,
+              after=after_setup, cancel=False))
+
+
+# --- ставка -----------------------------------------------------------------
+
+UNITS = {"kpick": "за 1000 пиков", "pick": "за пик"}
+
+
+def check_rate(db, payload):
+    from storage import rate_for
+    errors, warnings = [], []
+    valid_from = payload.get("valid_from") or ""
+    try:
+        _day(valid_from, "действует с")
+    except ValueError as e:
+        return {"title": "Ставка", "errors": [str(e)]}
+    try:
+        rate = round(float(str(payload.get("rate", "")).replace(",", ".").replace(" ", "")), 4)
+    except ValueError:
+        return {"title": "Ставка", "errors": ["ставка: нужно число"]}
+    unit = payload.get("unit") or "kpick"
+    if unit not in UNITS:
+        errors.append("единица ставки: за 1000 пиков или за пик")
+    if not 0 < rate < 1_000_000:
+        errors.append("ставка должна быть больше нуля")
+    old_rate, old_unit = rate_for(db, valid_from)
+    if _same(old_rate, rate) and old_unit == unit:
+        errors.append("ставка с %s уже %s сум %s" % (valid_from, rate, UNITS.get(unit, unit)))
+    same_day = db.execute(
+        "SELECT r.rate FROM rate_period r LEFT JOIN doc d ON d.id=r.doc_id WHERE r.valid_from=?"
+        " AND (r.doc_id IS NULL OR d.status='posted')", (valid_from,)).fetchone()
+    if same_day:
+        warnings.append("с %s уже введена ставка %s — действовать будет новая" % (valid_from, same_day[0]))
+    later = db.execute(
+        "SELECT MIN(r.valid_from) FROM rate_period r LEFT JOIN doc d ON d.id=r.doc_id WHERE r.valid_from>?"
+        " AND (r.doc_id IS NULL OR d.status='posted')", (valid_from,)).fetchone()[0]
+    if later:
+        warnings.append("с %s действует более поздняя ставка: эта будет действовать только до неё" % later)
+    if valid_from <= _today():
+        warnings.append("смены с %s будут считаться по новой ставке" % valid_from)
+        stale = db.execute("SELECT number, period_from, period_to FROM doc WHERE type='payroll'"
+                           " AND status='posted' AND period_to >= ?", (valid_from,)).fetchall()
+        if stale:
+            warnings.append("проведённые ведомости не меняются, их нужно заменить: " + ", ".join(
+                "%s (%s–%s)" % (r["number"], r["period_from"], r["period_to"]) for r in stale))
+    return {"title": "Ставка %s сум %s с %s" % (rate, UNITS.get(unit, unit), valid_from),
+            "period": (valid_from, None), "errors": errors, "warnings": warnings,
+            "changes": [dict(field="rate", title="Ставка, сум", before=old_rate, after=rate),
+                        dict(field="unit", title="Единица", before=UNITS.get(old_unit, old_unit),
+                             after=UNITS.get(unit, unit))],
+            "summary": {"rate": rate, "unit": unit, "valid_from": valid_from},
+            "result": {"rate": rate, "unit": unit, "valid_from": valid_from}}
+
+
+def apply_rate(db, doc_id, payload, checked, who):
+    r = checked["result"]
+    db.execute("INSERT INTO rate_period (valid_from, rate, unit, doc_id, set_by, set_at) VALUES (?,?,?,?,?,?)",
+               (r["valid_from"], r["rate"], r["unit"], doc_id, who or "система", productionlog.now()))
+
+
+# Отменённая ставка перестаёт действовать сама: rate_for смотрит статус документа.
+register(Kind("rate", "Ставка", "СТ", "settings", "settings", check_rate, apply_rate))
+
+
+# --- зарплатная ведомость ----------------------------------------------------
+
+def check_payroll(db, payload):
+    import payroll
+    errors, warnings = [], []
+    try:
+        first = _day(payload.get("from"), "с")
+        last = _day(payload.get("to"), "по")
+    except ValueError as e:
+        return {"title": "Зарплатная ведомость", "errors": [str(e)]}
+    date_from, date_to = payload["from"], payload["to"]
+    if first > last:
+        return {"title": "Зарплатная ведомость", "errors": ["начало периода позже конца"]}
+    if (last - first).days + 1 > PAYROLL_MAX_DAYS:
+        return {"title": "Зарплатная ведомость",
+                "errors": ["период ведомости — не больше %d дней" % PAYROLL_MAX_DAYS]}
+    now = datetime.now(productionlog.TZ)
+    last_end = last.replace(tzinfo=productionlog.TZ) + timedelta(hours=SHIFT_START["C"] + 8)
+    if last_end > now:
+        errors.append("смены по %s ещё не закончились: ведомость — только за закрытые смены" % date_to)
+    replaces = payload.get("supersedes_id")
+    overlap = db.execute("SELECT id, number, period_from, period_to FROM doc WHERE type='payroll'"
+                         " AND status='posted' AND period_from <= ? AND period_to >= ?",
+                         (date_to, date_from)).fetchall()
+    for r in overlap:
+        if replaces and int(replaces) == r["id"]:
+            continue
+        errors.append("период пересекается с проведённой ведомостью %s (%s–%s): замените или отмените её"
+                      % (r["number"], r["period_from"], r["period_to"]))
+    people, shifts, empty, rates = {}, [], [], []
+    day = first
+    while day <= last:
+        d = day.strftime("%Y.%m.%d")
+        for letter in "ABC":
+            s = payroll.salary_for_shift(d, letter)
+            if not s["looms"]:
+                empty.append("%s %s" % (d, letter))
+                continue
+            if not rates or rates[-1][1:] != (s["rate"], s["rate_unit"]):
+                rates.append((d, s["rate"], s["rate_unit"]))
+            line = dict(day=d, shift=letter, rate=s["rate"], unit=s["rate_unit"],
+                        salary=s["totals"]["salary"], unassigned_salary=s["totals"]["unassigned_salary"],
+                        kpicks=s["totals"]["kpicks"],
+                        operators=[dict(operator_id=o["operator_id"], salary=o["salary"], kpicks=o["kpicks"],
+                                        looms=o["looms"]) for o in s["operators"]])
+            shifts.append(line)
+            if s["unassigned_looms"]:
+                warnings.append("%s %s: без оператора %d ст. (%s) — не распределено %s сум" % (
+                    d, letter, len(s["unassigned_looms"]), ", ".join(s["unassigned_looms"][:8]),
+                    "{:,}".format(s["totals"]["unassigned_salary"]).replace(",", " ")))
+            for o in s["operators"]:
+                p = people.setdefault(o["operator_id"], dict(operator_id=o["operator_id"], code=o["code"],
+                                                              name=o["name"], shifts=0, kpicks=0.0, salary=0))
+                p["shifts"] += 1
+                p["kpicks"] = round(p["kpicks"] + o["kpicks"], 1)
+                p["salary"] += o["salary"]
+        day += timedelta(days=1)
+    if not shifts:
+        errors.append("за период нет смен с выработкой")
+    if empty:
+        warnings.append("нет выработки в %d сменах: %s" % (len(empty), ", ".join(empty[:10]) +
+                                                          (" …" if len(empty) > 10 else "")))
+    if len(rates) > 1:
+        warnings.append("в периоде разные ставки: " + "; ".join(
+            "%s сум %s с %s" % (r, UNITS.get(u, u), d) for d, r, u in rates))
+    operators = sorted(people.values(), key=lambda x: (-x["salary"], x["name"]))
+    changes = []
+    if replaces:
+        old = db.execute("SELECT result_json FROM doc WHERE id=? AND type='payroll'", (int(replaces),)).fetchone()
+        if not old:
+            errors.append("заменяемая ведомость не найдена")
+        else:
+            before = {o["operator_id"]: o for o in json.loads(old[0]).get("result", {}).get("operators", [])}
+            after = {o["operator_id"]: o for o in operators}
+            for oid in sorted(set(before) | set(after), key=lambda x: (after.get(x) or before.get(x))["name"]):
+                b, a = before.get(oid), after.get(oid)
+                if not b or not a or b["salary"] != a["salary"]:
+                    changes.append(dict(field="salary", title=(a or b)["name"],
+                                        before=b["salary"] if b else None, after=a["salary"] if a else None))
+    total = sum(o["salary"] for o in operators)
+    return {"title": "Зарплатная ведомость %s–%s" % (date_from, date_to), "period": (date_from, date_to),
+            "errors": errors, "warnings": warnings, "changes": changes,
+            "summary": {"from": date_from, "to": date_to, "shifts": len(shifts), "operators": len(operators),
+                        "salary": total,
+                        "unassigned_salary": sum(x["unassigned_salary"] for x in shifts)},
+            "result": {"operators": operators, "shifts": shifts}}
+
+
+register(Kind("payroll", "Зарплатная ведомость", "ЗП", "payroll", "salary", check_payroll,
+              lock_check=False))
+
+__all__ = ["documents"]

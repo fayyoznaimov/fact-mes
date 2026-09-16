@@ -14,24 +14,11 @@ import re
 from datetime import datetime
 
 import yarns
-from storage import shop
+from storage import YARN_LOT_SCHEMA, shop
 
 KIND = {"ВОРС": "pile", "ОСНОВА": "ground", "ГРУНТ": "ground", "УТОК": "weft"}
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS yarn_lot (
-    code TEXT PRIMARY KEY,           -- код номенклатуры 1С
-    name TEXT NOT NULL,              -- полное название в 1С
-    yarn TEXT,                       -- пряжа в справочном написании: «16/1 RING»
-    kind TEXT,                       -- pile / ground / weft — «Тип основа пряжи»
-    lot TEXT,
-    supplier TEXT, color TEXT, twist TEXT, composition TEXT,
-    bag_kg REAL, bobbins INTEGER,
-    active INTEGER NOT NULL DEFAULT 1,
-    loaded_by TEXT, loaded_at TEXT
-);
-CREATE INDEX IF NOT EXISTS yarn_lot_yarn ON yarn_lot(yarn);
-"""
+SCHEMA = YARN_LOT_SCHEMA      # таблица создаётся вместе с базой, под журналом
 
 # Заголовок колонки в выгрузке 1С -> поле.
 COLUMNS = {"Наименование": "name", "Код": "code", "Вид номенклатуры": "type", "Yarn": "yarn",

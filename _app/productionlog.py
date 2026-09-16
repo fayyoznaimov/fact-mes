@@ -39,7 +39,23 @@ CREATE TABLE IF NOT EXISTS machine_sample (
 CREATE INDEX IF NOT EXISTS ms_at ON machine_sample(at);
 '''
 TABLES = ('assignment','shift_master','shift_doc','loom_setup','loom_plan',
-          'tech_card','tech_card_yarn','operator','ticket')
+          'tech_card','tech_card_yarn','operator','ticket',
+          # справочники и настройки: всё, что человек или 1С меняет руками
+          'setting','rate_period','cloth_map','ppt_manual','yarn','yarn_lot','loom_article',
+          'tech_card_loom','plan_order','plan_loom','doc',
+          'app_user','app_user_access','app_user_employee','api_key')
+# Секреты в журнал не пишутся: видно только, что пароль или ключ сменили.
+SECRET = {'app_user': ('pwd_hash','pwd_salt'), 'api_key': ('key_hash',)}
+# Служебные поля, меняющиеся без участия человека, не порождают записей.
+QUIET = {'app_user': ('last_login',)}
+TICKET_WATCHED = ('ended_at','category_id','comment','classified_by','classified_at','opened_by')
+# Архив сообщений 1С: входящие данные — первоисточник, их нельзя стирать.
+ARCHIVE = '''
+CREATE TRIGGER IF NOT EXISTS om_no_update BEFORE UPDATE ON onec_message
+ BEGIN SELECT RAISE(ABORT,'Сообщение 1С нельзя изменять'); END;
+CREATE TRIGGER IF NOT EXISTS om_no_delete BEFORE DELETE ON onec_message
+ BEGIN SELECT RAISE(ABORT,'Сообщение 1С нельзя удалять'); END;
+'''
 
 
 def now():
@@ -54,33 +70,56 @@ def register(db):
     db.execute('PRAGMA recursive_triggers=ON')
 
 
+def _trigger_sql(table, action, columns):
+    secret = SECRET.get(table, ())
+    shown = [c for c in columns if c not in secret]
+
+    def obj(prefix):
+        result = 'json_object(' + ','.join("'%s',%s.\"%s\"" % (c,prefix,c) for c in shown) + ')'
+        if table == 'assignment':
+            result = "json_set(" + result + ", '$.operator_name',(SELECT name FROM operator WHERE id=" + prefix + ".operator_id), '$.operator_code',(SELECT code FROM operator WHERE id=" + prefix + ".operator_id))"
+        return result
+    before = obj('OLD') if action != 'INSERT' else 'NULL'
+    after = obj('NEW') if action != 'DELETE' else 'NULL'
+    condition = ''
+    if action == 'UPDATE':
+        if table == 'ticket':
+            watched = [c for c in columns if c in TICKET_WATCHED]
+        else:
+            watched = [c for c in columns if c not in QUIET.get(table, ())]
+        condition = ' WHEN ' + ' OR '.join('OLD."%s" IS NOT NEW."%s"' % (c,c) for c in watched)
+        if secret:
+            after = "json_set(%s,'$.secret_changed',json(CASE WHEN %s THEN 'true' ELSE 'false' END))" % (
+                after, ' OR '.join('OLD."%s" IS NOT NEW."%s"' % (c,c) for c in secret))
+    return ('CREATE TRIGGER pl_%s_%s AFTER %s ON %s%s BEGIN '
+            'INSERT INTO production_event(at,batch,actor,entity,action,before_json,after_json) '
+            "VALUES(mes_time(),mes_batch(),mes_actor(),'%s','%s',%s,%s); END"
+            % (table,action,action,table,condition,table,action,before,after)), obj
+
+
 def install(db, tables=TABLES):
+    """Журнал на таблицы. Триггер пересоздаётся, если у таблицы появились
+    новые поля: иначе добавленная колонка молча выпадала бы из истории."""
     db.executescript(SCHEMA)
+    if db.execute("SELECT 1 FROM sqlite_master WHERE name='onec_message'").fetchone():
+        db.executescript(ARCHIVE)
     for table in tables:
         columns = [r[1] for r in db.execute('PRAGMA table_info(' + table + ')')]
         if not columns:
             continue
-        def obj(prefix):
-            result = 'json_object(' + ','.join("'%s',%s.\"%s\"" % (c,prefix,c) for c in columns) + ')'
-            if table == 'assignment':
-                result = "json_set(" + result + ", '$.operator_name',(SELECT name FROM operator WHERE id=" + prefix + ".operator_id), '$.operator_code',(SELECT code FROM operator WHERE id=" + prefix + ".operator_id))"
-            return result
+        for action in ('INSERT','UPDATE','DELETE'):
+            sql, obj = _trigger_sql(table, action, columns)
+            name = 'pl_%s_%s' % (table, action)
+            found = db.execute("SELECT sql FROM sqlite_master WHERE type='trigger' AND name=?",(name,)).fetchone()
+            if found and found[0] == sql:
+                continue
+            if found:
+                db.execute('DROP TRIGGER ' + name)
+            db.execute(sql)
         if not db.execute('SELECT 1 FROM production_baseline WHERE entity=?',(table,)).fetchone():
             db.execute("INSERT INTO production_event(at,batch,actor,entity,action,after_json) "
                        "SELECT mes_time(),mes_batch(),'миграция',?,'BASELINE',"+obj('t')+' FROM '+table+' t',(table,))
             db.execute('INSERT INTO production_baseline VALUES (?,?)',(table,now()))
-        for action in ('INSERT','UPDATE','DELETE'):
-            before = obj('OLD') if action != 'INSERT' else 'NULL'
-            after = obj('NEW') if action != 'DELETE' else 'NULL'
-            condition = ''
-            if action == 'UPDATE':
-                watched = [c for c in columns if table != 'ticket' or c in
-                           ('ended_at','category_id','comment','classified_by','classified_at','opened_by')]
-                condition = ' WHEN ' + ' OR '.join('OLD."%s" IS NOT NEW."%s"' % (c,c) for c in watched)
-            db.execute('CREATE TRIGGER IF NOT EXISTS pl_%s_%s AFTER %s ON %s%s BEGIN '
-                       'INSERT INTO production_event(at,batch,actor,entity,action,before_json,after_json) '
-                       "VALUES(mes_time(),mes_batch(),mes_actor(),'%s','%s',%s,%s); END"
-                       % (table,action,action,table,condition,table,action,before,after))
     db.commit()
 
 

@@ -176,7 +176,7 @@ def load_production_orders(payload, who="1С", make_orders=True):
     return out
 
 
-KEEP_MESSAGES = 5000        # столько последних сообщений 1С храним целиком
+# Сообщения 1С хранятся все: это первоисточник заказов, триггеры запрещают их стирать.
 
 
 def _log_message(envelope, who, result, error):
@@ -196,7 +196,6 @@ def _log_message(envelope, who, result, error):
              nums[:2000], 0 if error else 1, error,
              json.dumps(result, ensure_ascii=False) if result else None,
              json.dumps(envelope, ensure_ascii=False)))
-        db.execute("DELETE FROM onec_message WHERE id <= ?", (cur.lastrowid - KEEP_MESSAGES,))
         db.commit()
         return cur.lastrowid
     finally:

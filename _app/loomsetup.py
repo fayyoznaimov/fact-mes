@@ -80,10 +80,9 @@ def _check_day(from_day):
         raise ValueError("день заправки: нужна дата вида 2026.09.14")
 
 
-def _write(pairs, from_day, who, effective_at=None):
-    """Записать [(станок, строка)] и пересобрать отчёт с дня заправки."""
+def valid_at(from_day, effective_at=None):
+    """Момент начала заправки: начало дня или точное время в этот день."""
     import productionlog
-    now = productionlog.now()
     valid = datetime.strptime(from_day, '%Y.%m.%d').replace(tzinfo=productionlog.TZ)
     if effective_at:
         try:
@@ -93,29 +92,45 @@ def _write(pairs, from_day, who, effective_at=None):
                 raise ValueError()
         except (ValueError, TypeError):
             raise ValueError('Время начала заправки должно относиться к выбранному дню') from None
-    db = shop()
-    token = productionlog.ACTOR.set(who or 'система')
-    try:
-        db.execute('BEGIN IMMEDIATE')
-        documents = [(loom, document_snapshot(db, loom, from_day, row)) for loom,row in pairs]
-        db.executemany(
-            "INSERT OR REPLACE INTO loom_setup (loom, from_day, %s, set_by, set_at) VALUES (%s)"
-            % (", ".join(FIELDS), ",".join("?" * (len(FIELDS) + 4))),
-            [(loom, from_day, *[row[f] for f in FIELDS], who, now) for loom, row in pairs])
-        for loom, snap in documents:
-            snap['precision'] = 'minute' if effective_at else 'day'
-            db.execute('INSERT INTO setup_document(loom,valid_from,created_at,author,snapshot_json) VALUES (?,?,?,?,?)',
-                       (loom,valid.isoformat(),now,who,json.dumps(snap,ensure_ascii=False)))
-        db.commit()
-    finally:
-        db.close()
-        productionlog.ACTOR.reset(token)
+    return valid
+
+
+def store(db, pairs, from_day, who, effective_at=None, doc_id=None):
+    """Записать [(станок, строка)] в транзакции вызывающего (документа)."""
+    import productionlog
+    now = productionlog.now()
+    valid = valid_at(from_day, effective_at)
+    documents = [(loom, document_snapshot(db, loom, from_day, row)) for loom,row in pairs]
+    db.executemany(
+        "INSERT OR REPLACE INTO loom_setup (loom, from_day, %s, set_by, set_at) VALUES (%s)"
+        % (", ".join(FIELDS), ",".join("?" * (len(FIELDS) + 4))),
+        [(loom, from_day, *[row[f] for f in FIELDS], who, now) for loom, row in pairs])
+    for loom, snap in documents:
+        snap['precision'] = 'minute' if effective_at else 'day'
+        db.execute('INSERT INTO setup_document(loom,valid_from,created_at,author,snapshot_json,doc_id) VALUES (?,?,?,?,?,?)',
+                   (loom,valid.isoformat(),now,who,json.dumps(snap,ensure_ascii=False),doc_id))
+
+
+def rebuild(from_day):
+    """Пересобрать отчёт с дня заправки (не дальше MAX_DAYS дней)."""
     with fact() as f:
         days = [r[0] for r in f.execute(
             "SELECT DISTINCT day FROM shift_full WHERE day >= ? ORDER BY day LIMIT ?",
             (from_day, MAX_DAYS))]
     import reports
     return reports.rebuild_daily_reports(days)
+
+
+def _write(pairs, from_day, who, effective_at=None):
+    """Заправка проводится документом: та же проверка, что видит человек."""
+    import documents
+    payload = {"from_day": from_day, "effective_at": effective_at or None,
+               "rows": [{"loom": loom, "values": row} for loom, row in pairs]}
+    checked = documents.preview("setup", payload)
+    if checked["errors"]:
+        raise ValueError("; ".join(checked["errors"][:10]))
+    r = documents.post("setup", payload, checked["checksum"], who)
+    return (r.get("after") or {}).get("days")
 
 
 def document_snapshot(db, loom, day, values):

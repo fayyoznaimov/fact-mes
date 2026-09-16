@@ -220,6 +220,76 @@ CREATE TABLE IF NOT EXISTS yarn (
 );
 """
 
+# Документ: всё, что меняет учёт (заправка, ведомость, ставка, утверждённый
+# отчёт), сначала проверяется, показывается человеку и только после его
+# подтверждения проводится. Проведённый документ не меняется: исправляют
+# новым документом (supersedes_id), отменяют с причиной. Кто и когда —
+# в самом документе, построчная история — в production_event.
+DOC_SCHEMA = """
+CREATE TABLE IF NOT EXISTS doc (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT NOT NULL,
+    number TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL DEFAULT 'posted' CHECK (status IN ('posted','cancelled')),
+    title TEXT NOT NULL,
+    period_from TEXT, period_to TEXT,
+    comment TEXT,
+    supersedes_id INTEGER REFERENCES doc(id),
+    created_by TEXT NOT NULL, created_at TEXT NOT NULL,
+    cancelled_by TEXT, cancelled_at TEXT, cancel_reason TEXT,
+    payload_json TEXT NOT NULL,      -- что ввёл человек
+    result_json TEXT NOT NULL,       -- что он видел и подтвердил: итоги, изменения, предупреждения
+    checksum TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS doc_type_period ON doc(type, period_from, period_to);
+CREATE TRIGGER IF NOT EXISTS doc_no_delete BEFORE DELETE ON doc
+ BEGIN SELECT RAISE(ABORT,'Документ нельзя удалить: его можно только отменить с причиной'); END;
+CREATE TRIGGER IF NOT EXISTS doc_only_cancel BEFORE UPDATE ON doc
+ WHEN OLD.status <> 'posted' OR NEW.status <> 'cancelled'
+   OR NEW.cancelled_by IS NULL OR NEW.cancelled_at IS NULL OR trim(COALESCE(NEW.cancel_reason,'')) = ''
+   OR NEW.type IS NOT OLD.type OR NEW.number IS NOT OLD.number OR NEW.title IS NOT OLD.title
+   OR NEW.period_from IS NOT OLD.period_from OR NEW.period_to IS NOT OLD.period_to
+   OR NEW.comment IS NOT OLD.comment OR NEW.supersedes_id IS NOT OLD.supersedes_id
+   OR NEW.created_by IS NOT OLD.created_by OR NEW.created_at IS NOT OLD.created_at
+   OR NEW.payload_json IS NOT OLD.payload_json OR NEW.result_json IS NOT OLD.result_json
+   OR NEW.checksum IS NOT OLD.checksum
+ BEGIN SELECT RAISE(ABORT,'Проведённый документ неизменяем: его можно только отменить с причиной'); END;
+
+-- Ставка действует с даты. Новая ставка не пересчитывает прошлые смены;
+-- строка отменённого документа не действует.
+CREATE TABLE IF NOT EXISTS rate_period (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    valid_from TEXT NOT NULL,        -- 2026.09.16
+    rate REAL NOT NULL,
+    unit TEXT NOT NULL CHECK (unit IN ('kpick','pick')),
+    doc_id INTEGER REFERENCES doc(id),
+    set_by TEXT NOT NULL, set_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS rate_period_from ON rate_period(valid_from, id);
+CREATE TRIGGER IF NOT EXISTS rate_no_update BEFORE UPDATE ON rate_period
+ BEGIN SELECT RAISE(ABORT,'Ставку меняют новым документом'); END;
+CREATE TRIGGER IF NOT EXISTS rate_no_delete BEFORE DELETE ON rate_period
+ BEGIN SELECT RAISE(ABORT,'Ставку меняют новым документом'); END;
+"""
+
+# Справочник партий пряжи из 1С создаётся вместе с базой: так он сразу под журналом.
+YARN_LOT_SCHEMA = """
+CREATE TABLE IF NOT EXISTS yarn_lot (
+    code TEXT PRIMARY KEY,           -- код номенклатуры 1С
+    name TEXT NOT NULL,              -- полное название в 1С
+    yarn TEXT,                       -- пряжа в справочном написании: «16/1 RING»
+    kind TEXT,                       -- pile / ground / weft — «Тип основа пряжи»
+    lot TEXT,
+    supplier TEXT, color TEXT, twist TEXT, composition TEXT,
+    bag_kg REAL, bobbins INTEGER,
+    active INTEGER NOT NULL DEFAULT 1,
+    loaded_by TEXT, loaded_at TEXT
+);
+CREATE INDEX IF NOT EXISTS yarn_lot_yarn ON yarn_lot(yarn);
+"""
+# Ставка до первого документа — из прежней настройки; дата раньше любых данных.
+RATE_START = "2000.01.01"
+
 DEFAULTS = {
     "rate": "287", "rate_unit": "kpick",   # kpick = за 1000 пиков, pick = за один пик
     # Андон: станок стоит, а причины нет. Через сколько минут он становится
@@ -298,14 +368,39 @@ def shop():
     db.execute("PRAGMA synchronous=NORMAL")
     if SHOP_DB not in _SCHEMA_READY:
         db.execute("PRAGMA journal_mode=WAL")
-        db.executescript(SCHEMA + TECH_CARD_SCHEMA)
+        db.executescript(SCHEMA + TECH_CARD_SCHEMA + DOC_SCHEMA + YARN_LOT_SCHEMA)
         for k, v in DEFAULTS.items():
             db.execute("INSERT OR IGNORE INTO setting (key, value) VALUES (?,?)", (k, v))
         db.commit()
+        _migrate_documents(db)
         productionlog.install(db)
         productionlog.register(db)
         _SCHEMA_READY.add(SHOP_DB)
     return db
+
+
+def _migrate_documents(db):
+    """Ставка из настройки становится первым периодом; заправка знает свой документ."""
+    import productionlog
+    if not db.execute("SELECT 1 FROM rate_period LIMIT 1").fetchone():
+        db.execute("INSERT INTO rate_period (valid_from, rate, unit, set_by, set_at) VALUES (?,?,?,?,?)",
+                   (RATE_START, float(setting(db, "rate")), setting(db, "rate_unit"), "миграция",
+                    productionlog.now()))
+    db.executescript(productionlog.SCHEMA)
+    if "doc_id" not in [r[1] for r in db.execute("PRAGMA table_info(setup_document)")]:
+        db.execute("ALTER TABLE setup_document ADD COLUMN doc_id INTEGER")
+    db.commit()
+
+
+def rate_for(db, day):
+    """(ставка, единица), действующие в этот день, — по проведённым документам."""
+    r = db.execute(
+        "SELECT r.rate, r.unit FROM rate_period r LEFT JOIN doc d ON d.id = r.doc_id"
+        " WHERE r.valid_from <= ? AND (r.doc_id IS NULL OR d.status = 'posted')"
+        " ORDER BY r.valid_from DESC, r.id DESC LIMIT 1", (day,)).fetchone()
+    if r:
+        return float(r["rate"]), r["unit"]
+    return float(setting(db, "rate")), setting(db, "rate_unit")
 
 
 def shop_readonly():
@@ -419,6 +514,8 @@ def prepare():
         if col not in have:
             conn.execute("ALTER TABLE loom_setup ADD COLUMN %s TEXT" % col)
     conn.commit()
+    import productionlog
+    productionlog.install(conn)      # добавленные колонки сразу попадают в журнал
     conn.close()
     info = {"rollup_built": built, "tech_cards_moved": moved, "tech_cards_rekeyed": rekeyed}
     # Справочник пряжи при первом запуске собирается из того, что уже есть в
@@ -456,9 +553,26 @@ def all_settings():
     return s
 
 
-def save_settings(values):
+# Ставка меняется только документом «Ставка» — с датой начала действия.
+DOCUMENT_SETTINGS = ("rate", "rate_unit")
+
+
+def save_settings(values, who=""):
+    """Прочие настройки. Изменение попадает в журнал с автором; UPSERT, а не
+    REPLACE, — иначе журнал видел бы удаление и вставку вместо правки."""
+    import productionlog
     db = shop()
-    for k, v in values.items():
-        db.execute("INSERT OR REPLACE INTO setting (key, value) VALUES (?,?)", (k, str(v)))
-    db.commit()
-    db.close()
+    token = productionlog.ACTOR.set(who or "система")
+    try:
+        for k in DOCUMENT_SETTINGS:
+            if k in values and str(values[k]) != str(setting(db, k)):
+                raise ValueError("ставка меняется документом «Ставка» с датой начала — "
+                                 "прошлые смены не пересчитываются")
+        for k, v in values.items():
+            if k not in DOCUMENT_SETTINGS:
+                db.execute("INSERT INTO setting (key, value) VALUES (?,?)"
+                           " ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k, str(v)))
+        db.commit()
+    finally:
+        db.close()
+        productionlog.ACTOR.reset(token)

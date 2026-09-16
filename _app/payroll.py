@@ -7,7 +7,7 @@
 from collections import defaultdict
 
 from reports import shift_rows
-from storage import setting, shop
+from storage import rate_for, shop
 
 
 def money(picks, rate, unit):
@@ -17,8 +17,7 @@ def money(picks, rate, unit):
 def salary_for_shift(day, letter):
     """Зарплата и показатели по каждому оператору смены."""
     db = shop()
-    rate = float(setting(db, "rate"))
-    unit = setting(db, "rate_unit")
+    rate, unit = rate_for(db, day)          # ставка, действовавшая в тот день
 
     assigns = {r["loom"]: r for r in db.execute(
         "SELECT a.loom, o.id, o.code, o.name FROM assignment a JOIN operator o ON o.id=a.operator_id"

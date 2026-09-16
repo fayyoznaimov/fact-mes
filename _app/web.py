@@ -27,6 +27,7 @@ import auth
 import cache
 import collector
 import dashboard
+import documents
 import hub
 import integration
 import livestate
@@ -131,6 +132,11 @@ GET_SECTIONS = {
     "/api/access_catalog": ("users",),
     "/api/keys": ("users", "settings"),
     "/api/logs": ("settings",),
+    # Документы: список фильтруется по разделам вида (зарплата — только в «Зарплате»).
+    "/api/documents": tuple(auth.SECTIONS),
+    "/api/documents/get": tuple(auth.SECTIONS),
+    "/api/documents/verify": tuple(auth.SECTIONS),
+    "/api/rates": ("salary", "settings"),
 }
 GET_ACTIONS = {"/api/users": "users", "/api/access_catalog": "users", "/api/keys": "users",
                "/api/logs": "settings", "/api/excel": "export"}
@@ -424,6 +430,36 @@ class Handler(BaseHTTPRequestHandler):
                 if not auth.can_section(current_user(self),sections.get(entity,'users')):
                     return self._send(403, {'error':'нет доступа к журналу'})
                 return self._send(200, {'events':productionlog.events(entity,q.get('loom',''),record_id=q.get('id'))})
+            if u.path == "/api/documents":
+                user = current_user(self)
+                documents.kind("setup")             # виды регистрируются при первом обращении
+                wanted = [t for t in (q.get("type") or ",".join(documents.KINDS)).split(",")
+                          if t in documents.KINDS and auth.can_section(user, documents.KINDS[t].section)]
+                return self._send(200, {
+                    "documents": documents.list_docs(wanted, q.get("from", ""), q.get("to", ""),
+                                                     q.get("status", ""), int(q.get("limit", 200))),
+                    "kinds": [{"id": k.name, "title": k.title,
+                               "can_post": may(user, k.permission)} for k in documents.KINDS.values()
+                              if auth.can_section(user, k.section)]})
+            if u.path in ("/api/documents/get", "/api/documents/verify"):
+                d = documents.get(q.get("id", "0"))
+                if not auth.can_section(current_user(self), documents.kind(d["type"]).section):
+                    return self._send(403, {"error": "нет доступа к документу"})
+                if u.path.endswith("verify"):
+                    d = documents.verify(d["id"])
+                return self._send(200, d)
+            if u.path == "/api/rates":
+                db = storage.shop()
+                try:
+                    rows = [dict(r) for r in db.execute(
+                        "SELECT r.*, d.number, d.status FROM rate_period r LEFT JOIN doc d ON d.id=r.doc_id"
+                        " ORDER BY r.valid_from DESC, r.id DESC")]
+                    today = tickets.current_shift()[:10]
+                    rate, unit = storage.rate_for(db, q.get("day") or today)
+                finally:
+                    db.close()
+                return self._send(200, {"day": q.get("day") or today, "rate": rate, "unit": unit,
+                                        "periods": rows})
             if u.path == '/api/machine_signals':
                 import productionlog
                 return self._send(200, productionlog.signal_history(q.get('loom',''),q.get('day',''),q.get('period','day')))
@@ -487,6 +523,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"lines": logs.tail(int(q.get("lines", 200)))})
         except (ConnectionAbortedError, BrokenPipeError, ConnectionResetError):
             return          # браузер ушёл, не дождавшись ответа, — отвечать некому
+        except ValueError as e:
+            # Неверный запрос (нет дня, неверная смена) — не сбой сервера.
+            LOG.warning("GET %s: %s", u.path, e)
+            return self._send(400, {"error": str(e)})
         except Exception as e:
             LOG.exception("GET %s: %s", self.path, e)
             return self._send(500, {"error": f"{type(e).__name__}: {e}"})
@@ -578,6 +618,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"ok": True})
             if u.path.startswith("/api/tickets/"):
                 return self._tickets(u.path, body)
+            if u.path.startswith("/api/documents/"):
+                return self._documents(u.path, body)
 
             # Всё, что меняет данные, требует права.
             need = GUARD.get(u.path)
@@ -703,7 +745,7 @@ class Handler(BaseHTTPRequestHandler):
                          body.get("loom"), body.get("product_code") or "—", who)
                 return self._send(200, {"ok": True})
             if u.path == "/api/settings":
-                storage.save_settings(body)
+                storage.save_settings(body, who)
                 LOG.info("настройки изменены: %s", body)
                 tickets.invalidate()        # пороги андона видны на досках сразу
                 return self._send(200, {"ok": True})
@@ -721,6 +763,39 @@ class Handler(BaseHTTPRequestHandler):
             LOG.exception("POST %s: %s", self.path, e)
             return self._send(500, {"error": f"{type(e).__name__}: {e}"})
         self._send(404, {"error": "нет такого адреса"})
+
+    def _documents(self, path, body):
+        """Проверка, проведение и отмена документа. Право — по виду документа."""
+        me = current_user(self)
+        if not me:
+            return self._send(401, {"error": "нужно войти"})
+        action = path.rsplit("/", 1)[-1]
+        if action == "cancel":
+            d = documents.get(body.get("id", 0))
+            name = d["type"]
+        else:
+            name = body.get("type", "")
+        k = documents.kind(name)
+        if not may(me, k.permission):
+            return self._send(403, {"error": "нет прав на документ «%s»" % k.title})
+        if action == "preview":
+            return self._send(200, documents.preview(name, body.get("payload") or {}))
+        if action == "post":
+            payload = body.get("payload") or {}
+            try:
+                r = documents.post(name, payload, body.get("checksum"), me["login"],
+                                   body.get("comment", ""), payload.get("supersedes_id"))
+            except documents.Stale as e:
+                # Человек подтверждал другие данные: показать новую проверку.
+                return self._send(409, {"error": "Данные изменились после проверки (%s). Проверьте документ ещё раз." % e,
+                                        "preview": documents.preview(name, payload)})
+            LOG.info("документ %s «%s» провёл %s", r["number"], k.title, me["login"])
+            return self._send(200, r)
+        if action == "cancel":
+            r = documents.cancel(d["id"], body.get("reason", ""), me["login"])
+            LOG.info("документ %s отменил %s: %s", d["number"], me["login"], body.get("reason", ""))
+            return self._send(200, r)
+        return self._send(404, {"error": "нет такого действия"})
 
     def _login(self, body):
         name = (body.get("login") or "").strip().lower()
