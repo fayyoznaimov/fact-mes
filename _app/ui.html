@@ -1313,6 +1313,19 @@ dialog.gt-dlg{width:min(1040px,95vw)}
     <div class="tbl-wrap" style="margin-top:8px"><table id="set-rates"><thead><tr><th>Действует с</th><th class="n">Ставка, сум</th>
       <th>За что</th><th>Документ</th><th>Кто</th><th>Когда</th></tr></thead><tbody></tbody></table></div>
 
+    <h3 class="sect">Причины простоя</h3>
+    <div class="bar">
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="rs-add">Добавить причину…</button></div>
+      <div class="f"><label>&nbsp;</label><button class="act" id="rs-docs">Изменения справочника</button></div>
+    </div>
+    <p class="note">Причину выбирают в тикете, и она попадает в отчёт. Плановые простои (ТОиР, наладка,
+      заправка) в аналитике считаются отдельно от внеплановых. Скрытую причину перестают предлагать,
+      но в прошлых тикетах и отчётах она остаётся.</p>
+    <div class="tbl-wrap" style="margin-top:8px"><table id="rs-table">
+      <thead><tr><th>Причина</th><th>В отчёте</th><th>Категория</th><th>Когда действует</th>
+        <th>Где предлагать</th><th class="n">Порядок</th><th>Состояние</th><th></th></tr></thead>
+      <tbody></tbody></table></div>
+
     <h3 class="sect">Андон: станок стоит без тикета</h3>
     <div class="bar">
       <div class="f"><label for="an-warn">«Нет тикета» через, мин</label><input id="an-warn" size="4" inputmode="numeric"></div>
@@ -1510,7 +1523,7 @@ function syncActionControls(){
     setup_edit:'#ppt-save,#cm-unmapped select,#cm-map button,#ls-save,#sg-save,#sg-fill,#sg-row,#sg-undo,#yarn-add,#yarn-imp,#yarn-file,#yarn-table input,#yarn-table select,#yarn-table button,#dash-table .art',
     assign:'#sal-copy,#sal-looms select[data-assign],#as-save,#as-confirm,#as-apply,#as-prev,#as-fact,#as-foreman,#as-note',
     people:'#op-add,#op-import,#op-paste-go,#op-table button,#op-table select',
-    settings:'#an-save,#set-save',users:'#key-add,#key-table button',export:'#rep-excel'
+    settings:'#an-save,#set-save,#rs-add,#rs-table button',users:'#key-add,#key-table button',export:'#rep-excel'
   };
   for(const [permission,selector] of Object.entries(gates))if(!can(permission))document.querySelectorAll(selector).forEach(e=>{e.disabled=true;});
   if(!can('plan_edit')){ $('#lp-edit').disabled=true;$('#lp-undo').disabled=true;document.querySelectorAll('#lp-table [draggable],#lp-orders [draggable]').forEach(e=>e.draggable=false); }
@@ -2692,7 +2705,7 @@ async function boot() {
     $("#ex-to").value = days.days[0];
     $("#wk-shift").innerHTML = shOpts;
     $("#wk-shift").value = 1;          // последняя завершённая смена
-    if(canSection("settings"))loadRates();
+    if(canSection("settings")){loadRates();loadReasons();}
     $("#an-warn").value = set.andon_warn_min; $("#an-alarm").value = set.andon_alarm_min;
     $("#an-notify").value = set.andon_notify_min;
     // вкладка «Ручные остановы» — те же дни, по умолчанию последние 30
@@ -4490,4 +4503,75 @@ $('#rp-go').onclick=async()=>{
 (()=>{const y=new Date(Date.now()+5*3600e3-864e5).toISOString().slice(0,10);$('#rp-to').value=y;$('#rp-from').value=y.slice(0,8)+'01';})();
 (()=>{const iso=new Date(Date.now()+5*3600e3-864e5).toISOString().slice(0,10);$('#pr-to').value=iso;$('#pr-from').value=iso.slice(0,8)+'01';
   $('#dx-to').value=new Date(Date.now()+5*3600e3).toISOString().slice(0,10);$('#dx-from').value=new Date(Date.now()+5*3600e3-30*864e5).toISOString().slice(0,10);})();
+
+/* --- справочник причин простоя: правка документом с подтверждением --- */
+let RS = {reasons: [], categories: {}, applies: {}};
+const rsDialog = document.createElement('dialog');
+rsDialog.className = 'ls';
+rsDialog.innerHTML = `<form method="dialog"><h3 id="rs-title">Причина простоя</h3>
+  <div class="ls-grid">
+    <label class="f"><span>Код</span><input id="rs-id" autocomplete="off" placeholder="water"></label>
+    <label class="f"><span>Название</span><input id="rs-name" autocomplete="off"></label>
+    <label class="f"><span>Как в отчёте</span><input id="rs-reason" autocomplete="off"></label>
+    <label class="f"><span>По-английски</span><input id="rs-en" autocomplete="off"></label>
+    <label class="f"><span>Категория</span><select id="rs-category"></select></label>
+    <label class="f"><span>Когда действует</span><select id="rs-applies"></select></label>
+    <label class="f"><span>Порядок в списке</span><input id="rs-sort" inputmode="numeric" size="5"></label>
+    <label class="f"><span>Цвет в диаграммах</span><input id="rs-color" type="color" value="#2f5fd0"></label>
+  </div>
+  <div class="checks">
+    <label><input type="checkbox" id="rs-operator"> Предлагать в цеху</label>
+    <label><input type="checkbox" id="rs-analytics"> Предлагать при разборе простоев</label>
+    <label><input type="checkbox" id="rs-call"> Это вызов человека</label>
+    <label><input type="checkbox" id="rs-important"> Важная</label>
+    <label><input type="checkbox" id="rs-active"> Действует</label>
+  </div>
+  <div class="btns"><button class="act" value="cancel" formnovalidate>Отмена</button>
+    <button class="act primary" id="rs-save" type="button">Проверить и провести…</button></div></form>`;
+document.body.appendChild(rsDialog);
+
+async function loadReasons() {
+  try {
+    const r = await api('/api/reasons');
+    RS = r;
+    $('#rs-table tbody').innerHTML = r.reasons.map(c => `<tr${c.active ? '' : ' style="opacity:.55"'}>
+      <td>${c.color ? `<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${esc(c.color)};margin-right:6px"></span>` : ''}${esc(c.name)}<br><span class="note">${esc(c.id)}</span></td>
+      <td>${esc(c.reason)}</td><td>${esc(r.categories[c.category] || c.category)}</td>
+      <td>${esc(r.applies[c.applies] || c.applies)}</td>
+      <td>${[c.in_operator ? 'в цеху' : '', c.in_analytics ? 'при разборе' : ''].filter(Boolean).join(', ') || '—'}</td>
+      <td class="n">${c.sort}</td><td>${c.active ? 'действует' : 'скрыта'}${c.important ? ', важная' : ''}</td>
+      <td><button class="act" data-reason="${esc(c.id)}">Изменить…</button></td></tr>`).join('');
+  } catch (e) { say(e.message, true); }
+}
+function rsOpen(id) {
+  const c = RS.reasons.find(x => x.id === id) || {applies: 'any', category: 'unscheduled', sort: 100,
+    in_operator: true, in_analytics: true, active: true, color: '#2f5fd0'};
+  $('#rs-title').textContent = id ? 'Причина простоя: ' + c.name : 'Новая причина простоя';
+  $('#rs-category').innerHTML = Object.entries(RS.categories).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('');
+  $('#rs-applies').innerHTML = Object.entries(RS.applies).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('');
+  $('#rs-id').value = c.id || ''; $('#rs-id').disabled = !!id;
+  $('#rs-name').value = c.name || ''; $('#rs-reason').value = c.reason || ''; $('#rs-en').value = c.en || '';
+  $('#rs-category').value = c.category; $('#rs-applies').value = c.applies; $('#rs-sort').value = c.sort;
+  $('#rs-color').value = c.color || '#2f5fd0';
+  $('#rs-operator').checked = !!c.in_operator; $('#rs-analytics').checked = !!c.in_analytics;
+  $('#rs-call').checked = !!c.call; $('#rs-important').checked = !!c.important; $('#rs-active').checked = c.active !== false;
+  rsDialog.showModal();
+}
+$('#rs-add').onclick = () => rsOpen('');
+$('#rs-docs').onclick = () => docList('reason');
+$('#rs-table').onclick = e => { const b = e.target.closest('[data-reason]'); if (b) rsOpen(b.dataset.reason); };
+$('#rs-save').onclick = async () => {
+  const reason = {id: $('#rs-id').value.trim().toLowerCase(), name: $('#rs-name').value.trim(),
+    reason: $('#rs-reason').value.trim() || $('#rs-name').value.trim(), name_en: $('#rs-en').value.trim(),
+    category: $('#rs-category').value, applies: $('#rs-applies').value, sort: $('#rs-sort').value,
+    color: $('#rs-color').value, is_call: $('#rs-call').checked, in_operator: $('#rs-operator').checked,
+    in_analytics: $('#rs-analytics').checked, important: $('#rs-important').checked, active: $('#rs-active').checked};
+  const d = await docConfirm('reason', {reason});
+  if (d) { rsDialog.close(); loadReasons(); loadTickets && loadTickets(); }
+};
+DOC_VIEW.reason = {
+  tiles: c => [['Причина', esc(c.summary.name || '')], ['Категория', esc(c.summary.category || '')],
+               ['Тикетов с этой причиной', nf(c.summary.tickets)]],
+  changes: c => '<h4>Что изменится</h4>' + diffTable(c.changes, {before: 'Сейчас', after: 'Станет'})
+};
 </script>

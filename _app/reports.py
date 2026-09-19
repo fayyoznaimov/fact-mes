@@ -422,9 +422,15 @@ IDX_WARP_OUT, IDX_DOFF, IDX_MANUAL, IDX_POWER, IDX_OTHER = 6, 7, 8, 9, 10
 
 # Длинные остановы, которые станок называет сам: в LDS это «Knotting» и съём.
 LDS_MACHINE = {"warp_out": "Конец навоя", "doffing": "Съём ткани"}
-LDS_NAMES = {**{c["id"]: c["reason"] for c in tickets.CATEGORIES}, **LDS_MACHINE,
-             "unexplained": "Без причины", "power": "Обесточен"}
-LDS_ORDER = [c["id"] for c in tickets.CATEGORIES] + ["warp_out", "doffing", "unexplained", "power"]
+LDS_EXTRA = {"unexplained": "Без причины", "power": "Обесточен"}
+
+
+def lds_names():
+    return {**{c["id"]: c["reason"] for c in tickets.categories()}, **LDS_MACHINE, **LDS_EXTRA}
+
+
+def lds_order():
+    return [c["id"] for c in tickets.categories()] + ["warp_out", "doffing", "unexplained", "power"]
 SHIFT_HOURS = (("A", 7, 15), ("B", 15, 23), ("C", 23, 31))
 
 
@@ -615,14 +621,15 @@ def _lds_manual(date_from, date_to, group="day"):
             v[0] += n
             v[1] += m
     present = {cid for a in acc.values() for cid in a["cats"]} | {"unexplained"}
+    names = lds_names()
     return {
         "from": date_from, "to": date_to, "group": group,
         "installed": n_inst, "days": len({d for d, _ in all_shifts}), "shifts": len(all_shifts),
-        "columns": [{"id": cid, "name": LDS_NAMES[cid],
+        "columns": [{"id": cid, "name": names[cid],
                      "kind": ("machine" if cid in LDS_MACHINE else
                               "none" if cid == "unexplained" else
                               "power" if cid == "power" else "ticket")}
-                    for cid in LDS_ORDER if cid in present],
+                    for cid in lds_order() if cid in present],
         "rows": rows_out,
         "totals": finish(tot, n_inst * len(all_shifts) * 480),
     }

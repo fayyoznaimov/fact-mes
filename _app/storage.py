@@ -272,6 +272,30 @@ CREATE TRIGGER IF NOT EXISTS rate_no_delete BEFORE DELETE ON rate_period
  BEGIN SELECT RAISE(ABORT,'Ставку меняют новым документом'); END;
 """
 
+# Причины простоя — справочник в базе, а не список в коде: цех добавляет свои,
+# у каждой причины категория (плановый / внеплановый простой), цвет и место,
+# где её разрешено ставить. Так же устроено в DPA, и без этого не построить
+# аналитику простоев: «плановые» не должны попадать в потери.
+STOP_REASON_SCHEMA = """
+CREATE TABLE IF NOT EXISTS stop_reason (
+    id TEXT PRIMARY KEY,             -- короткий код: electrical, toir
+    name TEXT NOT NULL,              -- как выбирают в списке
+    name_en TEXT,
+    reason TEXT NOT NULL,            -- как причина называется в отчёте
+    applies TEXT NOT NULL DEFAULT 'any' CHECK (applies IN ('any','stop','off')),
+    is_call INTEGER NOT NULL DEFAULT 0,      -- вызов человека, а не вид работы
+    category TEXT NOT NULL DEFAULT 'unscheduled'
+        CHECK (category IN ('scheduled','unscheduled','undefined')),
+    color TEXT,
+    sort INTEGER NOT NULL DEFAULT 100,
+    in_operator INTEGER NOT NULL DEFAULT 1,  -- предлагать на мониторе в цеху
+    in_analytics INTEGER NOT NULL DEFAULT 1, -- предлагать при разборе простоев
+    important INTEGER NOT NULL DEFAULT 0,
+    active INTEGER NOT NULL DEFAULT 1,
+    builtin INTEGER NOT NULL DEFAULT 0       -- пришла из первой версии приложения
+);
+"""
+
 # Справочник партий пряжи из 1С создаётся вместе с базой: так он сразу под журналом.
 YARN_LOT_SCHEMA = """
 CREATE TABLE IF NOT EXISTS yarn_lot (
@@ -368,7 +392,7 @@ def shop():
     db.execute("PRAGMA synchronous=NORMAL")
     if SHOP_DB not in _SCHEMA_READY:
         db.execute("PRAGMA journal_mode=WAL")
-        db.executescript(SCHEMA + TECH_CARD_SCHEMA + DOC_SCHEMA + YARN_LOT_SCHEMA)
+        db.executescript(SCHEMA + TECH_CARD_SCHEMA + DOC_SCHEMA + YARN_LOT_SCHEMA + STOP_REASON_SCHEMA)
         for k, v in DEFAULTS.items():
             db.execute("INSERT OR IGNORE INTO setting (key, value) VALUES (?,?)", (k, v))
         db.commit()
@@ -386,6 +410,14 @@ def _migrate_documents(db):
         db.execute("INSERT INTO rate_period (valid_from, rate, unit, set_by, set_at) VALUES (?,?,?,?,?)",
                    (RATE_START, float(setting(db, "rate")), setting(db, "rate_unit"), "миграция",
                     productionlog.now()))
+    if not db.execute("SELECT 1 FROM stop_reason LIMIT 1").fetchone():
+        import tickets
+        db.executemany(
+            "INSERT INTO stop_reason (id, name, name_en, reason, applies, is_call, category, sort, builtin)"
+            " VALUES (?,?,?,?,?,?,?,?,1)",
+            [(c["id"], c["name"], c["en"], c["reason"], c["applies"], int(c["call"]),
+              "scheduled" if c["id"] in ("toir", "naladka", "zapravka") else "unscheduled", i * 10)
+             for i, c in enumerate(tickets.DEFAULT_CATEGORIES)])
     db.executescript(productionlog.SCHEMA)
     if "doc_id" not in [r[1] for r in db.execute("PRAGMA table_info(setup_document)")]:
         db.execute("ALTER TABLE setup_document ADD COLUMN doc_id INTEGER")

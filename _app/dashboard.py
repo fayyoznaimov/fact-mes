@@ -347,7 +347,7 @@ def cards(day="", letter=""):
     details = loom_details()
     picks = _picks_by_shift(day)
     fact_ops = people.fact_operators(day)
-    cats = {c["id"]: c for c in tickets.CATEGORIES}
+    cats = {c["id"]: c for c in tickets.categories()}
 
     out = []
     for r in base["rows"]:

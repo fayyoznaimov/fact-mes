@@ -6,6 +6,7 @@
 считается контрольная сумма подтверждения (documents.checksum).
 """
 import json
+import re
 from datetime import datetime, timedelta
 
 import documents
@@ -286,6 +287,113 @@ def check_payroll(db, payload):
 
 register(Kind("payroll", "Зарплатная ведомость", "ЗП", "payroll", "salary", check_payroll,
               lock_check=False))
+
+
+# --- причина простоя (справочник) ----------------------------------------------
+
+REASON_FIELDS = (("name", "Название"), ("name_en", "Название по-английски"), ("reason", "Как в отчёте"),
+                 ("applies", "Когда действует"), ("is_call", "Вызов человека"), ("category", "Категория"),
+                 ("color", "Цвет"), ("sort", "Порядок"), ("in_operator", "Предлагать в цеху"),
+                 ("in_analytics", "Предлагать при разборе"), ("important", "Важная"), ("active", "Действует"))
+REASON_CATEGORY = {"scheduled": "плановый простой", "unscheduled": "внеплановый простой",
+                   "undefined": "не определено"}
+REASON_APPLIES = {"any": "станок стоит или обесточен", "stop": "станок стоит",
+                  "off": "станок обесточен"}
+REASON_WORDS = {"category": REASON_CATEGORY, "applies": REASON_APPLIES}
+REASON_FLAGS = ("is_call", "in_operator", "in_analytics", "important", "active")
+
+
+def _reason_text(field, value):
+    if field in REASON_WORDS:
+        return REASON_WORDS[field].get(value, value)
+    if field in REASON_FLAGS:
+        return "да" if value else "нет"
+    return value
+
+
+def check_reason(db, payload):
+    errors, warnings, changes = [], [], []
+    r = dict(payload.get("reason") or {})
+    code = (r.get("id") or "").strip().lower()
+    if not re.match(r"^[a-z][a-z0-9_]{1,29}$", code):
+        return {"title": "Причина простоя", "errors": ["код причины: латиница, цифры и подчёркивание, 2–30 знаков"]}
+    row = db.execute("SELECT * FROM stop_reason WHERE id=?", (code,)).fetchone()
+    old = dict(row) if row else {}
+    new = dict(old) if old else dict(id=code, applies="any", is_call=0, category="unscheduled",
+                                     color=None, sort=100, in_operator=1, in_analytics=1,
+                                     important=0, active=1, builtin=0, name_en=None)
+    for field, _ in REASON_FIELDS:
+        if field not in r:
+            continue
+        v = r[field]
+        if field in REASON_FLAGS:
+            v = int(bool(v))
+        elif field == "sort":
+            try:
+                v = int(v)
+            except (TypeError, ValueError):
+                errors.append("порядок: нужно число")
+                continue
+        else:
+            v = (str(v).strip() or None) if v is not None else None
+        new[field] = v
+    if not new.get("name"):
+        errors.append("название обязательно")
+    if not new.get("reason"):
+        new["reason"] = new.get("name")
+    if new.get("category") not in REASON_CATEGORY:
+        errors.append("категория: плановый, внеплановый или не определено")
+    if new.get("applies") not in REASON_APPLIES:
+        errors.append("когда действует: станок стоит, обесточен или и то и другое")
+    has_tickets = db.execute("SELECT 1 FROM sqlite_master WHERE name='ticket'").fetchone()
+    used = db.execute("SELECT COUNT(*) FROM ticket WHERE category_id=?", (code,)).fetchone()[0] if has_tickets else 0
+    for field, title in REASON_FIELDS:
+        if not _same(old.get(field), new.get(field)):
+            changes.append(dict(field=field, title=title, label=title,
+                                before=_reason_text(field, old.get(field)) if old else None,
+                                after=_reason_text(field, new.get(field)), changed=True))
+    if old and not changes:
+        errors.append("изменений нет")
+    if not old:
+        warnings.append("новая причина простоя: её увидят в списке сразу после проведения")
+    if old and used and not _same(old.get("reason"), new.get("reason")):
+        warnings.append("причина стоит в %d тикетах: в отчётах за прошлые дни она будет называться по-новому" % used)
+    if old and old.get("active") and not new.get("active"):
+        open_now = db.execute("SELECT COUNT(*) FROM ticket WHERE category_id=? AND ended_at IS NULL",
+                              (code,)).fetchone()[0] if has_tickets else 0
+        warnings.append("причину перестанут предлагать; прошлые %d тикетов останутся с ней%s" % (
+            used, ", в том числе %d открытых" % open_now if open_now else ""))
+    if old.get("builtin") and not _same(old.get("name"), new.get("name")):
+        warnings.append("это причина из первой версии приложения — её название встречается в старых отчётах")
+    return {"title": "Причина простоя «%s»" % (new.get("name") or code), "period": (None, None),
+            "errors": errors, "warnings": warnings, "changes": changes,
+            "summary": {"id": code, "name": new.get("name"), "category": REASON_CATEGORY.get(new.get("category")),
+                        "tickets": used, "new": not old},
+            "result": {"reason": new}}
+
+
+def apply_reason(db, doc_id, payload, checked, who):
+    r = checked["result"]["reason"]
+    db.execute(
+        "INSERT INTO stop_reason (id, name, name_en, reason, applies, is_call, category, color, sort,"
+        " in_operator, in_analytics, important, active, builtin) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+        " ON CONFLICT(id) DO UPDATE SET name=excluded.name, name_en=excluded.name_en, reason=excluded.reason,"
+        " applies=excluded.applies, is_call=excluded.is_call, category=excluded.category, color=excluded.color,"
+        " sort=excluded.sort, in_operator=excluded.in_operator, in_analytics=excluded.in_analytics,"
+        " important=excluded.important, active=excluded.active",
+        (r["id"], r["name"], r.get("name_en"), r["reason"], r["applies"], int(r["is_call"]), r["category"],
+         r.get("color"), int(r["sort"]), int(r["in_operator"]), int(r["in_analytics"]), int(r["important"]),
+         int(r["active"]), int(r.get("builtin") or 0)))
+
+
+def after_reason(payload, checked):
+    import tickets
+    tickets.invalidate()        # список причин на мониторах и досках — сразу новый
+    return None
+
+
+register(Kind("reason", "Причина простоя", "ПРЧ", "settings", "settings", check_reason, apply_reason,
+              after=after_reason, cancel=False))
 
 
 # --- утверждённый производственный отчёт ---------------------------------------

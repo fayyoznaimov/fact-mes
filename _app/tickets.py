@@ -30,6 +30,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 
+import cache
 import hub
 import livestate
 import storage
@@ -71,7 +72,7 @@ CAUSE_EN = {
 #   applies — при каком состоянии станка тикет становится причиной простоя:
 #             off — обесточен, stop — стоит без сигнала, any — в обоих случаях;
 #   call    — это вызов человека (электрик, механик), а не вид работы.
-CATEGORIES = [
+DEFAULT_CATEGORIES = [
     {"id": "electrical",    "name": "Вызов электрика",    "en": "Electrician",
      "reason": "Электрическая проблема", "applies": "any",  "call": True},
     {"id": "toir",          "name": "ТОиР",               "en": "Maintenance",
@@ -91,7 +92,40 @@ CATEGORIES = [
     {"id": "abr_p_karinoy", "name": "ABR P (Karinoy)",    "en": "ABR P (ground)",
      "reason": "ABR P (Karinoy)", "applies": "stop", "call": False},
 ]
-CATEGORY_BY_ID = {c["id"]: c for c in CATEGORIES}
+
+
+def categories(where=""):
+    """Справочник причин из базы. where: operator — что предлагать в цеху,
+    analytics — что предлагать при разборе простоев."""
+    rows = cache.get(("stop_reasons",), 30, _load_categories)
+    if where == "operator":
+        return [c for c in rows if c["active"] and c["in_operator"]]
+    if where == "analytics":
+        return [c for c in rows if c["active"] and c["in_analytics"]]
+    return rows
+
+
+def _load_categories():
+    db = shop()
+    try:
+        rows = db.execute("SELECT * FROM stop_reason ORDER BY sort, name").fetchall()
+    finally:
+        db.close()
+    return [{"id": r["id"], "name": r["name"], "en": r["name_en"] or r["name"], "reason": r["reason"],
+             "applies": r["applies"], "call": bool(r["is_call"]), "category": r["category"],
+             "color": r["color"], "sort": r["sort"], "in_operator": bool(r["in_operator"]),
+             "in_analytics": bool(r["in_analytics"]), "important": bool(r["important"]),
+             "active": bool(r["active"]), "builtin": bool(r["builtin"])} for r in rows]
+
+
+def category(category_id):
+    """Причина по коду; неизвестная и скрытая тоже возвращаются — старые тикеты
+    должны читаться после того, как причину убрали из списка."""
+    return next((c for c in categories() if c["id"] == category_id), None)
+
+
+def active_ids():
+    return {c["id"] for c in categories() if c["active"]}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS ticket (
@@ -152,7 +186,7 @@ def resolve_reason(cause, category_id=None):
     state = machine_state(cause)
     if state == "tech":
         return CAUSE_RU.get(cause, cause), "сигнал станка"
-    cat = CATEGORY_BY_ID.get(category_id or "")
+    cat = category(category_id or "")
     if cat and cat["applies"] in ("any", state):
         return cat["reason"], "тикет"
     if state == "off":
@@ -289,6 +323,7 @@ _board_lock = threading.Lock()
 def invalidate():
     """Что-то поменялось: доску пересобрать, мониторы толкнуть."""
     _board_cache["data"] = None
+    cache.drop(("stop_reasons",))
     hub.HUB.bump()
 
 
@@ -355,7 +390,7 @@ def _board_build():
     age = int(time.time() - snap["read_at"]) if snap else None
     stopped = [r for r in rows if not r["running"]]
     payload = {
-        "looms": rows, "categories": CATEGORIES, "shift": current_shift(),
+        "looms": rows, "categories": categories("operator"), "shift": current_shift(),
         "source": SOURCE["mode"], "state_dir": state_dir, "error": error,
         "updated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "andon": an,
@@ -384,8 +419,8 @@ def open_ticket(loom, who="вручную", category_id=None, comment=""):
     st = live.get(loom)
     if not st:
         raise ValueError("станок «%s» не найден" % loom)
-    if category_id and category_id not in CATEGORY_BY_ID:
-        raise ValueError("неизвестная категория")
+    if category_id and category_id not in active_ids():
+        raise ValueError("неизвестная причина простоя")
     now = datetime.now().astimezone()
     started = now - timedelta(seconds=st["state_sec"] if not st["running"] else 0)
     conn = db()
@@ -419,8 +454,8 @@ def open_ticket(loom, who="вручную", category_id=None, comment=""):
 
 
 def classify(ticket_id, category_id, who, comment=""):
-    if category_id not in CATEGORY_BY_ID:
-        raise ValueError("неизвестная категория")
+    if category_id not in active_ids():
+        raise ValueError("неизвестная причина простоя")
     conn = db()
     conn.execute(
         "UPDATE ticket SET category_id=?, comment=?, classified_by=?, classified_at=? WHERE id=?",
@@ -452,7 +487,7 @@ def _row(r):
     d["reason"] = reason
     d["reason_from"] = src
     d["cause_ru"] = CAUSE_RU.get(d.get("fact_cause") or "", d.get("fact_cause"))
-    d["category_name"] = (CATEGORY_BY_ID.get(d.get("category_id") or "") or {}).get("name")
+    d["category_name"] = (category(d.get("category_id") or "") or {}).get("name")
     d["open"] = d["ended_at"] is None
     return d
 

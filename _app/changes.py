@@ -137,7 +137,7 @@ def value_text(entity, field, value, row=None):
         return " — ".join(str(x) for x in (row.get("operator_code"), row.get("operator_name")) if x)
     if field == "category_id":
         import tickets
-        c = tickets.CATEGORY_BY_ID.get(value)
+        c = tickets.category(value)
         return c["name"] if c else value
     if field == "duration_sec" and isinstance(value, (int, float)):
         return "%d мин %02d с" % (value // 60, value % 60)

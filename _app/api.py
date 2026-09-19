@@ -171,7 +171,7 @@ def ticket_list(q, body, who):
             "tickets": tickets.ticket_list(limit=min(int(q.get("limit") or 500), 5000),
                                            only_open=q.get("open") == "1",
                                            date_from=frm, date_to=to),
-            "categories": tickets.CATEGORIES}
+            "categories": tickets.categories()}
 
 
 def orders_get(q, body, who):

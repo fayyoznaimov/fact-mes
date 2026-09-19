@@ -28,6 +28,7 @@ import cache
 import collector
 import changes
 import dashboard
+import doc_kinds
 import documents
 import hub
 import integration
@@ -151,6 +152,7 @@ GET_SECTIONS = {
     "/api/documents/get": tuple(auth.SECTIONS),
     "/api/documents/verify": tuple(auth.SECTIONS),
     "/api/rates": ("salary", "settings"),
+    "/api/reasons": ("settings", "tickets"),
     "/api/change_log": tuple(auth.SECTIONS),
     "/api/report_period": ("report",),
 }
@@ -382,7 +384,7 @@ class Handler(BaseHTTPRequestHandler):
                     "tickets": tickets.ticket_list(limit=int(q.get("limit", 80)),
                                                    only_open=q.get("open") == "1",
                                                    day=q.get("day")),
-                    "categories": tickets.CATEGORIES,
+                    "categories": tickets.categories("operator"),
                     "summary": tickets.summary(int(q.get("hours", 24))),
                     "can_edit": may(current_user(self), "tickets")})
             if u.path == "/api/shifts":
@@ -476,6 +478,10 @@ class Handler(BaseHTTPRequestHandler):
                 if u.path.endswith("verify"):
                     d = documents.verify(d["id"])
                 return self._send(200, d)
+            if u.path == "/api/reasons":
+                return self._send(200, {"reasons": tickets.categories(),
+                                        "categories": doc_kinds.REASON_CATEGORY,
+                                        "applies": doc_kinds.REASON_APPLIES})
             if u.path == "/api/rates":
                 db = storage.shop()
                 try:

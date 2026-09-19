@@ -203,6 +203,38 @@ class DocumentsTest(unittest.TestCase):
         ppt = [x for x in doc['looms'][0]['fields'] if x['field'] == 'ppt'][0]
         self.assertEqual((ppt['before'], ppt['after'], ppt['delta'], ppt['after_source']), (3000, 3200, 200, 'вручную'))
 
+    def test_reason_book_is_edited_by_document(self):
+        import tickets
+        names = {c['id']: c['name'] for c in tickets.categories()}
+        self.assertEqual(names['toir'], 'ТОиР')
+        self.assertEqual(tickets.category('toir')['category'], 'scheduled')
+        checked = documents.preview('reason', {'reason': {'id': 'toir', 'name': 'ТОиР и ремонт',
+                                                          'reason': 'ТОиР и ремонт', 'category': 'scheduled'}})
+        self.assertEqual([c['field'] for c in checked['changes']], ['name', 'reason'])
+        self.assertEqual((checked['changes'][0]['before'], checked['changes'][0]['after']), ('ТОиР', 'ТОиР и ремонт'))
+        documents.post('reason', {'reason': {'id': 'toir', 'name': 'ТОиР и ремонт',
+                                             'reason': 'ТОиР и ремонт', 'category': 'scheduled'}},
+                       checked['checksum'], 'admin')
+        self.assertEqual(tickets.category('toir')['name'], 'ТОиР и ремонт')
+        # Новая причина цеха: код проверяется, категория обязательна, изменений нет — ошибка.
+        bad = documents.preview('reason', {'reason': {'id': 'Обрыв', 'name': 'x'}})
+        self.assertTrue(any('код причины' in e for e in bad['errors']))
+        new = {'reason': {'id': 'water', 'name': 'Нет воды', 'category': 'unscheduled', 'applies': 'any'}}
+        checked = documents.preview('reason', new)
+        self.assertTrue(any('новая причина' in w for w in checked['warnings']))
+        documents.post('reason', new, checked['checksum'], 'admin')
+        self.assertEqual(tickets.category('water')['reason'], 'Нет воды')
+        self.assertIn('water', tickets.active_ids())
+        self.assertTrue(any('изменений нет' in e for e in documents.preview('reason', new)['errors']))
+        # Скрытая причина не предлагается, но старые тикеты её показывают.
+        off = {'reason': {'id': 'water', 'active': 0}}
+        checked = documents.preview('reason', off)
+        self.assertTrue(any('перестанут предлагать' in w for w in checked['warnings']))
+        documents.post('reason', off, checked['checksum'], 'admin')
+        self.assertNotIn('water', tickets.active_ids())
+        self.assertEqual(tickets.category('water')['name'], 'Нет воды')
+        self.assertNotIn('water', [c['id'] for c in tickets.categories('operator')])
+
     def test_unfinished_shift_is_error(self):
         checked = documents.preview('payroll', {'from': '2999.01.01', 'to': '2999.01.01'})
         self.assertTrue(any('не закончились' in e for e in checked['errors']))

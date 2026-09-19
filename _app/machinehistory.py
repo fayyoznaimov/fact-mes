@@ -15,7 +15,7 @@ from time import monotonic
 
 import storage
 from metrics import CAUSE_RU
-from tickets import CATEGORY_BY_ID
+import tickets
 
 TZ = timezone(timedelta(hours=5))  # Часовой пояс цеха — Ташкент, без переходов.
 MAX_EVENTS = 60000
@@ -264,7 +264,7 @@ def _load(day, period, selected):
                     continue
                 if b <= start or a >= min(end, now) or b <= a:
                     continue
-                cat = CATEGORY_BY_ID.get(t["category_id"], {})
+                cat = tickets.category(t["category_id"]) or {}
                 by_loom[t["loom"]]["tickets"].append({"id": t["id"], "start": a, "end": b,
                     "open": not t["ended_at"], "reason": cat.get("reason", "Причина не указана"),
                     "comment": t["comment"] or "", "cause": t["fact_cause"]})
