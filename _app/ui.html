@@ -1636,7 +1636,7 @@ window.addEventListener('mes-language-change',()=>{
 });
 
 let SHIFTS = [], OPERATORS = [], ME = null, PERMS = [], ROLES = {}, SECTIONS = [];
-const shiftLabel = s => `${s.day.replace(/\./g,"/")} · смена ${s.shift}`;
+const shiftLabel = s => `${fday(s.day)} · смена ${s.shift}`;
 const can = p => PERMS.includes(p);
 const canSection = id => SECTIONS.includes(id) && !['bottle','kpi'].includes(id);
 function syncActionControls(){
@@ -1756,7 +1756,7 @@ async function renderUsers(){
     $('#u-table tbody').innerHTML=USER_ROWS.map(u=>`<tr>
       <td data-i18n-skip>${esc(u.login)}</td><td data-i18n-skip>${esc(u.name)}</td><td>${esc(tr(ROLES[u.role]||u.role))}${u.employee_id?`<br><small class="note">${esc((OPERATORS.find(o=>o.id===u.employee_id)||{}).name||'сотрудник №'+u.employee_id)}</small>`:''}</td>
       <td>${tr(u.access_mode==='custom'?'Индивидуально':'По шаблону роли')} · ${(u.sections||[]).filter(x=>!['bottle','kpi'].includes(x)).length}</td>
-      <td>${tr(u.active?'Да':'Нет')}</td><td class="n">${u.last_login?esc(u.last_login.slice(0,16).replace('T',' ')):'—'}</td>
+      <td>${tr(u.active?'Да':'Нет')}</td><td class="n">${u.last_login?esc(ftime(u.last_login)):'—'}</td>
       <td><button class="act" data-user-edit="${u.id}">${tr('Изменить')}</button> <button class="act" data-pw="${u.id}">${tr('Пароль…')}</button> <button class="act" data-off="${u.id}" ${u.id===ME.id?'disabled':''}>${tr(u.active?'Отключить':'Включить')}</button></td></tr>`).join('');
   }catch(e){say('Список пользователей не загрузился: '+e.message,true);}
 }
@@ -2015,8 +2015,8 @@ async function loadPlan() {
           </div></td>
         <td class="n">${x.rate_per_day ? nf(x.rate_per_day) : "—"}</td>
         <td class="n">${x.days_left != null ? nf(x.days_left,1) : "—"}</td>
-        <td>${x.eta ? x.eta.replace(/\./g,"/") : "—"}</td>
-        <td>${x.due_day ? x.due_day.replace(/\./g,"/") : "—"}${
+        <td>${x.eta ? fday(x.eta) : "—"}</td>
+        <td>${x.due_day ? fday(x.due_day) : "—"}${
           x.late_days != null ? `<br><small class="${x.late_days>0?"bad":"ok"}">${
             x.late_days > 0 ? `отстаём на ${nf(x.late_days,1)} дн.` : "успеваем"}</small>` : ""}</td>
         ${x.plan ? `<td>${x.looms.map(l=>`<span title="по плану ${dmy(l.from_day)}–${dmy(l.to_day)}, ${l.days} дн.">${esc(l.loom)} <small>${nf(l.done)}</small></span>`).join(", ")}
@@ -2197,7 +2197,7 @@ async function loadLoomPlan() {
     LP.sel = new Set([...LP.sel].filter(k => { const [a, b] = lpIdx(k); return a != null && b != null; }));
     $("#lp-order-list").innerHTML = LP.cat.map(o => `<option value="${esc(o.order_no)}">${esc(o.product || "")}</option>`).join("");
     $("#lp-note").textContent = g.plan_from
-      ? `В плане дни ${dmy(g.plan_from)}–${dmy(g.plan_to)}.${g.plan_to.slice(0, 4)}, последняя правка ${(g.plan_loaded_at || "").slice(0, 16).replace("T", " ")}. Факт — по ${dmy(g.last_fact_day)}.`
+      ? `В плане дни ${dmy(g.plan_from)}–${dmy(g.plan_to)}.${g.plan_to.slice(0, 4)}, последняя правка ${ftime((g.plan_loaded_at || ""))}. Факт — по ${dmy(g.last_fact_day)}.`
       : "План пуст: перетащите заказы на станки или загрузите Excel TOYOTA - LOOM PLAN.";
     renderLP(); renderOrders(); renderCard();
   } catch (e) { say("План цеха не загрузился: " + e.message, true); }
@@ -2346,7 +2346,7 @@ function renderCard() {
       ${o.qty ? `<dt>К концу плана</dt><dd>≈${nf(o.expected)}${short > 0 ? ` <span class="bad">не хватит ${nf(short)}</span>` : ' <span class="ok">хватает</span>'}</dd>` : ""}
       ${o.cells ? `<dt>В плане</dt><dd>${dmy(o.first_day)}–${dmy(o.last_day)}, ${o.cells} ст.-дн.: ${o.looms.join(", ")}</dd>` : ""}
       ${o.unpicked ? `<dt>Без изделия</dt><dd class="bad">${o.unpicked} клеток — выберите изделие двойным щелчком по клетке</dd>` : ""}
-      ${o.loaded_at ? `<dt>Из 1С</dt><dd>${esc(o.loaded_at.slice(0, 16).replace("T", " "))}</dd>` : ""}
+      ${o.loaded_at ? `<dt>Из 1С</dt><dd>${esc(ftime(o.loaded_at))}</dd>` : ""}
     </dl>
     ${prods ? `<div class="tbl-wrap" style="max-height:42vh;margin-top:6px"><table class="lp-prods"><thead><tr>
         <th>Изделие</th><th class="n">GSM</th><th class="n">Шт</th><th class="n">PPT</th><th class="n">Вес</th><th class="n">Пан.</th>
@@ -2571,7 +2571,7 @@ async function loadOneC() {
   try {
     const r = await api("/api/onec/messages?limit=50");
     $("#oc-msgs tbody").innerHTML = r.messages.map(m => `<tr>
-      <td>${esc((m.received_at || "").slice(0, 16).replace("T", " "))}</td><td>${esc(m.who || "")}</td>
+      <td>${esc(ftime((m.received_at || "")))}</td><td>${esc(m.who || "")}</td>
       <td>${esc(m.action || "—")}</td><td style="white-space:normal;max-width:30ch">${esc(m.order_numbers || "—")}</td>
       <td class="${m.ok ? "ok" : "bad"}">${m.ok ? `принято: техкарт ${m.result ? m.result.cards : "—"}, новой пряжи ${m.result ? m.result.yarns_added || 0 : 0}` : esc(m.error || "ошибка")}</td>
       <td><button class="act" data-m="${m.id}" style="padding:2px 8px">Что прислали</button></td></tr>`).join("")
@@ -2582,7 +2582,7 @@ $("#oc-msgs").addEventListener("click", async e => {
   const b = e.target.closest("[data-m]"); if (!b) return;
   try {
     const m = await api("/api/onec/message?id=" + b.dataset.m);
-    $("#oc-dlg-t").textContent = `Сообщение 1С №${m.id} · ${(m.received_at || "").slice(0, 16).replace("T", " ")}`;
+    $("#oc-dlg-t").textContent = `Сообщение 1С №${m.id} · ${ftime((m.received_at || ""))}`;
     $("#oc-json").textContent = JSON.stringify({ прислали: m.payload, ответили: m.result || { error: m.error } }, null, 2);
     $("#oc-dlg").showModal();
   } catch (err) { say("Не открылось: " + err.message, true); }
@@ -2688,7 +2688,7 @@ function renderTickets() {
   const edit = TK_EDIT, shown = rows.slice(0, TK_SHOW);
   $("#tk-table tbody").innerHTML = shown.map(r => `<tr>
     <td>${esc(r.loom)} <button class="act" data-ticket-audit="${r.id}" title="История тикета">№ ${r.id}</button></td>
-    <td class="n">${r.started_at.slice(5,16).replace("T"," ")}</td>
+    <td class="n">${ftime(r.started_at).slice(0,5) + ftime(r.started_at).slice(10)}</td>
     <td>${esc((r.shift || "").slice(-1))}</td>
     <td class="n">${dur(r.duration_sec)}</td>
     <td>${esc(r.cause_ru || "—")}</td>
@@ -2710,7 +2710,7 @@ $("#tk-table tbody").onclick = async e => {
     const r = TK_ROWS.find(x => String(x.id) === cls.dataset.cls); if (!r) return;
     TK_PICK = r;
     $("#tk-cat-title").textContent = `Причина простоя · ${r.loom} · № ${r.id}`;
-    $("#tk-cat-info").textContent = `${r.started_at.slice(5,16).replace("T"," ")}, простой ${dur(r.duration_sec)}. Станок сообщает: ${r.cause_ru || "—"}.`;
+    $("#tk-cat-info").textContent = `${ftime(r.started_at).slice(0,5) + ftime(r.started_at).slice(10)}, простой ${dur(r.duration_sec)}. Станок сообщает: ${r.cause_ru || "—"}.`;
     $("#tk-cat-list").innerHTML = TK_CATS.map(x => `<button type="button" class="act${x.id === r.category_id ? " primary" : ""}" data-pick="${esc(x.id)}">${esc(x.name)}</button>`).join("");
     return $("#tk-cat-dlg").showModal();
   }
@@ -2748,6 +2748,10 @@ tickShift(); setInterval(tickShift, 20000);
 /* --- сводка ручных остановов: как Manual Stoppages Summary в LDS --- */
 let MN_SEQ = 0;
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+// Дата и время на экране — одним видом: «24.09.2026», «24.09.2026 16:12». Раньше
+// встречались 2026/09/24, 2026.09.24, 09-24 16:12 и 2026-09-24 15:06.
+const fday = v => { const m = String(v ?? "").match(/^(\d{4})[-./](\d\d)[-./](\d\d)/); return m ? `${m[3]}.${m[2]}.${m[1]}` : String(v ?? ""); };
+const ftime = v => { const m = String(v ?? "").match(/^(\d{4})[-./](\d\d)[-./](\d\d)[T ](\d\d:\d\d)/); return m ? `${m[3]}.${m[2]}.${m[1]} ${m[4]}` : fday(v); };
 const hms = s => { if (s == null) return "—"; s = Math.round(s);
   const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60;
   return h ? `${h}:${String(m).padStart(2,"0")}:${String(x).padStart(2,"0")}` : `${m}:${String(x).padStart(2,"0")}`; };
@@ -2789,7 +2793,7 @@ async function loadManual() {
       + `<td class="n">${nf(r.shed_eff,1)}</td><td class="n${paintEff(r.time_eff)}">${nf(r.time_eff,1)}</td>`
       + `<td class="n">${nf(r.prod_eff,1)}</td><td class="n">${nf(r.stop_pct,1)}</td>` + cells(r);
     $("#mn-table tbody").innerHTML = d.rows.map(r =>
-      `<tr>${line(r, d.group === "day" ? r.key.replace(/\./g, "/") : esc(r.key))}</tr>`).join("")
+      `<tr>${line(r, d.group === "day" ? fday(r.key) : esc(r.key))}</tr>`).join("")
       || `<tr><td class="note" colspan="${6 + cols.length * 4}">За период нет данных</td></tr>`;
     $("#mn-table tfoot").innerHTML = `<tr>${line(t, "Итого")}</tr>`;
   } catch (e) { say("Сводка ручных остановов не загрузилась: " + e.message, true); }
@@ -2805,7 +2809,7 @@ function renderClothMap(d) {
       <td><b>${esc(u.cloth)}</b>${u.variants > 1
         ? ` <small class="note">и ещё ${u.variants - 1} написания</small>` : ""}</td>
       <td>${esc(u.looms.join(", "))}</td>
-      <td class="n">${nf(u.rows)}</td><td>${esc((u.last_day || "").replace(/\./g, "/"))}</td>
+      <td class="n">${nf(u.rows)}</td><td>${esc(fday((u.last_day || "")))}</td>
       <td><input size="24" list="pl-products" data-cm-in="${i}" placeholder="артикул 1С" autocomplete="off">
         <button class="act" data-cm-save="${i}">Связать</button></td></tr>`).join("")
     || `<tr><td colspan="5" class="note">Все коды ткани за две недели опознаны.</td></tr>`;
@@ -2855,7 +2859,7 @@ async function loadKeys() {
       <td>${esc(k.name)}</td><td class="n">${esc(k.prefix)}…</td>
       <td>${esc(k.scopes.split(" ").map(s => scopes[s] || s).join(", "))}</td>
       <td class="n">${esc((k.created_at || "").slice(0, 16))}</td>
-      <td class="n">${k.last_used_at ? esc(k.last_used_at.slice(0, 16).replace("T", " ")) : "—"}</td>
+      <td class="n">${k.last_used_at ? esc(ftime(k.last_used_at)) : "—"}</td>
       <td>${k.active ? `<button class="act" data-revoke="${k.id}">Отозвать</button>` : "отозван"}</td></tr>`).join("")
       || `<tr><td colspan="6" class="note">Ключей пока нет.</td></tr>`;
     document.querySelectorAll("[data-revoke]").forEach(b => b.onclick = async () => {
@@ -2914,7 +2918,7 @@ async function boot() {
     SHIFTS = sh.shifts; OPERATORS = ops.operators;
     const shOpts = SHIFTS.map((s,i)=>`<option value="${i}">${shiftLabel(s)}</option>`).join("");
     $("#sal-shift").innerHTML = shOpts;
-    const dayOpts = days.days.map(d=>`<option value="${d}">${d.replace(/\./g,"/")}</option>`).join("");
+    const dayOpts = days.days.map(d=>`<option value="${d}">${fday(d)}</option>`).join("");
     $("#rep-day").innerHTML = dayOpts;
     $("#dash-day").innerHTML = dayOpts;
     // «Простои»: сводка по причинам и обход смены
@@ -3015,7 +3019,7 @@ async function openSetup(loom) {
   const val = (k, ref) => s[k] != null && s[k] !== "" ? s[k] : (ref == null || ref === "0" ? "" : ref);
   $("#ls-title").textContent = `Заправка станка ${loom}` + (r.cloth ? ` · ${r.cloth}` : "");
   $("#ls-note").textContent = r.setup
-    ? `Сейчас действует запись с ${r.setup.from_day.replace(/\./g, "/")} (ввёл ${r.setup.set_by || "—"}).`
+    ? `Сейчас действует запись с ${fday(r.setup.from_day)} (ввёл ${r.setup.set_by || "—"}).`
     : "Вручную по этому станку ещё не вводили — в полях значения из справочника, их можно поправить.";
   $("#ls-from").value = $("#rep-day").value.replace(/\./g, "-");
   $("#ls-design").value = val("design", r.design);
@@ -3525,7 +3529,7 @@ function renderGrid() {
     .forEach(x => { x.checked = e.target.checked; });
   document.querySelectorAll("#sg-table input.sg").forEach(i => { if (SG_COLS[+i.dataset.c].yarn) sgCheckYarn(i); });
   $("#sg-note-day").textContent = SG.report_day && SG.report_day !== SG.day
-    ? `Справочные значения — из отчёта за ${SG.report_day.replace(/\./g, "/")}.` : "";
+    ? `Справочные значения — из отчёта за ${fday(SG.report_day)}.` : "";
   ["#sg-save", "#sg-fill", "#sg-row", "#sg-undo"].forEach(s => { $(s).disabled = !edit; });
   sgState();
   const gh = $("#sg-table tr.grp").offsetHeight;          // вторая строка шапки прилипает под первой
@@ -3918,8 +3922,8 @@ async function loadAssign() {
     ["#as-save", "#as-apply", "#as-prev", "#as-fact"].forEach(s => { $(s).disabled = !edit; });
     $("#as-confirm").textContent = locked ? "Открыть для правки" : "Утвердить";
     $("#as-confirm").disabled = !can("assign");
-    const when = t => t ? t.slice(0, 16).replace("T", " ") : "";
-    $("#as-status").innerHTML = `<b>Расстановка смены ${AS_SH} за ${day.replace(/\./g, "/")}</b> · ${d.hours} · `
+    const when = t => t ? ftime(t) : "";
+    $("#as-status").innerHTML = `<b>Расстановка смены ${AS_SH} за ${fday(day)}</b> · ${d.hours} · `
       + (locked ? `<span class="ok">утверждена</span> ${esc(doc.confirmed_by || "")} ${when(doc.confirmed_at)}` : "черновик")
       + (doc.source ? ` · заполнена: ${esc(doc.source)}` : "")
       + (doc.updated_by ? ` · правил ${esc(doc.updated_by)} ${when(doc.updated_at)}` : "");
@@ -3974,7 +3978,7 @@ const asFill = how => async () => {
     const r = await api("/api/shift_doc/fill", {day: dash2dot($("#as-day").value), shift: AS_SH, how});
     say(how === "fact" ? `Из FACT: станков ${r.found}, назначено ${r.assigned}`
           + (r.no_operator && r.no_operator.length ? `; нет в справочнике: ${r.no_operator.length}` : "")
-        : `Взято из смены ${AS_SH} за ${r.from.replace(/\./g, "/")}`);
+        : `Взято из смены ${AS_SH} за ${fday(r.from)}`);
     loadAssign();
   } catch (e) { say("Не заполнилось: " + e.message, true); }
 };
@@ -3995,7 +3999,7 @@ async function loadDocs(day) {
         + `${x.status === "confirmed" ? "✓ утверждена" : "черновик"}</button> <small class="note">`
         + `${x.foreman_name ? esc(x.foreman_name) + " · " : ""}${x.looms} ст., ${x.operators} опер.</small></td>`;
     };
-    $("#as-docs tbody").innerHTML = days.map(dd => `<tr><td>${dd.replace(/\./g, "/")}</td>`
+    $("#as-docs tbody").innerHTML = days.map(dd => `<tr><td>${fday(dd)}</td>`
       + ["A", "B", "C"].map(sh => cell(dd, sh)).join("") + `</tr>`).join("")
       || `<tr><td colspan="4" class="note">Документов пока нет.</td></tr>`;
     document.querySelectorAll("[data-doc]").forEach(b => b.onclick = () => {
@@ -4022,7 +4026,7 @@ h1{font-size:18px;margin:0 0 10px}p{margin:4px 0}table{border-collapse:collapse;
 th,td{border:1px solid #555;padding:5px 7px;text-align:left;vertical-align:top}th{background:#eee}
 td.n{text-align:right}td.sig{width:26%}.st{margin-top:12px;color:#333}
 .signs{display:flex;justify-content:space-between;gap:20px;margin-top:30px}</style>
-<h1>Расстановка смены ${AS_SH} · ${c.day.replace(/\./g, "/")} · ${AS.hours}</h1>
+<h1>Расстановка смены ${AS_SH} · ${fday(c.day)} · ${AS.hours}</h1>
 <p>Мастер смены: <b>${c.foreman_id ? person(c.foreman_id) : "—"}</b></p>
 <p>Мастерицы: <b>${c.masters.map(person).join(", ") || "—"}</b></p>
 <table><thead><tr><th>Оператор</th><th>Станки</th><th>Станков</th><th>Подпись</th></tr></thead>
@@ -4030,7 +4034,7 @@ td.n{text-align:right}td.sig{width:26%}.st{margin-top:12px;color:#333}
 ${free.length ? `<p style="margin-top:10px">Без оператора: ${esc(free.join(", "))}</p>` : ""}
 ${c.note ? `<p>Примечание: ${esc(c.note)}</p>` : ""}
 <p class="st">${doc.status === "confirmed"
-    ? `Утверждено: ${esc(doc.confirmed_by || "")} ${(doc.confirmed_at || "").slice(0, 16).replace("T", " ")}`
+    ? `Утверждено: ${esc(doc.confirmed_by || "")} ${ftime((doc.confirmed_at || ""))}`
     : "Черновик — не утверждено"}</p>
 <div class="signs"><span>Мастер смены ______________________</span><span>Мастерица ______________________</span></div>`;
   const w = window.open("", "_blank");
@@ -4168,7 +4172,7 @@ $("#rep-excel").onclick = async () => {
     const r = await api("/api/export_excel", { day });
     if (!r.ok) throw new Error(r.log || "не собралось");
     location.href = "/api/excel?day=" + encodeURIComponent(day);
-    say("Excel за " + day.replace(/\./g,"/") + " готов");
+    say("Excel за " + fday(day) + " готов");
   } catch (e) { say("Excel не собрался: " + e.message, true); }
   btn.disabled = false; btn.textContent = "Скачать Excel";
 };
@@ -4180,9 +4184,9 @@ async function loadRates(){
     $('#set-rate').value=r.rate; $('#set-unit').value=r.unit;
     if(!$('#set-from').value)$('#set-from').value=r.day.replace(/\./g,'-');
     $('#set-rates tbody').innerHTML=r.periods.map(p=>`<tr${p.status==='cancelled'?' style="opacity:.55"':''}>
-      <td>${esc(p.valid_from.replace(/\./g,'/'))}</td><td class="n">${nf(p.rate,2)}</td><td>${p.unit==='kpick'?'за 1000 пиков':'за пик'}</td>
+      <td>${esc(fday(p.valid_from))}</td><td class="n">${nf(p.rate,2)}</td><td>${p.unit==='kpick'?'за 1000 пиков':'за пик'}</td>
       <td>${p.doc_id?`<button class="act" data-doc="${p.doc_id}">${esc(p.number)}</button> ${docStatus(p.status)}`:'<span class="note">начальная настройка</span>'}</td>
-      <td>${esc(p.set_by)}</td><td>${esc(archiveTime(p.set_at).slice(0,16))}</td></tr>`).join('');
+      <td>${esc(p.set_by)}</td><td>${esc(ftime(p.set_at))}</td></tr>`).join('');
   }catch(e){say(e.message,true);}
 }
 $("#set-save").onclick = async () => {
@@ -4707,7 +4711,7 @@ $('#rp-go').onclick=async()=>{
   try{
     const r=await api('/api/report_period?'+new URLSearchParams({from,to}));
     const t=r.totals;
-    $('#archive-title').textContent=`Производственный отчёт ${from.replace(/\./g,'/')} – ${to.replace(/\./g,'/')}`;
+    $('#archive-title').textContent=`Производственный отчёт ${fday(from)} – ${fday(to)}`;
     $('#archive-body').innerHTML=docTiles(DOC_VIEW.report,{summary:{looms:t.looms,days:t.days,effic:t.effic,towels:t.towels,kg:t.kg}})+
       (r.days_without_report.length?`<p class="note">Дневной отчёт не собран: ${esc(r.days_without_report.join(', '))} — нет изделия и килограммов.</p>`:'')+
       '<p class="note">КПД, пики и ряды — из смен Toyota; изделие, панели и килограммы — из дневного отчёта каждого дня.</p>'+

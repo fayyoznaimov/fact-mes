@@ -78,6 +78,10 @@ a{color:var(--accent)}
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+// Дата и время на экране — одним видом: «24.09.2026», «24.09.2026 16:12». Раньше
+// встречались 2026/09/24, 2026.09.24, 09-24 16:12 и 2026-09-24 15:06.
+const fday = v => { const m = String(v ?? "").match(/^(\d{4})[-./](\d\d)[-./](\d\d)/); return m ? `${m[3]}.${m[2]}.${m[1]}` : String(v ?? ""); };
+const ftime = v => { const m = String(v ?? "").match(/^(\d{4})[-./](\d\d)[-./](\d\d)[T ](\d\d:\d\d)/); return m ? `${m[3]}.${m[2]}.${m[1]} ${m[4]}` : fday(v); };
 const REFRESH = 20000;
 const Q = new URLSearchParams(location.search);
 const DAY = (Q.get("day") || "").trim();
@@ -169,12 +173,12 @@ async function load() {
     $("#c-stop").textContent = rows.filter(r => r.state === "stop").length;
     $("#c-op").textContent = rows.filter(r => r.operator).length;
     $("#c-picks").textContent = Math.round(rows.reduce((s, r) => s + (r.picks_total || 0), 0));
-    $("#head-sub").textContent = `${d.day.replace(/\./g,"/")}`
+    $("#head-sub").textContent = `${fday(d.day)}`
       + (d.shift ? ` · смена ${d.shift}` : "") + ` · станков ${rows.length}`;
     $("#foot").textContent = `${d.source === 'fact' ? 'Источник: FACT' : 'Источник: зеркало'} · ${d.stale ? 'ДАННЫЕ УСТАРЕЛИ' : 'возраст снимка: ' + nf(d.snapshot_age_sec) + ' с'}`
       + ` · тикет ждём со ${d.ticket_wait_min} мин простоя`
       + ' · Общие средние — по всем станкам с данными смены, включая стоящие (0 при отсутствии работы), без влияния фильтра. RPM станка = пики / минуты работы; выработка = полотенца / часы работы и простоя.'
-      + ` · выработка и обрывы за ${d.day.replace(/\./g,"/")}`
+      + ` · выработка и обрывы за ${fday(d.day)}`
       + (d.operators_from_fact ? ` · операторов из FACT: ${d.operators_from_fact}` : "");
   } catch (e) {
     $("#foot").textContent = "Сервер не ответил: " + e.message;
