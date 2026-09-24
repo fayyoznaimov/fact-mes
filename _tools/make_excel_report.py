@@ -288,9 +288,19 @@ def build(day):
         })
 
     out.sort(key=lambda r: r["weft_total"], reverse=True)     # как в вашем файле
-    for i, r in enumerate(out, 1):
+    # Sr# в ручном отчёте — постоянный номер станка, а не место в сортировке:
+    # J1…J28 — 1…28, D1…D12 — 29…40.
+    order = sorted(out, key=lambda r: loom_key(r["loom"]))
+    for i, r in enumerate(order, 1):
         r["sr"] = i
     return out
+
+
+def loom_key(loom):
+    m = re.match(r"([A-Za-z]*)(\d+)", loom or "")
+    if not m:
+        return (9, 0, loom or "")
+    return ({"J": 0, "D": 1}.get(m.group(1).upper(), 2), int(m.group(2)), loom)
 
 
 def save_db(day, rows):
