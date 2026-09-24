@@ -1,64 +1,72 @@
 <title>Карточки станков</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
+/* Карточки станков — тот же язык, что приложение (ISA-101): серый спокойный фон,
+   цвет только у отклонений. Стоящий станок — красная полоса и плашка времени. */
 :root{
-  --bg:#f6f8fb; --card:#fff; --rule:#dbe2ea; --ink:#182333; --muted:#53647a;
-  --run:#16803c; --stop:#bd3028; --warn:#945700; --accent:#725700; --link:#175fc0;
+  --bg:#e8ecf0; --card:#fff; --rule:#dde2e8; --rule-2:#c3cbd4; --ink:#151d26; --ink-2:#3f4b58; --muted:#6a7582;
+  --run:#2e7d4f; --stop:#c62828; --warn:#a36f00; --chrome:#1d2631; --accent:#1f5fa8;
   --font:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
-  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font)}
-header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:10px 16px;
-       border-bottom:1px solid var(--rule);background:var(--card)}
-h1{margin:0;font-size:17px;font-weight:600}
-.sub{color:var(--muted);font-size:13px}
-.counts{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
-.count{border:1px solid var(--rule);border-radius:3px;padding:4px 10px;min-width:86px;background:var(--card)}
-.count b{display:block;font-family:var(--mono);font-size:19px;line-height:1.1;font-variant-numeric:tabular-nums}
-.count span{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.count.run b{color:var(--run)} .count.stop b{color:var(--stop)}
-main{padding:12px 16px 30px}
-.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(330px,1fr))}
-.card{background:var(--card);border:1px solid var(--rule);border-left:5px solid var(--rule);
-      padding:10px 12px 11px;display:flex;flex-direction:column;gap:3px}
-.card.run{border-left-color:var(--run)}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 var(--font)}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px 18px;flex-wrap:wrap;padding:10px 18px;
+  background:var(--card);border-bottom:1px solid var(--rule-2)}
+h1{margin:0;font-size:18px;font-weight:600}
+.sub{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+header label{font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center}
+select{font:inherit;font-size:13px;min-height:32px;padding:4px 8px;border:1px solid var(--rule-2);border-radius:4px;background:var(--card);color:var(--ink)}
+.counts{display:flex;margin-left:auto;flex-wrap:wrap;border:1px solid var(--rule);border-radius:4px;background:var(--card)}
+.count{padding:6px 14px;border-right:1px solid var(--rule);min-width:90px}
+.count:last-child{border-right:0}
+.count b{display:block;font-size:20px;line-height:1.15;font-weight:600;font-variant-numeric:tabular-nums}
+.count span{font-size:11px;color:var(--muted)}
+.count.stop b{color:var(--stop)}
+main{padding:14px 18px 30px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.card{background:var(--card);border:1px solid var(--rule);border-left:4px solid var(--rule-2);border-radius:4px;
+  padding:12px 14px;display:flex;flex-direction:column;gap:8px}
 .card.stop{border-left-color:var(--stop)}
-.card.none{border-left-color:var(--muted)}
-.top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:2px}
-.name{font-size:25px;font-weight:600;line-height:1;letter-spacing:-.01em}
-.model{font-size:11px;color:var(--muted)}
-.status{margin-left:auto;font-size:13px;font-weight:600}
-.card.run .status{color:var(--run)} .card.stop .status{color:var(--stop)}
-.row{display:flex;gap:8px;align-items:baseline;font-size:13px;line-height:1.35}
-.row .k{color:var(--ink)}
-.row .v{color:var(--muted);font-family:var(--mono);font-variant-numeric:tabular-nums}
-.row .v.big{color:var(--ink)}
-.row.dim{color:var(--muted)} .row.dim .k{color:var(--muted)}
-.row.tick .k,.row.tick .v{color:var(--warn)}
-.stops{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin-top:2px}
-.stops span b{font-family:var(--mono);color:var(--muted);font-weight:500;margin-left:4px}
-.gold{color:var(--accent);font-weight:600;font-size:13px}
-.gold .v{font-family:var(--mono);color:var(--accent)}
-.shifts{display:flex;gap:12px;flex-wrap:wrap;color:var(--accent);font-weight:600;font-size:13px}
-.shifts b{font-family:var(--mono);font-weight:500}
-.sep{border-top:1px solid var(--rule);margin:4px 0 2px}
-footer{padding:8px 16px 18px;color:var(--muted);font-size:12px}
-a{color:var(--link)}
+.card.wait{box-shadow:inset 0 0 0 1px var(--stop)}
+.top{display:flex;align-items:center;gap:10px}
+.name{font-size:24px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
+.model{font-size:12px;color:var(--muted)}
+.status{margin-left:auto;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.status::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.card.run .status{color:var(--run)} .card.run .status::before{background:var(--run)}
+.card.stop .status{color:#fff;background:var(--stop);padding:3px 8px;border-radius:4px}
+.card.stop .status::before{background:#fff}
+.alert{font-size:13px;font-weight:600;color:var(--stop)}
+dl{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;margin:0;font-size:13px}
+dt{color:var(--muted)}
+dd{margin:0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+dd small{color:var(--muted)}
+.kpi{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+.kpi div{padding:6px 0 5px}
+.kpi div + div{padding-left:10px;border-left:1px solid var(--rule)}
+.kpi b{display:block;font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
+.kpi span{font-size:11px;color:var(--muted)}
+.stops{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;font-size:12px;color:var(--muted)}
+.stops b{display:block;color:var(--ink);font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+.out{display:flex;gap:6px 14px;flex-wrap:wrap;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.out b{color:var(--ink);font-weight:600}
+footer{padding:8px 18px 18px;color:var(--muted);font-size:12px;max-width:120ch}
+a{color:var(--accent)}
+@media (max-width:600px){.counts{margin-left:0}}
 </style>
 
 <header>
   <h1>Карточки станков</h1>
   <div class="sub" id="head-sub">—</div>
-  <label>Показывать <select id="ticket-filter"><option value="all">Все станки</option><option value="waiting">Ожидают тикета</option></select></label>
+  <label>Показывать <select id="ticket-filter"><option value="all">все станки</option><option value="waiting">ожидают тикета</option></select></label>
   <div class="counts">
     <div class="count run"><b id="c-run">—</b><span>работает</span></div>
     <div class="count stop"><b id="c-stop">—</b><span>стоит</span></div>
     <div class="count"><b id="c-op">—</b><span>с оператором</span></div>
     <div class="count"><b id="c-picks">—</b><span>тыс. пиков</span></div>
-    <div class="count"><b id="c-avg-rpm">—</b><span>средняя RPM · весь цех</span></div>
-    <div class="count"><b id="c-avg-output">—</b><span>средняя выработка · полотенец/ч на станок</span></div>
-    <div class="count"><b id="c-avg-eff">—</b><span>средний КПД смены · весь цех</span></div>
+    <div class="count"><b id="c-avg-rpm">—</b><span>средние об/мин, цех</span></div>
+    <div class="count"><b id="c-avg-output">—</b><span>полотенец в час на станок</span></div>
+    <div class="count"><b id="c-avg-eff">—</b><span>КПД смены, цех</span></div>
   </div>
 </header>
 
@@ -91,51 +99,40 @@ const nf = (x, d = 0) => (x == null || x === "") ? "-"
   : Number(x).toLocaleString("ru-RU", {minimumFractionDigits: d, maximumFractionDigits: d});
 const dash = v => (v == null || v === "") ? "-" : v;
 
+const hm = m => m == null ? "—" : m >= 60 ? `${Math.floor(m / 60)} ч ${m % 60} мин` : `${m} мин`;
 function card(r) {
   const st = r.state === "run" ? "run" : r.state === "stop" ? "stop" : "none";
-  const status = r.state === "run" ? "Работает"
-    : r.state === "stop" ? `Текущий останов: ${r.state_min != null ? (r.state_min >= 60 ? Math.floor(r.state_min / 60) + " ч " + r.state_min % 60 + " мин" : r.state_min + " мин") : "—"}`
-    : "Не определено";
+  const status = st === "run" ? "Работает" : st === "stop" ? `Стоит ${hm(r.state_min)}` : "Нет данных";
   const op = r.operator;
-  return `<div class="card ${st}">
+  return `<div class="card ${st}${r.awaiting_ticket ? " wait" : ""}">
     <div class="top">
       <span class="name">${r.label}</span>
       <span class="model">${r.model || ""}</span>
       <span class="status">${status}</span>
     </div>
-
-    <div class="row"><span class="k">Reason</span>
-      <span class="v big">${r.cause_en} | ${r.cause_ru}</span></div>
-    <div class="row"><span class="k">Operator</span>
-      <span class="v big">${op ? `${op.name}${op.code ? " " + op.code : ""}` : "-"}</span>
-      ${op && op.source === "FACT" ? '<span class="v" style="font-size:11px">из FACT</span>' : ""}</div>
-    ${r.awaiting_ticket ? '<div class="row tick"><b>Ожидает тикета: стоит без причины</b></div>' : ''}
-    <div class="row"><span class="k">КПД смены</span><span class="v big">${nf(r.efficiency_pct,1)}%</span></div>
-    <div class="row"><span class="k">RPM сейчас</span><span class="v">${nf(r.rpm)}</span></div>
-    <div class="row"><span class="k">Design</span><span class="v">${dash(r.design)}</span></div>
-    <div class="row"><span class="k">Cloth_name</span><span class="v">${dash(r.cloth_name)}</span></div>
-    <div class="row ${r.ticket ? "tick" : "dim"}"><span class="k">Tiket:</span>
-      <span class="v">${r.ticket ? `${r.ticket.ru} | ${r.ticket.en}` : "-"}</span></div>
-
-    <div class="stops">
-      <span>Уток<b>${nf(r.weft_ct)} / ${nf(r.weft_stop_min,1)} мин</b></span>
-      <span>Основа<b>${nf(r.warp_g_ct)} / ${nf(r.warp_stop_min,1)} мин</b></span>
-      <span>Ворс<b>${nf(r.warp_p_ct)} / ${nf(r.pile_stop_min,1)} мин</b></span>
+    ${r.awaiting_ticket ? '<div class="alert">Ждёт тикета: стоит без причины</div>' : ""}
+    <dl>
+      ${st === "stop" ? `<dt>Причина</dt><dd>${r.cause_ru || "—"}</dd>` : ""}
+      ${r.ticket ? `<dt>Тикет</dt><dd>${r.ticket.ru}</dd>` : ""}
+      <dt>Оператор</dt><dd>${op ? `${op.name}${op.code ? " " + op.code : ""}${op.source === "FACT" ? " <small>из FACT</small>" : ""}` : "—"}</dd>
+      <dt>Дизайн</dt><dd>${dash(r.design)}</dd>
+      <dt>Ткань</dt><dd>${dash(r.cloth_name)}</dd>
+      <dt>Остаток основы</dt><dd>${nf(r.remaining_m)} м${r.beam_length_m ? ` <small>из ${nf(r.beam_length_m)}</small>` : ""}</dd>
+    </dl>
+    <div class="kpi">
+      <div><b>${nf(r.efficiency_pct,1)}%</b><span>КПД смены</span></div>
+      <div><b>${nf(r.rpm)}</b><span>об/мин сейчас</span></div>
+      <div><b>${nf(r.stop_min,0)}</b><span>мин простоя · ${nf(r.stops_total)} ост.</span></div>
     </div>
-    <div class="row"><span class="k">Остановов за смену</span><span class="v big">${nf(r.stops_total)}</span></div>
-    <div class="row"><span class="k">Простой за смену</span><span class="v big">${nf(r.stop_min,1)} мин</span></div>
-    <div class="row"><span class="k">Remaining Length</span>
-      <span class="v big">${nf(r.remaining_m)}</span><span class="k">м</span>
-      ${r.beam_length_m ? `<span class="v" style="font-size:11px">из ${nf(r.beam_length_m)}</span>` : ""}</div>
-
-    <div class="sep"></div>
-    <div class="row gold"><span>Manufacture, pick</span><span class="v">${nf(r.picks_total,1)} тыс.</span></div>
-    <div class="row gold"><span>Полотенец</span><span class="v">${nf(r.towels)}</span>
-      ${r.panels > 1 ? `<span class="v" style="font-size:11px">${nf(r.rows_woven)} рядов × ${r.panels}</span>` : ""}</div>
-    <div class="shifts">
-      <span>shift A <b>${nf(r.shift_a,1)}</b></span>
-      <span>shift B <b>${nf(r.shift_b,1)}</b></span>
-      <span>shift C <b>${nf(r.shift_c,1)}</b></span>
+    <div class="stops">
+      <span>Уток<b>${nf(r.weft_ct)} · ${nf(r.weft_stop_min,0)} мин</b></span>
+      <span>Основа<b>${nf(r.warp_g_ct)} · ${nf(r.warp_stop_min,0)} мин</b></span>
+      <span>Ворс<b>${nf(r.warp_p_ct)} · ${nf(r.pile_stop_min,0)} мин</b></span>
+    </div>
+    <div class="out">
+      <span>Пиков <b>${nf(r.picks_total,1)} тыс.</b></span>
+      <span>Полотенец <b>${nf(r.towels)}</b>${r.panels > 1 ? ` (${nf(r.rows_woven)} × ${r.panels})` : ""}</span>
+      <span>A <b>${nf(r.shift_a,1)}</b> B <b>${nf(r.shift_b,1)}</b> C <b>${nf(r.shift_c,1)}</b></span>
     </div>
   </div>`;
 }
@@ -168,7 +165,7 @@ async function load() {
     $("#head-sub").textContent = `${d.day.replace(/\./g,"/")}`
       + (d.shift ? ` · смена ${d.shift}` : "") + ` · станков ${rows.length}`;
     $("#foot").textContent = `${d.source === 'fact' ? 'Источник: FACT' : 'Источник: зеркало'} · ${d.stale ? 'ДАННЫЕ УСТАРЕЛИ' : 'возраст снимка: ' + nf(d.snapshot_age_sec) + ' с'}`
-      + ` · ручной останов ожидает тикета от ${d.ticket_wait_min} мин`
+      + ` · тикет ждём со ${d.ticket_wait_min} мин простоя`
       + ' · Общие средние — по всем станкам с данными смены, включая стоящие (0 при отсутствии работы), без влияния фильтра. RPM станка = пики / минуты работы; выработка = полотенца / часы работы и простоя.'
       + ` · выработка и обрывы за ${d.day.replace(/\./g,"/")}`
       + (d.operators_from_fact ? ` · операторов из FACT: ${d.operators_from_fact}` : "");

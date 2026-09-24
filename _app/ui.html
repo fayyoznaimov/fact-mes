@@ -8,16 +8,20 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" media="print" onload="this.media='all'">
 <style>
 :root{
-  /* Холодный серый суровья и индиго красителя: цвета цеха, а не «тёплый крем» шаблонов */
+  /* Промышленный интерфейс по ISA-101: спокойный стальной серый, цвет — только
+     у отклонений (стоит, тревога, нет причины), чтобы красное было видно сразу. */
   color-scheme:light;
-  --page:#ffffff; --surface:#ffffff; --surface-2:#f5f7fa; --ink:#16202b; --ink-2:#465262;
-  --muted:#6b7683; --hair:#e1e5ea; --rule:#c7ced6; --accent:#2f5fd0;
-  --s1:#2f5fd0; --s2:#eb6834; --s3:#1baf7a; --good:#138a4b; --critical:#c8362e;
-  --warn:#b7791f; --change:#eaf0fd;
+  --page:#e8ecf0; --surface:#ffffff; --surface-2:#f3f5f8; --ink:#151d26; --ink-2:#3f4b58;
+  --muted:#6a7582; --hair:#dde2e8; --rule:#c3cbd4; --accent:#1f5fa8;
+  --s1:#1f5fa8; --s2:#d9652b; --s3:#2e8a64; --good:#2e7d4f; --critical:#c62828;
+  --warn:#c98a00; --change:#e6eefa;
+  --chrome:#1d2631; --chrome-2:#273241; --chrome-ink:#c3cdd8; --chrome-mute:#7f8c99;
+  --ctl:32px; --radius:4px;
 }
 :root[data-theme="dark"]{
-  --page:#11151a; --surface:#181d23; --surface-2:#1f262d; --ink:#eef2f6; --ink-2:#b6c0cb;
-  --muted:#8994a0; --hair:#262e36; --rule:#36414c; --accent:#4a78e8;
+  --page:#0f1318; --surface:#171c22; --surface-2:#1e252c; --ink:#eef2f6; --ink-2:#b6c0cb;
+  --muted:#8994a0; --hair:#262e36; --rule:#36414c; --accent:#4a86d8;
+  --chrome:#0b0f13; --chrome-2:#18202a;
   --s1:#4a78e8; --s2:#d95926; --s3:#199e70; --good:#3fbf7a; --critical:#ef6a60;
   --warn:#e0a43a; --change:#1d2942;
 }
@@ -91,7 +95,7 @@ th,td{padding:6px 8px;text-align:left;border-bottom:1px solid var(--hair);white-
 th{position:sticky;top:0;background:var(--surface);font-size:12px;color:var(--ink-2);font-weight:600;z-index:1}
 thead tr.grp th{top:0;background:var(--surface-2);text-align:center;color:var(--ink-2);border-bottom:1px solid var(--rule)}
 thead tr.cols th{top:26px}
-th.n,td.n{text-align:right;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+th.n,td.n{text-align:right;font-variant-numeric:tabular-nums}
 td.sep,th.sep{border-left:1px solid var(--rule)}
 tbody tr:hover{background:var(--surface-2)}
 tfoot td{position:sticky;bottom:0;font-weight:600;background:var(--surface-2);border-top:2px solid var(--rule)}
@@ -465,6 +469,80 @@ dialog.gt-dlg{width:min(1040px,95vw)}
 .tl i{position:absolute;top:0;bottom:0;min-width:1px}
 .tl-ax{position:relative;height:18px;margin-top:2px;font-size:10px;color:var(--muted)}
 .tl-ax span{position:absolute;transform:translateX(-50%);white-space:nowrap}
+
+/* ===== Каркас: меню, шапка, панели, таблицы — одно на все разделы ===== */
+body{background:var(--page);font-size:14px}
+.wrap{padding:0 24px 48px 248px;gap:16px}
+header{width:228px;padding:0 0 10px;background:var(--chrome);border-right:0;color:var(--chrome-ink);gap:0}
+.brand{min-height:56px;padding:0 10px 0 18px;border-bottom:1px solid var(--chrome-2)}
+.brand h1{margin:0;font-size:15px;color:#fff;letter-spacing:0}
+.brand h1 small{color:var(--chrome-mute);font-size:12px}
+header .icon-button{background:transparent;border-color:var(--chrome-2);color:var(--chrome-mute)}
+header .icon-button:hover{background:var(--chrome-2);color:#fff}
+nav{padding:8px 8px 0;gap:1px}
+nav .grp{margin:14px 10px 4px;font-size:12px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--chrome-mute)}
+nav button{color:var(--chrome-ink);padding:7px 10px;border-radius:var(--radius);border-left:3px solid transparent;min-height:34px}
+nav .icon{color:var(--chrome-mute)}
+nav button:hover{background:var(--chrome-2);color:#fff}
+nav button[aria-current="true"]{background:var(--chrome-2);color:#fff;border-left-color:#5b9be6;font-weight:600}
+nav button[aria-current="true"] .icon{color:#8fbaf0}
+nav{scrollbar-color:transparent transparent}nav:hover{scrollbar-color:#3a4757 transparent}
+header .meta{border-top:1px solid var(--chrome-2);color:var(--chrome-mute);padding:12px 18px 0}
+header .meta a{color:#8fbaf0}
+/* шапка раздела: название слева, текущая смена и время справа — прилипает к верху */
+.topbar{position:sticky;top:0;z-index:15;min-height:56px;margin:0 -24px;padding:0 24px;background:var(--surface);
+  border-bottom:1px solid var(--rule)}
+.topbar h2{font-size:18px;font-weight:600;letter-spacing:0}
+.shift-now{display:flex;align-items:baseline;gap:10px;margin-left:auto;font-variant-numeric:tabular-nums;color:var(--ink-2);font-size:13px}
+.shift-now b{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:24px;padding:0 7px;border-radius:var(--radius);
+  background:var(--chrome);color:#fff;font-size:13px}
+.shift-now time{font-size:15px;font-weight:600;color:var(--ink)}
+.topbar .language{margin-left:14px}
+/* панель фильтров и действий */
+.bar{gap:10px 12px;padding:10px 12px;border:1px solid var(--hair);border-radius:var(--radius);align-items:flex-end}
+.f label{font-size:12px;color:var(--muted)}
+select,input,button.act,a.act{min-height:var(--ctl);padding:5px 10px;border-radius:var(--radius);border-color:var(--rule);font-size:13px}
+input[type="checkbox"],input[type="radio"]{min-height:0}
+button.act,a.act{font-weight:500;background:var(--surface);color:var(--ink)}
+button.act:hover,a.act:hover{background:var(--surface-2);border-color:var(--muted)}
+button.primary,a.act.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.primary:hover,a.act.primary:hover{background:#184d8a;border-color:#184d8a}
+a.act{padding:5px 12px}
+/* показатели: строка плиток, число крупно; красная/жёлтая полоса — только у отклонений */
+.tiles{gap:0;background:var(--surface);border:1px solid var(--hair);border-radius:var(--radius);
+  grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.tile{padding:12px 16px;border-right:1px solid var(--hair);gap:4px}
+.tile .l{font-size:12px;color:var(--muted)}
+.tile .v{font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+/* таблицы: плотно, серая шапка, строки без зебры */
+.tbl-wrap{border:1px solid var(--hair);border-radius:var(--radius)}
+table{font-size:13px}
+th,td{padding:7px 10px;border-bottom:1px solid var(--hair)}
+th{background:var(--surface-2);color:var(--ink-2);font-size:12px;font-weight:600;border-bottom:1px solid var(--rule)}
+thead tr.grp th{background:#e9edf2;color:var(--muted);font-weight:500}
+tbody tr:hover{background:#f1f6fc}
+tfoot td{background:var(--surface-2)}
+.note{color:var(--muted);font-size:12px}
+.chip{min-height:28px;padding:4px 11px;border-radius:var(--radius);font-weight:500}
+.chip[data-new]{border-color:color-mix(in srgb,var(--critical) 45%,var(--rule));color:var(--critical);background:color-mix(in srgb,var(--critical) 6%,var(--surface))}
+.chip[data-new]:hover{background:color-mix(in srgb,var(--critical) 12%,var(--surface))}
+.sect{font-size:15px;margin:22px 0 8px}
+.dot.run{background:var(--good)}.dot.stop{background:var(--critical)}
+tr.is-stop td:first-child{box-shadow:inset 3px 0 0 var(--critical)}
+tr.is-run td:first-child{box-shadow:none}
+details.msg{border-radius:var(--radius);background:var(--surface)}
+details.msg summary{cursor:pointer;font-weight:600}
+dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
+.seg{background:transparent}
+@media (min-width:1000px){body.sidebar-collapsed .wrap{padding-left:24px}}
+@media (max-width:999px){
+  .wrap{padding:0 14px 48px}
+  .topbar{margin:0 -14px;padding:8px 14px;min-height:48px}
+  .shift-now span{display:none}
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) thead tr.grp th{background:var(--surface-2)}}
+:root[data-theme="dark"] thead tr.grp th{background:var(--surface-2)}
+:root[data-theme="dark"] tbody tr:hover{background:var(--surface-2)}
 </style>
 
 <div class="wrap">
@@ -500,6 +578,7 @@ dialog.gt-dlg{width:min(1040px,95vw)}
   <div class="topbar">
     <button type="button" class="icon-button" id="menu-btn" aria-label="Скрыть меню" aria-controls="sidebar" aria-expanded="true" title="Скрыть меню"></button>
     <h2 id="page-title">Производственный отчёт</h2>
+    <div class="shift-now" id="shift-now" aria-live="off"><span>Смена</span><b id="sn-letter">—</b><span id="sn-span"></span><time id="sn-time"></time></div>
     <label class="language"><span class="sr-only">Язык интерфейса</span><select id="ui-language" aria-label="Язык интерфейса"><option value="ru">Русский</option><option value="en">English</option></select></label>
   </div>
   <div id="msg" class="msg hidden" role="status"></div>
@@ -676,7 +755,7 @@ dialog.gt-dlg{width:min(1040px,95vw)}
     </div>
     <div class="tiles" id="dash-tiles" style="margin-top:14px"></div>
     <p class="note" id="dash-note"></p>
-    <details id="dash-warn" class="msg err hidden" open>
+    <details id="dash-warn" class="msg err hidden">
       <summary></summary>
       <ul style="margin:6px 0 0;padding-left:18px"></ul>
     </details>
@@ -2583,6 +2662,15 @@ $("#tk-shift").onchange = renderTickets;
 $("#tk-looms").oninput = renderTickets;
 $("#tk-reload").onclick = loadTickets;
 $("#tk-filter").onchange = loadTickets;   // «открытые» спрашиваем у сервера
+
+/* --- шапка: текущая смена и время цеха (A 07–15, B 15–23, C 23–07) --- */
+function tickShift() {
+  const d = new Date(), h = d.getHours(), sh = shiftNow().sh;
+  $("#sn-letter").textContent = sh;
+  $("#sn-span").textContent = {A: "07:00–15:00", B: "15:00–23:00", C: "23:00–07:00"}[sh];
+  $("#sn-time").textContent = `${String(h).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+tickShift(); setInterval(tickShift, 20000);
 
 /* --- сводка ручных остановов: как Manual Stoppages Summary в LDS --- */
 let MN_SEQ = 0;
