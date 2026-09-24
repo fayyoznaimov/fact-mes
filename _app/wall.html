@@ -140,6 +140,7 @@ a{color:#9cc2ff}
 
 <script>
 const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const REFRESH = 15000;            // опрос — только если поток толчков оборвался
 let DATA = null, CAN_EDIT = false, CURRENT = null, LINK = "опрос";
 
@@ -277,7 +278,7 @@ function render() {
   ban.hidden = REVIEW || !alarms.length;
   if (!ban.hidden) {
     ban.textContent = `Стоят без тикета дольше ${an.alarm_min} мин: `
-      + alarms.slice(0, 8).map(l => `${l.loom} · ${hhmm(l.state_sec)}`).join(", ")
+      + alarms.slice(0, 8).map(l => `${esc(l.loom)} · ${hhmm(l.state_sec)}`).join(", ")
       + (alarms.length > 8 ? ` и ещё ${alarms.length - 8}` : "")
       + " — нажмите на станок и выберите, кого вызвали";
   }
@@ -293,14 +294,14 @@ function render() {
 
   $("#grid").innerHTML = looms.map(l => {
     const lvl = lv.get(l.loom);
-    return `<div class="tile ${tileClass(l)}" data-loom="${l.loom}" tabindex="0" role="button"
-        aria-label="Станок ${l.loom}">
-      <div class="tile-top"><span class="loom">${l.loom}</span>
+    return `<div class="tile ${tileClass(l)}" data-loom="${esc(l.loom)}" tabindex="0" role="button"
+        aria-label="Станок ${esc(l.loom)}">
+      <div class="tile-top"><span class="loom">${esc(l.loom)}</span>
         <span class="clock">${REVIEW && l.breaks ? l.breaks.stop_min + " мин"
                                                  : hhmm(l.state_sec)}</span></div>
-      <div class="reason">${reasonText(l, lvl)}</div>
+      <div class="reason">${esc(reasonText(l, lvl))}</div>
       <div class="sub">
-        <span>${l.style}</span>
+        <span>${esc(l.style)}</span>
         ${l.running ? `<span>${l.rpm} об/мин</span>` : ""}
         <span>КПД ${(l.breaks ? l.breaks.effic : l.effic_shift).toFixed(1)}%</span>
         ${l.reason_from === "тикет" ? '<span class="badge t">тикет</span>' : ""}
@@ -345,7 +346,7 @@ function openDialog(loom) {
   $("#d-cats").innerHTML = (techLocked || loom.running) ? "" :
     DATA.categories.map(c =>
       `<button type="button" class="${c.call ? "call" : ""}" data-cat="${c.id}"
-        ${loom.ticket_category === c.id ? 'style="border-color:var(--ticket)"' : ""}>${c.name}</button>`
+        ${loom.ticket_category === c.id ? 'style="border-color:var(--ticket)"' : ""}>${esc(c.name)}</button>`
     ).join("");
 
   $("#d-hint").textContent = loom.running
@@ -406,7 +407,7 @@ async function loadSoon() {
     box.hidden = !ev.length;
     // Нет связи с FACT — сроки посчитаны от последнего снимка, говорим от какого.
     box.innerHTML = `<h2>Скоро${f.stale ? ` <small>(данные FACT от ${f.snapshot_at})</small>` : ""}</h2>` + ev.map(e =>
-      `<span class="${e.in_min <= 15 ? "near" : ""}"><b>${e.loom}</b> ${e.what} через `
+      `<span class="${e.in_min <= 15 ? "near" : ""}"><b>${esc(e.loom)}</b> ${esc(e.what)} через `
       + `<b>${e.in_min < 60 ? e.in_min + " мин" : Math.floor(e.in_min / 60) + " ч " + (e.in_min % 60) + " мин"}</b></span>`
     ).join("");
   } catch (e) { /* прогноз — не главное, доска работает и без него */ }

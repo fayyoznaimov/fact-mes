@@ -75,6 +75,7 @@ a{color:var(--accent)}
 
 <script>
 const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const REFRESH = 20000;
 const Q = new URLSearchParams(location.search);
 const DAY = (Q.get("day") || "").trim();
@@ -106,15 +107,15 @@ function card(r) {
   const op = r.operator;
   return `<div class="card ${st}${r.awaiting_ticket ? " wait" : ""}">
     <div class="top">
-      <span class="name">${r.label}</span>
-      <span class="model">${r.model || ""}</span>
+      <span class="name">${esc(r.label)}</span>
+      <span class="model">${esc(r.model || "")}</span>
       <span class="status">${status}</span>
     </div>
     ${r.awaiting_ticket ? '<div class="alert">Ждёт тикета: стоит без причины</div>' : ""}
     <dl>
-      ${st === "stop" ? `<dt>Причина</dt><dd>${r.cause_ru || "—"}</dd>` : ""}
-      ${r.ticket ? `<dt>Тикет</dt><dd>${r.ticket.ru}</dd>` : ""}
-      <dt>Оператор</dt><dd>${op ? `${op.name}${op.code ? " " + op.code : ""}${op.source === "FACT" ? " <small>из FACT</small>" : ""}` : "—"}</dd>
+      ${st === "stop" ? `<dt>Причина</dt><dd>${esc(r.cause_ru || "—")}</dd>` : ""}
+      ${r.ticket ? `<dt>Тикет</dt><dd>${esc(r.ticket.ru)}</dd>` : ""}
+      <dt>Оператор</dt><dd>${op ? `${esc(op.name)}${op.code ? " " + esc(op.code) : ""}${op.source === "FACT" ? " <small>из FACT</small>" : ""}` : "—"}</dd>
       <dt>Дизайн</dt><dd>${dash(r.design)}</dd>
       <dt>Ткань</dt><dd>${dash(r.cloth_name)}</dd>
       <dt>Остаток основы</dt><dd>${nf(r.remaining_m)} м${r.beam_length_m ? ` <small>из ${nf(r.beam_length_m)}</small>` : ""}</dd>

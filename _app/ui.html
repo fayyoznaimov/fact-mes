@@ -1799,7 +1799,7 @@ async function loadDash() {
       : only === "stop" ? r.state === "stop" : !!r.ticket);
 
     const yarnText = r => Object.entries(r.yarn || {})
-      .map(([slot, v]) => `${d.yarn_titles[slot] || slot}: ${v}${(r.lots || {})[slot] ? " л." + r.lots[slot] : ""}`).join(" · ") || "—";
+      .map(([slot, v]) => `${esc(d.yarn_titles[slot] || slot)}: ${esc(v)}${(r.lots || {})[slot] ? " л." + esc(r.lots[slot]) : ""}`).join(" · ") || "—";
 
     const artCell = r => {
       // По плану изделие известно — показываем его; выбор артикула руками нужен
@@ -1809,31 +1809,31 @@ async function loadDash() {
       const plan = r.order_no ? `<div class="note" style="margin:0 0 2px">по плану: <b>${esc(r.order_no)}</b> ${esc(r.plan_product || "")}</div>` : "";
       const all = new Set([...(r.candidates || []), ...d.articles]);
       const opts = [`<option value="">— не задано —</option>`,
-        ...[...all].sort().map(a => `<option value="${a}"${a===r.article?" selected":""}>`
-          + `${(r.candidates||[]).includes(a) ? "★ " : ""}${a}</option>`)].join("");
-      return plan + `<select class="art" data-art="${r.loom}">${opts}</select>`
-        + (r.design ? `<div class="note" style="margin:2px 0 0">${r.design}`
-             + (r.article_from ? ` <small>(${r.article_from})</small>` : "") + `</div>` : "");
+        ...[...all].sort().map(a => `<option value="${esc(a)}"${a===r.article?" selected":""}>`
+          + `${(r.candidates||[]).includes(a) ? "★ " : ""}${esc(a)}</option>`)].join("");
+      return plan + `<select class="art" data-art="${esc(r.loom)}">${opts}</select>`
+        + (r.design ? `<div class="note" style="margin:2px 0 0">${esc(r.design)}`
+             + (r.article_from ? ` <small>(${esc(r.article_from)})</small>` : "") + `</div>` : "");
     };
 
     $("#dash-table tbody").innerHTML = rows.map(r => `
       <tr class="${r.state === "run" ? "is-run" : r.state === "stop" ? "is-stop" : ""}">
-        <td><b>${r.loom}</b>${(r.mismatch || []).length
+        <td><b>${esc(r.loom)}</b>${(r.mismatch || []).length
           ? ` <span class="bad" title="${esc(r.mismatch.join("\n"))}" aria-label="расхождение с планом">⚠</span>` : ""}${
           r.cloth ? `<br><small class="note" title="код ткани на станке">${esc(r.cloth.replace(/%20/g, " "))}</small>` : ""}</td>
         <td><span class="dot ${r.state === "run" ? "run" : r.state === "stop" ? "stop" : "none"}"></span>${
           r.state === "run" ? "работает" : r.state === "stop"
-            ? `стоит ${r.state_min} мин<br><small>${r.reason || r.cause_ru || ""}</small>` : "—"}</td>
-        <td>${r.ticket ? `<span class="badge">${r.ticket.reason}</span>` : ""}</td>
+            ? `стоит ${r.state_min} мин<br><small>${esc(r.reason || r.cause_ru || "")}</small>` : "—"}</td>
+        <td>${r.ticket ? `<span class="badge">${esc(r.ticket.reason)}</span>` : ""}</td>
         <td class="n">${r.rpm_now ? nf(r.rpm_now) : ""}${
           r.rpm_shift ? `<br><small>смена ${nf(r.rpm_shift)}</small>` : ""}</td>
         <td class="sep">${artCell(r)}</td>
-        <td>${r.size || "—"}</td><td class="n">${r.gsm || ""}</td>
+        <td>${esc(r.size || "—")}</td><td class="n">${r.gsm || ""}</td>
         <td><small>${yarnText(r)}</small></td>
         <td class="n sep">${nf(r.kpicks,1)}</td><td class="n">${nf(r.meters,1)}</td>
         <td class="n">${nf(r.towels)}${r.panels > 1 ? `<br><small>${r.pieces} × ${r.panels}</small>` : ""}</td>
         <td class="n">${r.effic != null ? nf(r.effic,1) : ""}</td>
-        <td class="sep">${r.operator ? `${r.operator.name} <small>${r.operator.code}</small>` : "—"}</td>
+        <td class="sep">${r.operator ? `${esc(r.operator.name)} <small>${esc(r.operator.code)}</small>` : "—"}</td>
         <td class="n sep">${nf(r.weft_ct)}${r.weft_fix_min ? `<br><small>${r.weft_fix_min} мин</small>` : ""}</td>
         <td class="n">${nf(r.warp_ct)}${r.warp_fix_min ? `<br><small>${r.warp_fix_min} мин</small>` : ""}</td>
         <td class="n">${nf(r.top_ct)}${r.top_fix_min ? `<br><small>${r.top_fix_min} мин</small>` : ""}</td>
@@ -1890,8 +1890,8 @@ async function loadPlan() {
       const pct = Math.min(100, x.percent);
       const colour = x.late_days == null ? "var(--muted)" : x.late_days > 0 ? "#c4443b" : "#2f9e63";
       return `<tr>
-        <td><b>${x.order_no}</b><br><small>${x.source || ""}</small></td>
-        <td>${x.product_code}</td>
+        <td><b>${esc(x.order_no)}</b><br><small>${esc(x.source || "")}</small></td>
+        <td>${esc(x.product_code)}</td>
         <td class="n">${nf(x.qty_towels)}</td>
         <td class="n">${nf(x.done)}</td>
         <td><div style="background:var(--hair);height:14px;width:120px;position:relative">
@@ -1904,10 +1904,10 @@ async function loadPlan() {
         <td>${x.due_day ? x.due_day.replace(/\./g,"/") : "—"}${
           x.late_days != null ? `<br><small class="${x.late_days>0?"bad":"ok"}">${
             x.late_days > 0 ? `отстаём на ${nf(x.late_days,1)} дн.` : "успеваем"}</small>` : ""}</td>
-        ${x.plan ? `<td>${x.looms.map(l=>`<span title="по плану ${dmy(l.from_day)}–${dmy(l.to_day)}, ${l.days} дн.">${l.loom} <small>${nf(l.done)}</small></span>`).join(", ")}
+        ${x.plan ? `<td>${x.looms.map(l=>`<span title="по плану ${dmy(l.from_day)}–${dmy(l.to_day)}, ${l.days} дн.">${esc(l.loom)} <small>${nf(l.done)}</small></span>`).join(", ")}
           <br><small class="note">${x.plan.cells ? `по плану цеха ${dmy(x.plan.first_day)}–${dmy(x.plan.last_day)}` : "изделие не поставлено в план цеха"}</small>
           ${x.plan.shortfall ? `<br><small class="bad">к концу плана ≈ ${nf(x.plan.expected)}, не хватит ${nf(x.plan.shortfall)}</small>` : ""}</td>`
-        : `<td>${x.looms.map(l=>`<span class="${l.matched?"":"note"}">${l.loom} <small>${nf(l.done)}</small></span>`).join(", ") || "—"}
+        : `<td>${x.looms.map(l=>`<span class="${l.matched?"":"note"}">${esc(l.loom)} <small>${nf(l.done)}</small></span>`).join(", ") || "—"}
           ${x.looms.length && !x.matched ? '<br><small class="bad">код ткани на станке не совпал с изделием</small>' : ""}
           <br><input size="5" placeholder="станок" data-loom-for="${x.id}" style="font-size:12px">
           <button class="act" data-assign="${x.id}" style="padding:2px 6px">+</button></td>`}
@@ -2169,7 +2169,7 @@ function renderLP() {
   $("#lp-table thead").innerHTML = `<tr><th>Станок</th>${g.days.map(d => {
     const wd = new Date(d.replace(/\./g, "-") + "T00:00").getDay();
     return `<th class="d${d === LP.today ? " today" : ""}${wd === 0 ? " wk" : ""}${selectedDays.has(d) ? " axis-selected" : ""}">${dmy(d)}<small>${"вс пн вт ср чт пт сб".split(" ")[wd]}${d === LP.today ? " · сегодня" : wd === 0 ? " · выходной" : ""}</small></th>`; }).join("")}</tr>`;
-  $("#lp-table tbody").innerHTML = LP.looms.map(l => `<tr><td class="lm${selectedLooms.has(l) ? " axis-selected" : ""}">${l}</td>${g.days.map(d => lpCellHtml(l, d)).join("")}</tr>`).join("")
+  $("#lp-table tbody").innerHTML = LP.looms.map(l => `<tr><td class="lm${selectedLooms.has(l) ? " axis-selected" : ""}">${esc(l)}</td>${g.days.map(d => lpCellHtml(l, d)).join("")}</tr>`).join("")
     || `<tr><td class="note" colspan="${g.days.length + 1}">Станков нет.</td></tr>`;
   $("#lp-focus").classList.toggle("hidden", !LP.focus);
   $("#lp-focus b").textContent = LP.focus || "";
@@ -2538,7 +2538,7 @@ async function loadBottle() {
     ].map(([l,v])=>`<div class="tile"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("");
 
     $("#bt-cause tbody").innerHTML = d.by_cause.map(c => `<tr>
-      <td>${c.name}</td><td class="n">${nf(c.count)}</td><td class="n">${nf(c.minutes)}</td>
+      <td>${esc(c.name)}</td><td class="n">${nf(c.count)}</td><td class="n">${nf(c.minutes)}</td>
       <td class="n">${nf(c.share,1)}%</td>
       <td class="n${c.mttr_sec > 120 ? " bad" : ""}">${nf(c.mttr_sec)}</td>
       <td class="n">${c.resp_median != null ? nf(c.resp_median) : "—"}</td></tr>`).join("");
@@ -2550,14 +2550,14 @@ async function loadBottle() {
     // Красным — станки, которые рвут в полтора раза чаще медианы по цеху.
     const wl = (t.weft_median || 0) * 1.5, gl = (t.warp_median || 0) * 1.5;
     $("#bt-loom tbody").innerHTML = d.by_loom.map(l => `<tr>
-      <td><b>${l.loom}</b></td><td class="n">${nf(l.lost_min)}</td><td class="n">${nf(l.stops)}</td>
+      <td><b>${esc(l.loom)}</b></td><td class="n">${nf(l.lost_min)}</td><td class="n">${nf(l.stops)}</td>
       <td class="n${l.weft_per_100k > wl ? " bad" : ""}">${nf(l.weft_per_100k,1)}</td>
       <td class="n${l.warp_per_100k > gl ? " bad" : ""}">${nf(l.warp_per_100k,1)}</td>
       <td class="n">${nf(l.manual_min)}</td>
       <td class="n">${secs(l.resp_median)}</td><td class="n">${secs(l.resp_p90)}</td></tr>`).join("");
 
     $("#bt-op tbody").innerHTML = d.by_operator.map(o => `<tr>
-      <td class="n">${o.code}</td><td>${o.name}</td><td class="n">${o.looms}</td>
+      <td class="n">${esc(o.code)}</td><td>${esc(o.name)}</td><td class="n">${o.looms}</td>
       <td class="n">${nf(o.stops)}</td><td class="n">${nf(o.lost_min)}</td>
       <td class="n">${secs(o.resp_median)}</td><td class="n">${secs(o.resp_p90)}</td></tr>`).join("");
     $("#bt-op-note").textContent = d.by_operator.length
@@ -2587,7 +2587,7 @@ async function loadTickets() {
     const need = live.looms.filter(l => l.needs_ticket);
     $("#tk-need").innerHTML = need.length
       ? "Стоят без объяснения и ждут тикета: " + need.map(l =>
-          `<button class="chip" data-new="${l.loom}">${l.loom} · ${l.cause_ru} · ${dur(l.state_sec)}</button>`
+          `<button class="chip" data-new="${esc(l.loom)}">${esc(l.loom)} · ${esc(l.cause_ru)} · ${dur(l.state_sec)}</button>`
         ).join(" ")
       : "Станков, которые стоят без объяснения, сейчас нет.";
     document.querySelectorAll("[data-new]").forEach(b => b.onclick = async () => {
@@ -2629,15 +2629,15 @@ function renderTickets() {
 
   const edit = TK_EDIT;
   const opts = c => TK_CATS.map(x =>
-    `<option value="${x.id}"${x.id===c?" selected":""}>${x.name}</option>`).join("");
+    `<option value="${x.id}"${x.id===c?" selected":""}>${esc(x.name)}</option>`).join("");
   $("#tk-table tbody").innerHTML = rows.map(r => `<tr>
     <td>${esc(r.loom)} <button class="act" data-ticket-audit="${r.id}" title="История тикета">№ ${r.id}</button></td>
     <td class="n">${r.started_at.slice(5,16).replace("T"," ")}</td>
     <td>${esc((r.shift || "").slice(-1))}</td>
     <td class="n">${dur(r.duration_sec)}</td>
-    <td>${r.cause_ru || "—"}</td>
-    <td>${r.reason}</td>
-    <td>${r.reason_from}</td>
+    <td>${esc(r.cause_ru || "—")}</td>
+    <td>${esc(r.reason)}</td>
+    <td>${esc(r.reason_from)}</td>
     <td>${edit ? `<select data-cls="${r.id}"><option value="">— выбрать —</option>${opts(r.category_id)}</select>`
                : (r.category_name || "—")}</td>
     <td>${r.open && edit ? `<button class="act" data-close="${r.id}">Закрыть</button>`
@@ -3672,16 +3672,16 @@ async function loadSalary() {
     // Выработка по станкам: видна всегда, даже когда операторов ещё не назначили.
     const opOpts = cur => [`<option value="">— не назначен —</option>`,
       ...OPERATORS.filter(o => o.role !== "master" && o.active !== 0)
-        .map(o => `<option value="${o.id}"${o.id===cur?" selected":""}>${o.name} (${o.code})</option>`)
+        .map(o => `<option value="${o.id}"${o.id===cur?" selected":""}>${esc(o.name)} (${esc(o.code)})</option>`)
       ].join("");
     $("#sal-looms tbody").innerHTML = (d.looms || []).map(l => `<tr>
-      <td><b>${l.loom}</b></td><td>${l.style}</td>
+      <td><b>${esc(l.loom)}</b></td><td>${esc(l.style)}</td>
       <td class="n">${nf(l.kpicks,1)}</td>
       <td class="n"><strong>${nf(l.salary)}</strong></td>
       <td class="n${l.effic<60?" bad":""}">${nf(l.effic,1)}</td>
       <td class="n">${nf(l.weft_ct)}</td><td class="n">${nf(l.warp_ct)}</td>
       <td class="n${l.wait_min>60?" bad":""}">${nf(l.wait_min)}</td>
-      <td><select data-assign="${l.loom}">${opOpts(l.operator_id)}</select></td></tr>`).join("");
+      <td><select data-assign="${esc(l.loom)}">${opOpts(l.operator_id)}</select></td></tr>`).join("");
     $("#sal-looms tfoot").innerHTML = `<tr><td colspan="2">Итого</td>
       <td class="n">${nf(d.totals.kpicks,1)}</td>
       <td class="n">${nf(d.totals.salary_all)}</td><td colspan="5"></td></tr>`;
@@ -3694,7 +3694,7 @@ async function loadSalary() {
       } catch (e) { say("Не сохранилось: " + e.message, true); }
     });
     $("#sal-table tbody").innerHTML = d.operators.map(o => `<tr>
-      <td class="n">${o.code}</td><td>${o.name}</td><td>${o.looms.join(", ")}</td>
+      <td class="n">${esc(o.code)}</td><td>${esc(o.name)}</td><td>${o.looms.join(", ")}</td>
       <td class="n">${o.loom_count}</td><td class="n">${nf(o.kpicks,1)}</td>
       <td class="n"><strong>${nf(o.salary)}</strong></td>
       <td class="n${o.effic<60?" bad":""}">${nf(o.effic,1)}</td>
@@ -4039,7 +4039,7 @@ $("#kpi-go").onclick = async () => {
   try {
     const d = await api(`/api/kpi?from=${from}&to=${to}&role=${role}`);
     $("#kpi-table tbody").innerHTML = d.rows.map(r => `<tr>
-      <td class="n">${r.code}</td><td>${r.name}</td><td class="n">${r.shifts}</td><td class="n">${r.looms}</td>
+      <td class="n">${esc(r.code)}</td><td>${esc(r.name)}</td><td class="n">${r.shifts}</td><td class="n">${r.looms}</td>
       <td class="n">${nf(r.kpicks,1)}</td><td class="n${r.effic<60?" bad":""}">${nf(r.effic,1)}</td>
       <td class="n">${nf(r.weft_cmpx,1)}</td><td class="n">${nf(r.warp_cmpx,1)}</td>
       <td class="n">${nf(r.wait_per_shift)}</td><td class="n">${nf(r.manual_per_shift,1)}</td></tr>`).join("")
@@ -4080,7 +4080,7 @@ async function loadExplorer() {
     $("#ex-legend").innerHTML = causes.map(([n,h],i) =>
       `<span class="chip" style="cursor:default"><b style="display:inline-block;width:9px;height:9px;margin-right:6px;background:var(${SER[i%SER.length]})"></b>${n} — ${nf(h)} ч</span>`).join("");
     $("#ex-table tbody").innerHTML = d.by_loom.map(l => `<tr>
-      <td><strong>${l.loom}</strong></td><td class="n${l.eff<60?" bad":""}">${nf(l.eff,1)}</td>
+      <td><strong>${esc(l.loom)}</strong></td><td class="n${l.eff<60?" bad":""}">${nf(l.eff,1)}</td>
       <td class="n">${nf(l.kpicks)}</td><td class="n">${nf(l.weft_ct)}</td><td class="n">${nf(l.weft_cmpx,1)}</td>
       <td class="n">${nf(l.warp_ct)}</td><td class="n">${nf(l.top_ct)}</td>
       <td class="n">${nf(l.manual_ct)}</td><td class="n">${nf(l.manual_h,1)}</td>
@@ -4097,7 +4097,7 @@ async function loadWalk() {
   try {
     const d = await api(`/api/walk?day=${s.day}&shift=${s.shift}`);
     $("#wk-table tbody").innerHTML = d.rows.map(r => `<tr>
-      <td><strong>${r.loom}</strong></td><td>${r.style}</td>
+      <td><strong>${esc(r.loom)}</strong></td><td>${esc(r.style)}</td>
       <td>${r.main}</td><td class="n">${nf(r.main_min)}</td>
       <td class="n${r.eff<60?" bad":""}">${nf(r.eff,1)}</td><td class="n">${nf(r.stop_min)}</td>
       <td class="n">${nf(r.weft_ct)}</td><td class="n">${nf(r.top_ct)}</td><td class="n">${nf(r.warp_ct)}</td>
