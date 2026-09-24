@@ -224,7 +224,26 @@ def check_password(password):
         raise ValueError("пароль короче %d символов" % PASSWORD_MIN)
 
 
-def create_user(login, name, role, password, must_change=False, access=None):
+def _set_employee(conn, user_id, employee_id):
+    """Связать пользователя с карточкой сотрудника (мастерица правит свою смену).
+    Раньше связь ставил только скрипт provision_shift_masters.py."""
+    conn.execute("DELETE FROM app_user_employee WHERE user_id=?", (user_id,))
+    if employee_id in (None, ""):
+        return
+    try:
+        employee_id = int(employee_id)
+    except (TypeError, ValueError):
+        raise ValueError("сотрудник: нужен номер из справочника")
+    if not conn.execute("SELECT 1 FROM operator WHERE id=?", (employee_id,)).fetchone():
+        raise ValueError("сотрудник не найден в справочнике")
+    other = conn.execute("SELECT u.login FROM app_user_employee e JOIN app_user u ON u.id=e.user_id"
+                         " WHERE e.operator_id=?", (employee_id,)).fetchone()
+    if other:
+        raise ValueError("этот сотрудник уже связан с пользователем «%s»" % other["login"])
+    conn.execute("INSERT INTO app_user_employee VALUES (?,?)", (user_id, employee_id))
+
+
+def create_user(login, name, role, password, must_change=False, access=None, employee_id=None):
     """Пароль задаёт администратор; просить ли сменить его при первом входе —
     тоже он (раньше смена была обязательной, и заданный пароль не работал)."""
     if role not in ROLES:
@@ -247,6 +266,8 @@ def create_user(login, name, role, password, must_change=False, access=None):
         if access is not None:
             conn.execute("INSERT INTO app_user_access VALUES (?,?)",
                          (cur.lastrowid, json.dumps(access, ensure_ascii=False)))
+        if employee_id not in (None, "") and role != "admin":
+            _set_employee(conn, cur.lastrowid, employee_id)
         conn.commit()
     except sqlite3.IntegrityError:
         raise ValueError(f"пользователь «{login}» уже есть")
@@ -274,7 +295,8 @@ def set_password(user_id, password, must_change=False, keep_token=None):
     conn.close()
 
 
-def update_user(user_id, name=None, role=None, active=None, access=_UNSET, actor_id=None):
+def update_user(user_id, name=None, role=None, active=None, access=_UNSET, actor_id=None,
+                employee_id=_UNSET):
     sets, args = [], []
     if name is not None:
         sets.append("name=?"); args.append(name.strip())
@@ -286,7 +308,7 @@ def update_user(user_id, name=None, role=None, active=None, access=_UNSET, actor
         if type(active) not in (bool, int) or active not in (True, False, 0, 1):
             raise ValueError("active: нужно true или false")
         sets.append("active=?"); args.append(1 if active else 0)
-    if not sets and access is _UNSET:
+    if not sets and access is _UNSET and employee_id is _UNSET:
         return
     conn = db()
     try:
@@ -312,6 +334,8 @@ def update_user(user_id, name=None, role=None, active=None, access=_UNSET, actor
         elif access is not _UNSET:
             conn.execute("INSERT OR REPLACE INTO app_user_access VALUES (?,?)",
                          (user_id, json.dumps(access, ensure_ascii=False)))
+        if employee_id is not _UNSET or next_role == "admin":
+            _set_employee(conn, user_id, None if next_role == "admin" else employee_id)
         if not next_active:
             conn.execute("DELETE FROM app_session WHERE user_id=?", (user_id,))
         conn.commit()
@@ -322,8 +346,10 @@ def update_user(user_id, name=None, role=None, active=None, access=_UNSET, actor
 def list_users():
     conn = db()
     rows = [_user_access(r) for r in conn.execute(
-        "SELECT u.id, u.login, u.name, u.role, u.active, u.must_change, u.created_at, u.last_login, a.access_json"
-        " FROM app_user u LEFT JOIN app_user_access a ON a.user_id=u.id ORDER BY u.role, u.login")]
+        "SELECT u.id, u.login, u.name, u.role, u.active, u.must_change, u.created_at, u.last_login, a.access_json,"
+        " e.operator_id AS employee_id"
+        " FROM app_user u LEFT JOIN app_user_access a ON a.user_id=u.id"
+        " LEFT JOIN app_user_employee e ON e.user_id=u.id ORDER BY u.role, u.login")]
     conn.close()
     return rows
 

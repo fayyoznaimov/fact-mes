@@ -691,6 +691,8 @@ class Handler(BaseHTTPRequestHandler):
                 if not may(me, "users"):
                     return self._send(403, {"error": "нет прав"})
                 access_args = {"access": body["access"]} if "access" in body else {}
+                if "employee_id" in body:
+                    access_args["employee_id"] = body["employee_id"]
                 if body.get("id"):
                     auth.update_user(body["id"], body.get("name"), body.get("role"),
                                      body.get("active"), actor_id=me["id"], **access_args)

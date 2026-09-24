@@ -619,7 +619,9 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
         <div class="f"><label for="u-login">Логин</label><input id="u-login" size="14" autocomplete="off" pattern="[a-z0-9][a-z0-9._\-]{1,31}"></div>
         <div class="f"><label for="u-name">Имя</label><input id="u-name" size="22" autocomplete="off"></div>
         <div class="f"><label for="u-role">Роль</label><select id="u-role"></select></div>
+        <div class="f" id="u-emp-wrap"><label for="u-emp">Сотрудник — её карточка</label><select id="u-emp"></select></div>
       </div>
+      <p class="note" id="u-emp-note">Мастерица со связанной карточкой правит расстановку своей смены и в ней отмечена сама.</p>
       <div class="bar" id="u-pass-wrap">
         <div class="f"><label for="u-pass">Пароль</label><input id="u-pass" type="text" size="16" autocomplete="new-password" spellcheck="false"></div>
         <div class="f"><label>&nbsp;</label><button type="button" class="act" id="u-gen">Придумать</button></div>
@@ -1771,7 +1773,7 @@ function renderAccessFields(){
   $('#u-actions').innerHTML=render(ACCESS_CATALOG.permissions,draft.permissions,'permissions');
   $('#u-access-note').textContent=tr(admin?'Администратор: полный доступ.':'Для просмотра оставьте действия выключенными.');
 }
-$('#u-role').onchange=()=>{USER_DRAFT=null;renderAccessFields();};
+$('#u-role').onchange=()=>{USER_DRAFT=null;renderAccessFields();syncEmployee();};
 $('#u-mode').onchange=()=>{if($('#u-mode').value==='custom'&&!USER_DRAFT)USER_DRAFT=structuredClone(ACCESS_CATALOG.role_defaults[$('#u-role').value]);renderAccessFields();};
 $('#u-access').onchange=e=>{
   USER_DRAFT=readAccessFields();
@@ -1787,7 +1789,7 @@ async function renderUsers(){
   try{
     const d=await api('/api/users');USER_ROWS=d.users;ACCESS_CATALOG=d.access_catalog||ACCESS_CATALOG;
     $('#u-table tbody').innerHTML=USER_ROWS.map(u=>`<tr>
-      <td data-i18n-skip>${esc(u.login)}</td><td data-i18n-skip>${esc(u.name)}</td><td>${esc(tr(ROLES[u.role]||u.role))}</td>
+      <td data-i18n-skip>${esc(u.login)}</td><td data-i18n-skip>${esc(u.name)}</td><td>${esc(tr(ROLES[u.role]||u.role))}${u.employee_id?`<br><small class="note">${esc((OPERATORS.find(o=>o.id===u.employee_id)||{}).name||'сотрудник №'+u.employee_id)}</small>`:''}</td>
       <td>${tr(u.access_mode==='custom'?'Индивидуально':'По шаблону роли')} · ${(u.sections||[]).filter(x=>!['bottle','kpi'].includes(x)).length}</td>
       <td>${tr(u.active?'Да':'Нет')}</td><td class="n">${u.last_login?esc(u.last_login.slice(0,16).replace('T',' ')):'—'}</td>
       <td><button class="act" data-user-edit="${u.id}">${tr('Изменить')}</button> <button class="act" data-pw="${u.id}">${tr('Пароль…')}</button> <button class="act" data-off="${u.id}" ${u.id===ME.id?'disabled':''}>${tr(u.active?'Отключить':'Включить')}</button></td></tr>`).join('');
@@ -1797,7 +1799,10 @@ async function renderUsers(){
 const genPassword=()=>{const a='abcdefghjkmnpqrstuvwxyz23456789';const r=crypto.getRandomValues(new Uint32Array(10));return [...r].map(x=>a[x%a.length]).join('');};
 // Создание и правка — в окне: раньше форма нового пользователя и сетка прав
 // всегда стояли над списком, и правка чужих прав выглядела как создание.
-function openUserDialog(u){
+async function openUserDialog(u){
+  // Справочник сотрудников нужен для связи с карточкой мастерицы; при старте он
+  // грузится не всегда (зависит от доступных разделов) — догружаем здесь.
+  if(!OPERATORS.length)try{OPERATORS=(await api('/api/operators')).operators;}catch(e){}
   USER_EDIT=u?u.id:null;
   USER_DRAFT=u&&u.access_mode==='custom'?{sections:[...u.sections],permissions:[...u.permissions]}:null;
   $('#u-login').value=u?u.login:'';$('#u-login').disabled=!!u;$('#u-name').value=u?u.name:'';
@@ -1806,10 +1811,18 @@ function openUserDialog(u){
   // Скопировать доступ: роль и отмеченные разделы/действия другого пользователя.
   $('#u-copy').innerHTML=`<option value="">—</option>`+USER_ROWS.filter(x=>!u||x.id!==u.id)
     .map(x=>`<option value="${x.id}">${esc(x.name)} (${esc(x.login)})</option>`).join('');
+  // Карточка сотрудника — для мастерицы: без неё она не может вести свою смену.
+  const linked=new Set(USER_ROWS.filter(x=>x.employee_id&&(!u||x.id!==u.id)).map(x=>x.employee_id));
+  $('#u-emp').innerHTML=`<option value="">— не связана —</option>`+OPERATORS
+    .filter(o=>o.role==='master'&&(o.active||o.id===u?.employee_id)&&!linked.has(o.id))
+    .map(o=>`<option value="${o.id}">${esc(o.name)} (${esc(o.code)})</option>`).join('');
+  $('#u-emp').value=u&&u.employee_id?String(u.employee_id):'';
+  syncEmployee();
   $('#u-add').textContent=tr(u?'Сохранить':'Создать');
   $('#u-heading').textContent=u?tr('Пользователь')+' '+u.login:tr('Новый пользователь');
   $('#u-err').textContent='';renderAccessFields();$('#u-dlg').showModal();(u?$('#u-name'):$('#u-login')).focus();
 }
+function syncEmployee(){const m=$('#u-role').value==='master';$('#u-emp-wrap').classList.toggle('hidden',!m);$('#u-emp-note').classList.toggle('hidden',!m);}
 $('#u-new').onclick=()=>openUserDialog(null);
 $('#u-gen').onclick=()=>{$('#u-pass').value=genPassword();};
 $('#u-copy').onchange=()=>{
@@ -1846,8 +1859,9 @@ $('#u-add').onclick=async()=>{
   if(!USER_EDIT&&password.length<6)return err('Пароль — не короче шести символов');
   const access=role==='admin'||$('#u-mode').value==='role'?null:readAccessFields();
   if(access&&!access.sections.length)return err('Выберите хотя бы один раздел');
-  const body=USER_EDIT?{id:USER_EDIT,name:name||login,role,access}
-    :{login,name:name||login,password,must_change:$('#u-must').checked,role,access};
+  const employee_id=role==='master'&&$('#u-emp').value?+$('#u-emp').value:null;
+  const body=USER_EDIT?{id:USER_EDIT,name:name||login,role,access,employee_id}
+    :{login,name:name||login,password,must_change:$('#u-must').checked,role,access,employee_id};
   $('#u-add').disabled=true;
   try{await api('/api/users',body);$('#u-dlg').close();await renderUsers();
     say(USER_EDIT?'Пользователь сохранён':`Пользователь ${login} создан, пароль: ${password} — передайте его пользователю`);}
