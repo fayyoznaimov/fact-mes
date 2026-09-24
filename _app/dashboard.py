@@ -376,10 +376,10 @@ def cards(day="", letter=""):
             'weft_stop_min': round(stat['weft_stop_min'], 1) if stat else None,
             'warp_stop_min': round(stat['warp_stop_min'], 1) if stat else None,
             'pile_stop_min': round(stat['top_stop_min'], 1) if stat else None,
+            # Ровно то, что доска просит объяснить тикетом (tickets.andon_level):
+            # не только ручной останов, но и обесточенный или «прочее» без причины.
             'awaiting_ticket': bool(not board.get('stale') and not board.get('error')
-                                    and state.get('cause') == 'Manual' and not state.get('running')
-                                    and not state.get('ticket_category')
-                                    and state.get('state_sec', 0) >= board['andon']['warn_min'] * 60),
+                                    and state.get('needs_ticket')),
             "loom": r["loom"], "label": loom_label(r["loom"]),
             "model": ("Toyota " + d["model"]) if d.get("model") and d["model"] != "none" else "",
             "state": r["state"], "state_min": r["state_min"],

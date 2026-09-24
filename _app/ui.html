@@ -1283,16 +1283,25 @@ dialog.gt-dlg{width:min(1040px,95vw)}
     <div class="bar">
       <div class="f"><label>Монитор в цехе</label>
         <a class="act primary" href="/wall" target="_blank" style="text-decoration:none">Открыть доску</a></div>
+      <div class="f"><label for="tk-from">С дня</label><input id="tk-from" type="date"></div>
+      <div class="f"><label for="tk-to">По день</label><input id="tk-to" type="date"></div>
+      <div class="f"><label for="tk-shift">Смена</label><select id="tk-shift">
+        <option value="">все</option><option>A</option><option>B</option><option>C</option></select></div>
+      <div class="f"><label for="tk-looms">Станки</label><input id="tk-looms" size="10"
+        placeholder="D, J1-J14" autocomplete="off"></div>
       <div class="f"><label for="tk-filter">Показывать</label><select id="tk-filter">
-        <option value="open">открытые</option><option value="all">все</option></select></div>
+        <option value="all">все</option><option value="open">открытые</option>
+        <option value="noreason">без причины</option></select></div>
       <div class="f"><label>&nbsp;</label><button class="act" id="tk-reload">Обновить</button></div>
     </div>
     <div class="tiles" id="tk-tiles" style="margin-top:14px"></div>
     <p class="note" id="tk-need"></p>
     <div class="tbl-wrap" style="margin-top:8px">
       <table id="tk-table">
-        <thead><tr><th>Станок</th><th>Начало</th><th class="n">Простой</th><th>Сигнал станка</th>
-          <th>Причина в отчёте</th><th>Откуда</th><th>Категория</th><th></th></tr></thead>
+        <thead><tr><th data-tk-sort="loom">Станок</th><th data-tk-sort="started_at">Начало</th>
+          <th data-tk-sort="shift">Смена</th><th class="n" data-tk-sort="duration_sec">Простой</th>
+          <th data-tk-sort="cause_ru">Сигнал станка</th><th data-tk-sort="reason">Причина в отчёте</th>
+          <th>Откуда</th><th data-tk-sort="category_name">Категория</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -1331,13 +1340,15 @@ dialog.gt-dlg{width:min(1040px,95vw)}
 
     <h3 class="sect">Андон: станок стоит без тикета</h3>
     <div class="bar">
-      <div class="f"><label for="an-warn">«Нет тикета» через, мин</label><input id="an-warn" size="4" inputmode="numeric"></div>
+      <div class="f"><label for="an-warn">Тикет, если стоит дольше, мин</label><input id="an-warn" size="4" inputmode="numeric"></div>
       <div class="f"><label for="an-alarm">Тревога на доске через, мин</label><input id="an-alarm" size="4" inputmode="numeric"></div>
       <div class="f"><label for="an-notify">Мастеру в телеграм через, мин</label><input id="an-notify" size="4" inputmode="numeric"></div>
       <div class="f"><label>&nbsp;</label><button class="act primary" id="an-save">Сохранить</button></div>
     </div>
-    <p class="note">Обрыв, который станок назвал сам (уток, основа, ворс), в андон не попадает,
-      пока не затянется дольше 15 минут. 0 в последнем поле — не писать в телеграм.</p>
+    <p class="note">Первое поле — главный порог: с него заводится тикет, доска и карточки начинают
+      просить причину. Тревога и телеграм мастеру — не раньше этого порога. Обрыв, который станок
+      назвал сам (уток, основа, ворс), тоже не раньше, но и не раньше 15 минут. 0 в последнем поле —
+      не писать в телеграм.</p>
 
     <h3 class="sect">Ключи API для 1С и других программ</h3>
     <div class="bar">
@@ -2479,21 +2490,17 @@ const dur = sec => { sec = Math.max(0, sec|0);
   const h = Math.floor(sec/3600), m = Math.floor(sec%3600/60);
   return h ? `${h} ч ${String(m).padStart(2,"0")} мин` : `${m} мин`; };
 
+// Тикеты за период по производственному дню (смена C — за днём начала), фильтры
+// и сортировка — на странице; плитки считаются по тому, что осталось в таблице.
+let TK = [], TK_SORT = {k: "started_at", dir: -1}, TK_EDIT = false;
 async function loadTickets() {
   try {
-    const onlyOpen = $("#tk-filter").value === "open";
+    if (!$("#tk-from").value) $("#tk-from").value = shiftNow().day;
+    if (!$("#tk-to").value) $("#tk-to").value = $("#tk-from").value;
+    const q = `from=${dash2dot($("#tk-from").value)}&to=${dash2dot($("#tk-to").value)}`;
     const [t, live] = await Promise.all([
-      api("/api/tickets?limit=200" + (onlyOpen ? "&open=1" : "")), api("/api/live")]);
-    TK_CATS = t.categories;
-    const edit = t.can_edit;
-
-    const top = t.summary.slice(0, 5);
-    $("#tk-tiles").innerHTML = [
-      ["Открытых тикетов", live.totals.open_tickets],
-      ["Стоит сейчас", live.totals.stopped],
-      ["Без причины", live.totals.no_reason],
-      ...top.map(s => [s.reason, `${nf(s.minutes)}<small> мин · ${s.count}</small>`]),
-    ].map(([l,v])=>`<div class="tile"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("");
+      api(`/api/tickets?limit=5000&${q}` + ($("#tk-filter").value === "open" ? "&open=1" : "")), api("/api/live")]);
+    TK_CATS = t.categories; TK_EDIT = t.can_edit; TK = t.tickets;
 
     const need = live.looms.filter(l => l.needs_ticket);
     $("#tk-need").innerHTML = need.length
@@ -2502,39 +2509,80 @@ async function loadTickets() {
         ).join(" ")
       : "Станков, которые стоят без объяснения, сейчас нет.";
     document.querySelectorAll("[data-new]").forEach(b => b.onclick = async () => {
-      if (!edit) return say("Нет прав заводить тикеты", true);
+      if (!TK_EDIT) return say("Нет прав заводить тикеты", true);
       try { await api("/api/tickets/new", { loom: b.dataset.new }); loadTickets(); }
       catch (e) { say("Тикет не завёлся: " + e.message, true); }
     });
-
-    const opts = c => TK_CATS.map(x =>
-      `<option value="${x.id}"${x.id===c?" selected":""}>${x.name}</option>`).join("");
-    $("#tk-table tbody").innerHTML = t.tickets.map(r => `<tr>
-      <td>${esc(r.loom)} <button class="act" data-ticket-audit="${r.id}" title="История тикета">№ ${r.id}</button></td>
-      <td class="n">${r.started_at.slice(5,16).replace("T"," ")}</td>
-      <td class="n">${dur(r.duration_sec)}</td>
-      <td>${r.cause_ru || "—"}</td>
-      <td>${r.reason}</td>
-      <td>${r.reason_from}</td>
-      <td>${edit ? `<select data-cls="${r.id}"><option value="">— выбрать —</option>${opts(r.category_id)}</select>`
-                 : (r.category_name || "—")}</td>
-      <td>${r.open && edit ? `<button class="act" data-close="${r.id}">Закрыть</button>`
-                           : (r.open ? '<span class="ok">открыт</span>' : "")}</td></tr>`).join("");
-
-    document.querySelectorAll("[data-cls]").forEach(s => s.onchange = async () => {
-      if (!s.value) return;
-      try { await api("/api/tickets/classify", { id: Number(s.dataset.cls), category_id: s.value });
-            say("Причина записана"); loadTickets(); }
-      catch (e) { say("Не записалось: " + e.message, true); }
-    });
-    document.querySelectorAll("[data-close]").forEach(b => b.onclick = async () => {
-      try { await api("/api/tickets/close", { id: Number(b.dataset.close) }); loadTickets(); }
-      catch (e) { say("Не закрылся: " + e.message, true); }
-    });
+    TK_LIVE = live;
+    renderTickets();
   } catch (e) { say("Тикеты не загрузились: " + e.message, true); }
 }
+let TK_LIVE = null;
+function renderTickets() {
+  const sh = $("#tk-shift").value, looms = $("#tk-looms").value.trim(), f = $("#tk-filter").value;
+  const test = looms ? textTest(looms) : null;
+  const rows = TK.filter(r => (!sh || (r.shift || "").endsWith("." + sh)) && (!test || test(r.loom))
+                              && (f !== "noreason" || !r.category_id));
+  const {k, dir} = TK_SORT;
+  const key = r => k === "loom" ? (r.loom || "").replace(/\d+/, d => d.padStart(3, "0")) : (r[k] ?? "");
+  rows.sort((a, b) => (key(a) > key(b) ? 1 : key(a) < key(b) ? -1 : 0) * dir);
+  document.querySelectorAll("[data-tk-sort]").forEach(th => {
+    th.style.cursor = "pointer";
+    th.textContent = th.textContent.replace(/ [▲▼]$/, "") + (th.dataset.tkSort === k ? (dir > 0 ? " ▲" : " ▼") : "");
+  });
+
+  // Плитки — по отфильтрованному: сколько тикетов, сколько простоя, что без причины.
+  const sum = a => a.reduce((x, r) => x + (r.duration_sec || 0), 0);
+  const noreason = rows.filter(r => !r.category_id);
+  const by = {};
+  rows.forEach(r => { const b = by[r.reason] = by[r.reason] || {n: 0, s: 0}; b.n++; b.s += r.duration_sec || 0; });
+  const top = Object.entries(by).sort((a, b) => b[1].s - a[1].s).slice(0, 4);
+  $("#tk-tiles").innerHTML = [
+    ["Тикетов", rows.length],
+    ["Простой", dur(sum(rows))],
+    ["Без причины", `${noreason.length}<small> · ${dur(sum(noreason))}</small>`],
+    ["Стоит сейчас", TK_LIVE ? TK_LIVE.totals.stopped : "—"],
+    ...top.map(([reason, b]) => [reason, `${dur(b.s)}<small> · ${b.n}</small>`]),
+  ].map(([l,v])=>`<div class="tile"><div class="l">${esc(l)}</div><div class="v">${v}</div></div>`).join("");
+
+  const edit = TK_EDIT;
+  const opts = c => TK_CATS.map(x =>
+    `<option value="${x.id}"${x.id===c?" selected":""}>${x.name}</option>`).join("");
+  $("#tk-table tbody").innerHTML = rows.map(r => `<tr>
+    <td>${esc(r.loom)} <button class="act" data-ticket-audit="${r.id}" title="История тикета">№ ${r.id}</button></td>
+    <td class="n">${r.started_at.slice(5,16).replace("T"," ")}</td>
+    <td>${esc((r.shift || "").slice(-1))}</td>
+    <td class="n">${dur(r.duration_sec)}</td>
+    <td>${r.cause_ru || "—"}</td>
+    <td>${r.reason}</td>
+    <td>${r.reason_from}</td>
+    <td>${edit ? `<select data-cls="${r.id}"><option value="">— выбрать —</option>${opts(r.category_id)}</select>`
+               : (r.category_name || "—")}</td>
+    <td>${r.open && edit ? `<button class="act" data-close="${r.id}">Закрыть</button>`
+                         : (r.open ? '<span class="ok">открыт</span>' : "")}</td></tr>`).join("")
+    || `<tr><td colspan="9" class="note">За выбранный период тикетов нет.</td></tr>`;
+
+  document.querySelectorAll("[data-cls]").forEach(s => s.onchange = async () => {
+    if (!s.value) return;
+    try { await api("/api/tickets/classify", { id: Number(s.dataset.cls), category_id: s.value });
+          say("Причина записана"); loadTickets(); }
+    catch (e) { say("Не записалось: " + e.message, true); }
+  });
+  document.querySelectorAll("[data-close]").forEach(b => b.onclick = async () => {
+    try { await api("/api/tickets/close", { id: Number(b.dataset.close) }); loadTickets(); }
+    catch (e) { say("Не закрылся: " + e.message, true); }
+  });
+}
+document.querySelectorAll("[data-tk-sort]").forEach(th => th.onclick = () => {
+  const k = th.dataset.tkSort;
+  TK_SORT = {k, dir: TK_SORT.k === k ? -TK_SORT.dir : (k === "started_at" || k === "duration_sec" ? -1 : 1)};
+  renderTickets();
+});
+["#tk-from", "#tk-to"].forEach(id => $(id).onchange = loadTickets);
+$("#tk-shift").onchange = renderTickets;
+$("#tk-looms").oninput = renderTickets;
 $("#tk-reload").onclick = loadTickets;
-$("#tk-filter").onchange = loadTickets;
+$("#tk-filter").onchange = loadTickets;   // «открытые» спрашиваем у сервера
 
 /* --- сводка ручных остановов: как Manual Stoppages Summary в LDS --- */
 let MN_SEQ = 0;

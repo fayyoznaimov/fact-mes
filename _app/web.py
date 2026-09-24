@@ -381,9 +381,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, dashboard.forecast(int(q.get("hours", 12)) * 60))
             if u.path == "/api/tickets":
                 return self._send(200, {
-                    "tickets": tickets.ticket_list(limit=int(q.get("limit", 80)),
+                    "tickets": tickets.ticket_list(limit=min(int(q.get("limit", 80)), 5000),
                                                    only_open=q.get("open") == "1",
-                                                   day=q.get("day")),
+                                                   day=q.get("day"),
+                                                   shift_from=q.get("from"), shift_to=q.get("to")),
                     "categories": tickets.categories("operator"),
                     "summary": tickets.summary(int(q.get("hours", 24))),
                     "can_edit": may(current_user(self), "tickets")})

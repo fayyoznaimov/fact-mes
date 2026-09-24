@@ -109,7 +109,7 @@ function card(r) {
     <div class="row"><span class="k">Operator</span>
       <span class="v big">${op ? `${op.name}${op.code ? " " + op.code : ""}` : "-"}</span>
       ${op && op.source === "FACT" ? '<span class="v" style="font-size:11px">из FACT</span>' : ""}</div>
-    ${r.awaiting_ticket ? '<div class="row tick"><b>Ожидает тикета: ручной останов без причины</b></div>' : ''}
+    ${r.awaiting_ticket ? '<div class="row tick"><b>Ожидает тикета: стоит без причины</b></div>' : ''}
     <div class="row"><span class="k">КПД смены</span><span class="v big">${nf(r.efficiency_pct,1)}%</span></div>
     <div class="row"><span class="k">RPM сейчас</span><span class="v">${nf(r.rpm)}</span></div>
     <div class="row"><span class="k">Design</span><span class="v">${dash(r.design)}</span></div>

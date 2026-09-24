@@ -41,7 +41,7 @@ from storage import shop
 SOURCE = {"mode": "mirror", "url": "http://172.0.30.9"}
 
 STALE_SEC = 180         # снимок старше — данные на доске уже не живые
-TICKET_MIN_SEC = 120    # тикет заводим, если останов длится дольше этого
+TICKET_MIN_SEC = 120    # по умолчанию; порог берётся из настройки andon_warn_min («Нет тикета» через)
 LONG_STOP_SEC = 900     # длинный останов заводит тикет даже с причиной от станка
 
 # Сигналы, которые станок выставляет сам. Если такой сигнал есть — он и есть
@@ -264,8 +264,10 @@ def andon_level(st, ticket, cause, an):
     if ticket and ticket["category_id"]:
         return "ticket"
     sec = st["state_sec"]
-    if machine_state(cause) == "tech" and sec < LONG_STOP_SEC:
+    if machine_state(cause) == "tech" and sec < max(LONG_STOP_SEC, an["warn_min"] * 60):
         return "tech"
+    if sec < an["warn_min"] * 60:
+        return "wait"               # до порога тикета станок никто не дёргает
     if sec >= an["alarm_min"] * 60:
         return "alarm"
     if sec >= an["warn_min"] * 60:
@@ -279,9 +281,9 @@ def andon_candidates():
     действительно ушло (mark_escalated) — иначе доска писала бы «мастеру
     сообщено», когда телеграм не настроен или не ответил."""
     an = andon_settings()
-    limit = an["notify_min"] * 60
-    if not limit:
+    if not an["notify_min"]:
         return []
+    limit = max(an["notify_min"], an["warn_min"]) * 60     # мастеру — не раньше, чем нужен тикет
     _, live = state_now(max_age=0)
     conn = db()
     open_t = {r["loom"]: r for r in conn.execute("SELECT * FROM ticket WHERE ended_at IS NULL")}
@@ -492,7 +494,10 @@ def _row(r):
     return d
 
 
-def ticket_list(limit=80, only_open=False, day=None, date_from=None, date_to=None):
+def ticket_list(limit=80, only_open=False, day=None, date_from=None, date_to=None,
+                shift_from=None, shift_to=None):
+    """shift_from/shift_to — производственные дни по смене тикета (2026.09.24):
+    ночная смена C числится за днём, в который началась, как в отчёте."""
     conn = db()
     sql = "SELECT * FROM ticket"
     args, where = [], []
@@ -507,6 +512,12 @@ def ticket_list(limit=80, only_open=False, day=None, date_from=None, date_to=Non
     if date_to:
         where.append("substr(started_at,1,10)<=?")
         args.append(date_to.replace(".", "-"))
+    if shift_from:
+        where.append("substr(shift,1,10)>=?")
+        args.append(shift_from.replace("-", "."))
+    if shift_to:
+        where.append("substr(shift,1,10)<=?")
+        args.append(shift_to.replace("-", "."))
     if where:
         sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY (ended_at IS NULL) DESC, started_at DESC LIMIT ?"
@@ -534,10 +545,12 @@ def summary(hours=24):
 # --- автоматическое ведение тикетов -----------------------------------------
 
 def poll_once():
-    """Останов дольше двух минут заводит тикет, поехавший станок — закрывает.
+    """Останов дольше порога «Нет тикета через, мин» заводит тикет, поехавший
+    станок — закрывает.
 
     Вызывается сборщиком на каждый новый снимок FACT (раз в минуту).
     """
+    limit = andon_settings()["warn_min"] * 60 or TICKET_MIN_SEC
     _, live = state_now(max_age=0)
     now = datetime.now().astimezone()
     conn = db()
@@ -563,7 +576,9 @@ def poll_once():
         # Причину, которую станок назвал сам, разбирать не надо — только если
         # останов затянулся: тогда это уже не обрыв, а проблема.
         tech = machine_state(cause) == "tech"
-        if sec < TICKET_MIN_SEC or (tech and sec < LONG_STOP_SEC):
+        # Порог — настройка «Нет тикета через, мин»: тикет, доска и карточки
+        # начинают требовать объяснение в один и тот же момент.
+        if sec < limit or (tech and sec < max(limit, LONG_STOP_SEC)):
             continue
         started = now - timedelta(seconds=sec)
         conn.execute(

@@ -82,7 +82,7 @@ ENTITY = {"assignment": "Расстановка", "shift_master": "Мастер�
           "app_user_access": "Права пользователя", "app_user_employee": "Сотрудник пользователя", "api_key": "Ключ API"}
 ACTIONS = {"INSERT": "Добавлено", "UPDATE": "Изменено", "DELETE": "Удалено",
            "BASELINE": "Состояние на момент включения истории"}
-SETTINGS = {"rate": "Ставка (до документов)", "rate_unit": "Единица ставки", "andon_warn_min": "«Нет тикета» через, мин",
+SETTINGS = {"rate": "Ставка (до документов)", "rate_unit": "Единица ставки", "andon_warn_min": "Тикет, если стоит дольше, мин",
             "andon_alarm_min": "Тревога на доске через, мин", "andon_notify_min": "Мастеру в телеграм через, мин",
             "weight_allowance_pct": "Надбавка к весу штуки, %"}
 WORDS = {
