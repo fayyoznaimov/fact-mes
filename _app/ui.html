@@ -1212,30 +1212,6 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
   </section>
 
   <!-- KPI -->
-  <section id="tab-kpi" class="hidden">
-    <div class="bar">
-      <div class="f"><label for="kpi-from">С</label><select id="kpi-from"></select></div>
-      <div class="f"><label for="kpi-to">По</label><select id="kpi-to"></select></div>
-      <div class="f"><label>Кого</label>
-        <div class="chips" id="kpi-role">
-          <button class="chip" data-role="operator" aria-pressed="true">операторы</button>
-          <button class="chip" data-role="master" aria-pressed="false">мастерицы</button>
-        </div></div>
-      <div class="f"><label>&nbsp;</label><button class="act primary" id="kpi-go">Показать</button></div>
-    </div>
-    <div class="tbl-wrap" style="margin-top:14px">
-      <table id="kpi-table">
-        <thead><tr>
-          <th>Код</th><th>Имя</th><th class="n">Смен</th><th class="n">Станков</th>
-          <th class="n">Тыс. пиков</th><th class="n">КПД</th>
-          <th class="n">Уток /cmpx</th><th class="n">Основа /cmpx</th>
-          <th class="n">Ожидание за смену, мин</th><th class="n">Ручных за смену</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-    <p class="note">«Уток /cmpx» и «основа /cmpx» — обрывы на 100 000 уточин: не зависят от скорости станка, поэтому людей можно сравнивать. «Ожидание» — сколько станок простоял, пока к нему не подошли.</p>
-  </section>
 
   <!-- ПРОСТОИ -->
   <section id="tab-explorer" class="hidden">
@@ -1307,62 +1283,6 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
   </section>
 
   <!-- УЗКИЕ МЕСТА -->
-  <section id="tab-bottle" class="hidden">
-    <div class="bar">
-      <div class="f"><label for="bt-from">С</label><select id="bt-from"></select></div>
-      <div class="f"><label for="bt-to">По</label><select id="bt-to"></select></div>
-      <div class="f"><label>Смены</label><div class="chips" id="bt-shifts">
-        <button class="chip" data-sh="A" aria-pressed="true">A</button>
-        <button class="chip" data-sh="B" aria-pressed="true">B</button>
-        <button class="chip" data-sh="C" aria-pressed="true">C</button></div></div>
-      <div class="f"><label>&nbsp;</label><button class="act primary" id="bt-go">Показать</button></div>
-    </div>
-    <div class="tiles" id="bt-tiles" style="margin-top:14px"></div>
-
-    <div class="grid2" style="margin-top:14px">
-      <div class="tbl-wrap">
-        <table id="bt-cause">
-          <thead><tr><th>Причина</th><th class="n">Остановов</th><th class="n">Потеряно, мин</th>
-            <th class="n">Доля</th><th class="n">MTTR, сек</th><th class="n">Реакция, сек</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <div class="tbl-wrap">
-        <table id="bt-shift">
-          <thead><tr><th>Смена</th><th class="n">Остановов</th><th class="n">Потеряно, мин</th>
-            <th class="n">Реакция, сек</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
-
-    <h3 style="margin:18px 0 0;font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)">
-      Станки: где теряем больше всего</h3>
-    <p class="note">Обрывность приведена к 100 тысячам пиков — только так станки сравнимы
-      между собой. Красным — те, кто хуже медианы по цеху в полтора раза. Время ручного
-      останова здесь — от останова до пуска, вместе с ночами и выходными, когда станок
-      стоял без работы; потери внутри рабочих смен — во вкладке «Ручные остановы».</p>
-    <div class="tbl-wrap">
-      <table id="bt-loom">
-        <thead><tr><th>Станок</th><th class="n">Потеряно, мин</th><th class="n">Остановов</th>
-          <th class="n">Уток /100k</th><th class="n">Основа и ворс /100k</th>
-          <th class="n">Ручные, мин</th><th class="n">Реакция, сек</th><th class="n">Реакция 90 %</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-
-    <h3 style="margin:18px 0 0;font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)">
-      Операторы: как быстро подходят к станку</h3>
-    <p class="note" id="bt-op-note"></p>
-    <div class="tbl-wrap">
-      <table id="bt-op">
-        <thead><tr><th>Код</th><th>Оператор</th><th class="n">Станков</th><th class="n">Остановов</th>
-          <th class="n">Потеряно, мин</th><th class="n">Реакция, сек</th><th class="n">Реакция 90 %</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </section>
 
   <section id="tab-cards" class="hidden">
     <iframe id="machine-cards-frame" title="Карточки станков" style="width:100%;height:calc(100vh - 110px);border:0;background:white"></iframe>
@@ -1644,7 +1564,6 @@ function showTab(t) {
   // запросов и 15 тысяч элементов. Свежее 30 секунд — показываем, что есть;
   // кнопки «Показать»/«Обновить» на вкладках грузят заново всегда.
   if (t === "dash") onTab("dash", () => { loadDash(); loadDashSoon(); });
-  if (t === "bottle") onTab("bottle", loadBottle);
   if (t === "history") loadHistory();
   if (t === "plan") onTab("plan", loadPlan);
   if (t === "manual") onTab("manual", loadManual);
@@ -2702,65 +2621,6 @@ $("#pl-1c").onclick = async () => {
 $("#pl-closed").onclick = () => { PLAN_CLOSED = !PLAN_CLOSED;
   $("#pl-closed").textContent = PLAN_CLOSED ? "Только открытые" : "Показать закрытые"; loadPlan(); };
 
-/* --- узкие места: где цех теряет время --- */
-let BT_SEQ = 0;
-const secs = v => v == null ? "—" : (v >= 60 ? `${Math.floor(v/60)}:${String(v%60).padStart(2,"0")}` : `${v} с`);
-const shiftFilter = () => [...document.querySelectorAll("#bt-shifts .chip")]
-  .filter(c => c.getAttribute("aria-pressed") === "true").map(c => c.dataset.sh).join("");
-
-document.querySelectorAll("#bt-shifts .chip").forEach(c => c.onclick = () => {
-  c.setAttribute("aria-pressed", c.getAttribute("aria-pressed") !== "true" ? "true" : "false");
-  loadBottle();
-});
-$("#bt-go").onclick = loadBottle;
-
-async function loadBottle() {
-  const seq = ++BT_SEQ;
-  try {
-    const sh = shiftFilter();
-    const d = await api(`/api/bottlenecks?from=${$("#bt-from").value}&to=${$("#bt-to").value}`
-      + (sh && sh !== "ABC" ? `&shifts=${sh}` : ""));
-    if (seq !== BT_SEQ) return;
-    const t = d.totals, r = d.response;
-
-    $("#bt-tiles").innerHTML = [
-      ["Остановов", nf(t.stops)],
-      ["Потеряно", `${nf(t.lost_h)}<small> часов</small>`],
-      ["Реакция оператора", `${secs(r.median)}<small> медиана</small>`],
-      ["Реакция, 90 %", secs(r.p90)],
-      ["Уток на 100k пиков", `${nf(t.weft_median,1)}<small> медиана цеха</small>`],
-      ["Основа и ворс /100k", nf(t.warp_median,1)],
-    ].map(([l,v])=>`<div class="tile"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("");
-
-    $("#bt-cause tbody").innerHTML = d.by_cause.map(c => `<tr>
-      <td>${esc(c.name)}</td><td class="n">${nf(c.count)}</td><td class="n">${nf(c.minutes)}</td>
-      <td class="n">${nf(c.share,1)}%</td>
-      <td class="n${c.mttr_sec > 120 ? " bad" : ""}">${nf(c.mttr_sec)}</td>
-      <td class="n">${c.resp_median != null ? nf(c.resp_median) : "—"}</td></tr>`).join("");
-
-    $("#bt-shift tbody").innerHTML = d.by_shift.map(s => `<tr>
-      <td>Смена ${s.shift}</td><td class="n">${nf(s.stops)}</td>
-      <td class="n">${nf(s.lost_min)}</td><td class="n">${secs(s.resp_median)}</td></tr>`).join("");
-
-    // Красным — станки, которые рвут в полтора раза чаще медианы по цеху.
-    const wl = (t.weft_median || 0) * 1.5, gl = (t.warp_median || 0) * 1.5;
-    $("#bt-loom tbody").innerHTML = d.by_loom.map(l => `<tr>
-      <td><b>${esc(l.loom)}</b></td><td class="n">${nf(l.lost_min)}</td><td class="n">${nf(l.stops)}</td>
-      <td class="n${l.weft_per_100k > wl ? " bad" : ""}">${nf(l.weft_per_100k,1)}</td>
-      <td class="n${l.warp_per_100k > gl ? " bad" : ""}">${nf(l.warp_per_100k,1)}</td>
-      <td class="n">${nf(l.manual_min)}</td>
-      <td class="n">${secs(l.resp_median)}</td><td class="n">${secs(l.resp_p90)}</td></tr>`).join("");
-
-    $("#bt-op tbody").innerHTML = d.by_operator.map(o => `<tr>
-      <td class="n">${esc(o.code)}</td><td>${esc(o.name)}</td><td class="n">${o.looms}</td>
-      <td class="n">${nf(o.stops)}</td><td class="n">${nf(o.lost_min)}</td>
-      <td class="n">${secs(o.resp_median)}</td><td class="n">${secs(o.resp_p90)}</td></tr>`).join("");
-    $("#bt-op-note").textContent = d.by_operator.length
-      ? "Останов засчитывается тому, кто был на этом станке в эту смену."
-      : "Операторы за этот период не расставлены — загрузите расстановку из FACT на вкладке «Зарплата».";
-  } catch (e) { say("Узкие места не загрузились: " + e.message, true); }
-}
-
 /* --- тикеты: почему станок стоит --- */
 let TK_CATS = [];
 const dur = sec => { sec = Math.max(0, sec|0);
@@ -3057,13 +2917,7 @@ async function boot() {
     const dayOpts = days.days.map(d=>`<option value="${d}">${d.replace(/\./g,"/")}</option>`).join("");
     $("#rep-day").innerHTML = dayOpts;
     $("#dash-day").innerHTML = dayOpts;
-    $("#kpi-from").innerHTML = dayOpts; $("#kpi-to").innerHTML = dayOpts;
-    $("#kpi-from").value = days.days[Math.min(days.days.length-1, 29)] || days.days.at(-1);
-    $("#kpi-to").value = days.days[0];
-    // вкладки «Простои» и «Обход цеха»
-    $("#bt-from").innerHTML = dayOpts; $("#bt-to").innerHTML = dayOpts;
-    $("#bt-from").value = days.days[Math.min(days.days.length-1, 29)] || days.days.at(-1);
-    $("#bt-to").value = days.days[0];
+    // «Простои»: сводка по причинам и обход смены
     $("#ex-from").innerHTML = dayOpts; $("#ex-to").innerHTML = dayOpts;
     $("#ex-from").value = days.days[Math.min(days.days.length-1, 29)] || days.days.at(-1);
     $("#ex-to").value = days.days[0];
@@ -4243,24 +4097,6 @@ $("#op-import").onclick = async () => {
   } catch (e) { say("Импорт не удался: " + e.message, true); }
 };
 
-/* --- KPI --- */
-document.querySelectorAll("#kpi-role .chip").forEach(c => c.onclick = () => {
-  document.querySelectorAll("#kpi-role .chip").forEach(x => x.setAttribute("aria-pressed", x === c));
-});
-$("#kpi-go").onclick = async () => {
-  const role = document.querySelector('#kpi-role .chip[aria-pressed="true"]').dataset.role;
-  const a = $("#kpi-from").value, b = $("#kpi-to").value;
-  const [from, to] = a <= b ? [a, b] : [b, a];
-  try {
-    const d = await api(`/api/kpi?from=${from}&to=${to}&role=${role}`);
-    $("#kpi-table tbody").innerHTML = d.rows.map(r => `<tr>
-      <td class="n">${esc(r.code)}</td><td>${esc(r.name)}</td><td class="n">${r.shifts}</td><td class="n">${r.looms}</td>
-      <td class="n">${nf(r.kpicks,1)}</td><td class="n${r.effic<60?" bad":""}">${nf(r.effic,1)}</td>
-      <td class="n">${nf(r.weft_cmpx,1)}</td><td class="n">${nf(r.warp_cmpx,1)}</td>
-      <td class="n">${nf(r.wait_per_shift)}</td><td class="n">${nf(r.manual_per_shift,1)}</td></tr>`).join("")
-      || `<tr><td colspan="10" class="note">Нет назначений за выбранный период.</td></tr>`;
-  } catch (e) { say("KPI не посчитался: " + e.message, true); }
-};
 
 /* --- простои --- */
 // Причины в сводке сервера — по-русски; цвет — тот же, что у причины в Истории станков.
@@ -4553,7 +4389,6 @@ docDialog.innerHTML='<form method="dialog"><h3 id="doc-title"></h3><div id="doc-
   '<div class="btns"><button class="act" value="cancel" formnovalidate>Вернуться к правке</button><button class="act primary" id="doc-post" type="button">Провести</button></div></form>';
 document.body.appendChild(docDialog);
 const docStatus=s=>`<span class="doc-status ${s}">${s==='posted'?'проведён':'отменён'}</span>`;
-const docVal=v=>v==null||v===''?'<span class="note">по справочнику</span>':esc(typeof v==='number'?nf(v,Number.isInteger(v)?0:3):v);
 const docMoney=v=>nf(Math.round(v||0))+'<small> сум</small>';
 const DOC_VIEW={
   setup:{tiles:c=>[['Станков',c.summary.looms],['С изменениями',c.summary.changed_looms],['Реквизитов меняется',c.summary.changed_fields]],
