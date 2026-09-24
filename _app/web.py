@@ -241,6 +241,10 @@ class Handler(BaseHTTPRequestHandler):
     # Keep-alive: монитор в цехе держит одно соединение вместо нового на каждый
     # запрос. Content-Length мы ставим всегда, так что это безопасно.
     protocol_version = "HTTP/1.1"
+    # Таймаут сокета: клиент, который не присылает запрос или не читает ответ
+    # минуту, отпускает поток сервера (раньше держал бесконечно). Поток толчков
+    # мониторов пишет пинг каждые PING_SEC секунд и под таймаут не попадает.
+    timeout = 60
 
     def _send(self, code, body, ctype="application/json; charset=utf-8", headers=None):
         data = body if isinstance(body, bytes) else json.dumps(body, ensure_ascii=False).encode()
