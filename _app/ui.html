@@ -409,6 +409,7 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
 .seg button:hover{color:var(--ink)}
 .seg button[aria-selected="true"]{border-bottom-color:var(--accent);color:var(--ink);font-weight:600}
 .pane{display:flex;flex-direction:column;gap:10px}
+#subnav{margin-bottom:-4px}
 /* Заправка: станок и дизайн остаются на месте при прокрутке вбок, шапка — по местам пряжи */
 #sg-table .stk{position:sticky;background:var(--surface);z-index:1}
 #sg-table .s0{left:0;width:30px;min-width:30px;max-width:30px}
@@ -571,7 +572,6 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
       <button data-tab="cards">Карточки станков</button>
       <button data-tab="wall">Доска цеха</button>
       <button data-tab="tickets">Тикеты</button>
-      <button data-tab="walk">Обход цеха</button>
       <div class="grp">Смена</div>
       <button data-tab="setup">Заправка</button>
       <button data-tab="assign">Расстановка</button>
@@ -579,9 +579,7 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
       <button data-tab="plan">План</button>
       <div class="grp">Отчёты</div>
       <button data-tab="report" aria-current="true">Производственный отчёт</button>
-      <button data-tab="explorer">Простои</button>
-      <button data-tab="history">История станков</button>
-      <button data-tab="manual">Ручные остановы</button>
+      <button data-tab="downtime">Простои</button>
       <button data-tab="salary">Зарплата</button>
       <div class="grp">Учёт</div>
       <button data-tab="docs">Документы</button>
@@ -599,6 +597,7 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
     <label class="language"><span class="sr-only">Язык интерфейса</span><select id="ui-language" aria-label="Язык интерфейса"><option value="ru">Русский</option><option value="en">English</option></select></label>
   </div>
   <div id="msg" class="msg hidden" role="status"></div>
+  <div class="seg hidden" id="subnav" role="tablist" aria-label="Вкладки раздела"></div>
   <div id="empty-access" class="access-panel hidden">Нет доступных разделов. Обратитесь к администратору.</div>
 
   <!-- ВХОД -->
@@ -1278,10 +1277,12 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
       <div class="f"><label for="wk-shift">Смена</label><select id="wk-shift"></select></div>
       <div class="f"><label>&nbsp;</label><button class="act primary" id="wk-go">Показать</button></div>
     </div>
-    <p class="note" style="margin-top:10px">Станки отсортированы по простою: сверху те, к которым идти в первую очередь. «Главная потеря» — на что ушло больше всего времени за смену.</p>
+    <p class="note" style="margin-top:10px">К каким станкам идти первыми: станки смены по простою, сверху — где потеряли больше всего.
+      «Главная потеря» — на что ушло больше всего времени, «Потеряно, мин» — сколько на неё. По умолчанию выбрана
+      последняя закончившаяся смена. «Артикул» — как его набрали на станке (FACT); «не задан» — на станке его нет.</p>
     <div class="tbl-wrap">
       <table id="wk-table">
-        <thead><tr><th>Станок</th><th>Артикул</th><th>Главная потеря</th><th class="n">мин</th>
+        <thead><tr><th>Станок</th><th>Артикул</th><th>Главная потеря</th><th class="n">Потеряно, мин</th>
           <th class="n">КПД</th><th class="n">Простой, мин</th>
           <th class="n">Уток</th><th class="n">Ворс</th><th class="n">Основа</th>
           <th class="n">Ручных</th><th class="n">Ожидание, мин</th></tr></thead>
@@ -1530,6 +1531,7 @@ const ICONS = {
   plan:'M4 5h16v16H4zM8 3v4M16 3v4M4 10h16M8 14h3M14 17h3',
   report:'M5 3h10l4 4v14H5zM14 3v5h5M8 12h8M8 16h8',
   explorer:'M5 4v16h16M9 15v-4M14 15V7M19 15v-6',
+  downtime:'M5 4v16h16M9 15v-4M14 15V7M19 15v-6',
   history:'M4 5v15h17M8 7h7M12 11h9M7 15h8',
   manual:'M9 11V5a2 2 0 0 1 4 0v6M13 8h2l5 3-2 9H9l-5-7 2-2 3 3',
   salary:'M3 6h18v14H3zM3 6V4h15M16 11h5v5h-5z',
@@ -1588,12 +1590,36 @@ const say = (text, isErr) => {
   if (!isErr) SAY_T = setTimeout(() => m.classList.add("hidden"), 4000);
 };
 
-document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
-  const t = b.dataset.tab;
-  if (!canSection(t)) return;
+// Разделы-вкладки под одним пунктом меню. «Простои»: сводка, обход смены, по дням
+// и ленты станков раньше были четырьмя пунктами меню про одно и то же. Права — по
+// разделам, как раньше: вкладка видна, только если раздел разрешён.
+const NAV_GROUPS = {downtime: [["explorer", "Сводка по причинам"], ["walk", "Обход смены"],
+                               ["manual", "По дням"], ["history", "Ленты станков"]]};
+const GROUP_OF = {};
+Object.entries(NAV_GROUPS).forEach(([g, list]) => list.forEach(([t]) => { GROUP_OF[t] = g; }));
+const navButton = t => document.querySelector(`nav button[data-tab="${CSS.escape(GROUP_OF[t] || t)}"]`);
+const groupAllowed = g => NAV_GROUPS[g].some(([id]) => canSection(id));
+function groupPick(g) {                 // последняя открытая вкладка группы, если доступна
+  let last = null; try { last = localStorage.getItem("grp-" + g); } catch (e) {}
+  const ok = NAV_GROUPS[g].map(x => x[0]).filter(canSection);
+  return ok.includes(last) ? last : ok[0];
+}
+document.querySelectorAll("nav button").forEach(b => b.onclick = () =>
+  showTab(NAV_GROUPS[b.dataset.tab] ? groupPick(b.dataset.tab) : b.dataset.tab));
+$("#subnav").onclick = e => { const x = e.target.closest("[data-sub]"); if (x) showTab(x.dataset.sub); };
+function showTab(t) {
+  if (!t || !canSection(t)) return;
+  const b = navButton(t), g = GROUP_OF[t];
   document.querySelectorAll("nav button").forEach(x => x.setAttribute("aria-current", x === b));
   document.querySelectorAll("section").forEach(s => s.classList.add("hidden"));
   $("#tab-" + t).classList.remove("hidden");
+  const sub = $("#subnav");
+  sub.classList.toggle("hidden", !g);
+  if (g) {
+    sub.innerHTML = NAV_GROUPS[g].filter(([id]) => canSection(id)).map(([id, label]) =>
+      `<button role="tab" data-sub="${id}" aria-selected="${id === t}">${label}</button>`).join("");
+    try { localStorage.setItem("grp-" + g, t); } catch (e) {}
+  }
   // Ленты Истории станков — ~40 тысяч элементов SVG; раздел при входе всё равно
   // грузит данные заново, поэтому при уходе ленты убираем, а не держим в странице.
   if (t !== "history") { $("#mh-grid").innerHTML = ""; $("#mh-detail").classList.add("hidden"); }
@@ -1606,7 +1632,8 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
     if (!wallFrame.getAttribute("src")) wallFrame.src = "/wall";
   } else wallFrame.removeAttribute("src");
   $("#page-title").textContent = tr(b.dataset.labelRu);
-  document.title = tr(b.dataset.labelRu) + " — " + tr("Ткацкий цех");
+  const subLabel = g ? NAV_GROUPS[g].find(x => x[0] === t)[1] : "";
+  document.title = tr(subLabel || b.dataset.labelRu) + " — " + tr("Ткацкий цех");
   // Раздел — в адресе (#setup): обновление страницы и кнопка «Назад» возвращают туда же.
   if (location.hash !== "#" + t) history[NAV_PUSH ? "pushState" : "replaceState"](null, "", "#" + t);
   try { localStorage.setItem("tab", t); } catch (e) {}
@@ -1630,7 +1657,7 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   if (t === "walk") onTab("walk", loadWalk);
   if (t === "salary") onTab("salary", loadSalary);
   if (t === "users") renderUsers();
-});
+}
 const TAB_AT = {};
 function onTab(key, load, fresh = 30000) {
   if (TAB_AT[key] && Date.now() - TAB_AT[key] < fresh) return;
@@ -1640,9 +1667,10 @@ function onTab(key, load, fresh = 30000) {
 // Открыть раздел по имени (из адреса или запомненный). push — шаг в истории браузера.
 let NAV_PUSH = true;
 function openTab(t, push = false) {
-  const b = t && document.querySelector(`nav button[data-tab="${CSS.escape(t)}"]:not(.hidden)`);
-  if (!b) return false;
-  NAV_PUSH = push; b.click(); NAV_PUSH = true;
+  if (t && NAV_GROUPS[t]) t = groupPick(t);
+  const b = t && navButton(t);
+  if (!b || b.classList.contains("hidden") || !canSection(t)) return false;
+  NAV_PUSH = push; showTab(t); NAV_PUSH = true;
   return true;
 }
 window.addEventListener("popstate", () => { if (!openTab(location.hash.slice(1))) openFirstTab(); });
@@ -1724,7 +1752,7 @@ async function whoAmI() {
   $("#whoami").innerHTML = `<b data-i18n-skip>${esc(ME.name)}</b><br>${esc(ROLES[ME.role] || ME.role)}<br><a href="#" id="logout">Выйти</a>`;
   $("#logout").onclick = async (e) => { e.preventDefault(); await api("/api/logout", {}); location.reload(); };
   document.querySelectorAll("nav button").forEach(b => {
-    b.classList.toggle("hidden", !canSection(b.dataset.tab));
+    b.classList.toggle("hidden", !(NAV_GROUPS[b.dataset.tab] ? groupAllowed(b.dataset.tab) : canSection(b.dataset.tab)));
   });
   syncNavGroups();
   $("#u-role").innerHTML = Object.entries(ROLES).map(([k,v])=>`<option value="${k}">${v}</option>`).join("");
@@ -4287,8 +4315,8 @@ async function loadWalk() {
   try {
     const d = await api(`/api/walk?day=${s.day}&shift=${s.shift}`);
     $("#wk-table tbody").innerHTML = d.rows.map(r => `<tr>
-      <td><strong>${esc(r.loom)}</strong></td><td>${esc(r.style)}</td>
-      <td>${r.main}</td><td class="n">${nf(r.main_min)}</td>
+      <td><strong>${esc(r.loom)}</strong></td><td>${r.style && r.style !== "Undefined" ? esc(r.style) : '<span class="note">не задан</span>'}</td>
+      <td>${esc(r.main)}</td><td class="n">${nf(r.main_min)}</td>
       <td class="n${r.eff<60?" bad":""}">${nf(r.eff,1)}</td><td class="n">${nf(r.stop_min)}</td>
       <td class="n">${nf(r.weft_ct)}</td><td class="n">${nf(r.top_ct)}</td><td class="n">${nf(r.warp_ct)}</td>
       <td class="n">${nf(r.manual_ct)}</td><td class="n${r.wait_min>60?" bad":""}">${nf(r.wait_min)}</td></tr>`).join("");
