@@ -665,8 +665,15 @@ class Handler(BaseHTTPRequestHandler):
             if u.path.startswith("/api/v1/"):
                 return self._api("POST", u.path, {k: v[0] for k, v in parse_qs(u.query).items()},
                                  body)
+            # Запросы браузера — только JSON с явным типом: форма с чужого сайта
+            # (text/plain, form-urlencoded) сюда не пройдёт, даже если браузер
+            # когда-нибудь пошлёт с ней cookie. Раньше тело разбиралось как JSON
+            # при любом Content-Type, защита держалась на одном SameSite=Lax.
             if not isinstance(body, dict):
                 raise ValueError("ожидается JSON-объект")
+            ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+            if ctype != "application/json":
+                return self._send(415, {"error": "ожидается Content-Type: application/json"})
             if u.path == "/api/login":
                 return self._login(body)
             if u.path == "/api/logout":

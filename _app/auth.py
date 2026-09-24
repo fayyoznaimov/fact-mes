@@ -11,6 +11,7 @@
   viewer   — только просмотр
 """
 import hashlib
+import hmac
 import json
 import os
 import re
@@ -377,7 +378,10 @@ def login(login_name, password, ip=None):
     conn = db()
     row = conn.execute("SELECT * FROM app_user WHERE login=? AND active=1",
                        (name,)).fetchone()
-    if not row or _hash(password or "", row["pwd_salt"]) != row["pwd_hash"]:
+    # Хеш считаем и для несуществующего логина, сравниваем за постоянное время:
+    # по времени ответа нельзя узнать, есть ли такой пользователь.
+    given = _hash(password or "", row["pwd_salt"] if row else "00" * 16)
+    if not row or not hmac.compare_digest(given, row["pwd_hash"]):
         conn.execute("INSERT INTO login_fail (login, ip, at) VALUES (?,?,?)",
                      (name, ip, datetime.now().astimezone().isoformat(timespec="seconds")))
         conn.commit()
