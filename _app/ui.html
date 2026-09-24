@@ -149,6 +149,11 @@ select.art{font:inherit;font-size:12px;max-width:260px}
    раньше красной или жёлтой была почти вся таблица, и плохое не выделялось. */
 .c-red{background:#fbe1de;color:#9f1d17;font-weight:700}
 .c-yel{color:var(--warn);font-weight:600}
+.side-prefs{display:flex;flex-direction:column;gap:6px;padding:0 10px}
+.side-prefs:empty{display:none}
+.side-prefs .language{margin:0!important}
+.side-prefs select{width:100%}
+:root[data-theme="dark"] .c-red{background:#4a1f1b;color:#ffb3aa}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:8px}
 .legend i{display:inline-block;width:22px;height:11px;border:1px solid var(--hair);margin-right:5px;vertical-align:-1px}
 /* до входа показываем только форму входа: она лежит внутри .wrap, поэтому
@@ -588,12 +593,15 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
       <button data-tab="settings">Настройки</button>
       <button data-tab="users">Пользователи</button>
     </nav>
+    <div class="side-prefs" id="side-prefs"></div>
     <div class="meta" id="whoami"></div>
   </header>
   <div class="topbar">
     <button type="button" class="icon-button" id="menu-btn" aria-label="Скрыть меню" aria-controls="sidebar" aria-expanded="true" title="Скрыть меню"></button>
     <h2 id="page-title">Производственный отчёт</h2>
     <div class="shift-now" id="shift-now" aria-live="off"><span>Смена</span><b id="sn-letter">—</b><span id="sn-span"></span><time id="sn-time"></time></div>
+    <label class="language theme"><span class="sr-only">Тема</span><select id="ui-theme" aria-label="Тема">
+      <option value="system">Тема: как в системе</option><option value="light">Светлая</option><option value="dark">Тёмная</option></select></label>
     <label class="language"><span class="sr-only">Язык интерфейса</span><select id="ui-language" aria-label="Язык интерфейса"><option value="ru">Русский</option><option value="en">English</option></select></label>
   </div>
   <div id="msg" class="msg hidden" role="status"></div>
@@ -1467,7 +1475,25 @@ document.querySelectorAll('nav button[data-tab]').forEach(b=>{
   b.innerHTML=icon(b.dataset.tab);b.append(label);
 });
 $('#menu-btn').innerHTML=icon('menu');$('#sidebar-close').innerHTML=icon('close');
-document.documentElement.dataset.theme='light';
+// Тема: как в системе (по умолчанию), светлая или тёмная. Раньше тёмная была
+// написана, но выключена жёстко — на ночной смене экран оставался ярко-белым.
+const THEME_DARK = matchMedia('(prefers-color-scheme: dark)');
+function applyTheme(){
+  let t='system'; try{t=localStorage.getItem('mes-theme')||'system';}catch(e){}
+  document.documentElement.dataset.theme=(t==='dark'||(t==='system'&&THEME_DARK.matches))?'dark':'light';
+  $('#ui-theme').value=t;
+}
+$('#ui-theme').onchange=e=>{try{localStorage.setItem('mes-theme',e.target.value);}catch(err){}applyTheme();};
+THEME_DARK.addEventListener('change',applyTheme);
+applyTheme();
+// На телефоне шапке не хватает места: тема и язык переезжают в выдвижное меню.
+const NARROW=matchMedia('(max-width:699px)');
+function placePrefs(){
+  const labels=[...document.querySelectorAll('label.language')];
+  const home=NARROW.matches?$('#side-prefs'):$('.topbar');
+  labels.forEach(l=>{if(l.parentElement!==home)home.appendChild(l);});
+}
+NARROW.addEventListener('change',placePrefs);placePrefs();
 // Разбор ответа сервера. Не JSON (страница ошибки, обрыв) — понятный текст вместо
 // «Unexpected token <». 401 после входа — сессия закончилась: показываем форму входа,
 // а не красную плашку «нужно войти» в каждом разделе.
