@@ -151,7 +151,7 @@ CREATE TABLE IF NOT EXISTS shift_doc (
 -- при заправке, а не каждый день. Пустое поле — берём из справочника.
 CREATE TABLE IF NOT EXISTS loom_setup (
     loom TEXT NOT NULL, from_day TEXT NOT NULL,
-    gsm REAL, weight_kg REAL, ppt REAL, panels INTEGER,
+    gsm REAL, weight_kg REAL, ppt REAL, panels INTEGER, design TEXT,
     pile_yarn TEXT, pile_lot TEXT, ground_yarn TEXT, ground_lot TEXT,
     weft1_yarn TEXT, weft1_lot TEXT, weft2_yarn TEXT, weft2_lot TEXT,
     weft3_yarn TEXT, weft3_lot TEXT, weft4_yarn TEXT, weft4_lot TEXT,
@@ -542,7 +542,7 @@ def prepare():
     # Места пряжи ручной заправки — как типы компонентов 1С (кручёная, полиэстер).
     have = [r[1] for r in conn.execute("PRAGMA table_info(loom_setup)")]
     for col in ("hemply_yarn", "hemply_lot", "hempoly_yarn", "hempoly_lot",
-                "fancyply_yarn", "fancyply_lot"):
+                "fancyply_yarn", "fancyply_lot", "design"):
         if col not in have:
             conn.execute("ALTER TABLE loom_setup ADD COLUMN %s TEXT" % col)
     conn.commit()

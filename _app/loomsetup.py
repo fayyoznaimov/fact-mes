@@ -24,7 +24,8 @@ NUMBERS = {"gsm": (100, 1500), "weight_kg": (0.01, 5), "ppt": (200, 9000), "pane
 # weft1 — уток, weft2 — кромка, weft3 — бордюр, weft4 — бордюр полиэстер.
 YARNS = ("pile", "ground", "weft1", "weft2", "hemply", "hempoly", "weft3", "fancyply", "weft4")
 TEXTS = tuple("%s_%s" % (y, k) for y in YARNS for k in ("yarn", "lot"))
-FIELDS = tuple(NUMBERS) + TEXTS
+# Дизайн вводят руками, когда станок заправлен не по плану или плана нет: он главнее плана и 1С.
+FIELDS = tuple(NUMBERS) + ("design",) + TEXTS
 YARN_RU = {"pile": "ворс", "ground": "грунт", "weft1": "уток", "weft2": "кромка",
            "hemply": "кромка кручёная", "hempoly": "кромка полиэстер", "weft3": "бордюр",
            "fancyply": "бордюр кручёная", "weft4": "бордюр полиэстер"}
@@ -63,6 +64,7 @@ def _number(field, raw):
 def _clean(values):
     """Проверенная строка заправки: числа в границах, пряжа — из справочника."""
     row = {f: _number(f, values.get(f, "")) for f in NUMBERS}
+    row["design"] = re.sub(r"\s+", " ", str(values.get("design") or "").strip().upper())[:40] or None
     for y in YARNS:
         try:
             row[y + "_yarn"] = yarns.resolve(values.get(y + "_yarn"))
@@ -148,6 +150,8 @@ def document_snapshot(db, loom, day, values):
     for key in ('gsm', 'panels'):
         if resolved.get(key) in (None, ''):
             resolved[key] = card.get(key) or plan.get(key)
+    if resolved.get('design') in (None, ''):
+        resolved['design'] = plan.get('design')
     slots = {'vors':'pile','karenoy':'ground','utog1':'weft1','utog2':'weft2','utog2p':'hemply',
              'utog2x':'hempoly','utog3':'weft3','utog3p':'fancyply','utog4':'weft4'}
     for yarn in yarn_rows:
@@ -318,7 +322,7 @@ def grid(day):
     for r in sorted(rows, key=lambda x: _loom_key(x["loom"])):
         s = setups.get(r["loom"]) or {}
         ref = {"gsm": r.get("gsm"), "weight_kg": r.get("weight_kg"), "ppt": r.get("ppt"),
-               "panels": r.get("panels")}
+               "panels": r.get("panels"), "design": r.get("design")}
         # Пряжа и лоты — по местам, как их собрал отчёт (из техкарты 1С изделия по плану).
         try:
             for y in json.loads(r.get("yarns") or "[]"):

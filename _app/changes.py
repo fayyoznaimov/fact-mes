@@ -13,7 +13,7 @@ YARN_RU = {"pile": "ворс", "ground": "грунт", "weft1": "уток", "wef
            "hemply": "кромка кручёная", "hempoly": "кромка полиэстер", "weft3": "бордюр",
            "fancyply": "бордюр кручёная", "weft4": "бордюр полиэстер"}
 SETUP = {"from_day": "Действует с", "gsm": "GSM", "weight_kg": "Вес штуки, кг", "ppt": "PPT — прокидки на ряд",
-         "panels": "Панелей", "set_by": "Кто ввёл", "set_at": "Когда введено"}
+         "panels": "Панелей", "design": "Дизайн", "set_by": "Кто ввёл", "set_at": "Когда введено"}
 for _slot, _ru in YARN_RU.items():
     SETUP[_slot + "_yarn"] = "Пряжа: " + _ru
     SETUP[_slot + "_lot"] = "Лот: " + _ru

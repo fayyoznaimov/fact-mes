@@ -588,6 +588,7 @@ dialog.gt-dlg{width:min(1040px,95vw)}
       <p class="note" id="ls-note"></p>
       <div class="ls-grid">
         <label class="f"><span>С какого дня</span><input id="ls-from" type="date"></label>
+        <label class="f"><span>Дизайн</span><input id="ls-design" autocomplete="off" placeholder="D144"></label>
         <label class="f"><span>GSM</span><input id="ls-gsm" inputmode="decimal" autocomplete="off"></label>
         <label class="f"><span>Вес штуки, кг</span><input id="ls-weight_kg" inputmode="decimal"
           placeholder="0,635 или 635 г" autocomplete="off"></label>
@@ -2805,6 +2806,7 @@ async function openSetup(loom) {
     ? `Сейчас действует запись с ${r.setup.from_day.replace(/\./g, "/")} (ввёл ${r.setup.set_by || "—"}).`
     : "Вручную по этому станку ещё не вводили — в полях значения из справочника, их можно поправить.";
   $("#ls-from").value = $("#rep-day").value.replace(/\./g, "-");
+  $("#ls-design").value = val("design", r.design);
   $("#ls-gsm").value = val("gsm", r.gsm);
   $("#ls-weight_kg").value = val("weight_kg", r.weight_kg);
   $("#ls-ppt").value = val("ppt", r.ppt);
@@ -2827,7 +2829,7 @@ $("#rep-table tbody").addEventListener("click", e => {
 $("#ls-save").onclick = async () => {
   const r = LS_ROW;
   if (!r) return;
-  const values = {gsm: $("#ls-gsm").value, weight_kg: $("#ls-weight_kg").value,
+  const values = {design: $("#ls-design").value, gsm: $("#ls-gsm").value, weight_kg: $("#ls-weight_kg").value,
                   ppt: $("#ls-ppt").value, panels: $("#ls-panels").value};
   document.querySelectorAll("#ls-yarns input").forEach(i => { values[i.dataset.f] = i.value; });
   const looms = [r.loom, ...($("#ls-same").checked ? lsSame(r) : [])];
@@ -3154,7 +3156,9 @@ const SG_RARE = ["hemply", "hempoly", "fancyply", "weft4"];
 const SG_NUMS = [
   {k: "gsm", t: "GSM", num: 1, sep: 1}, {k: "weight_kg", t: "Вес шт, кг", num: 1},
   {k: "ppt", t: "PPT", num: 1}, {k: "panels", t: "Панели", num: 1}];
-const sgColsFor = rows => [...SG_NUMS, ...Object.entries(SG_YARN_RU)
+// Дизайн — первая колонка: рисуется в закреплённой ячейке рядом со станком.
+const SG_DESIGN = {k: "design", t: "Дизайн", design: 1};
+const sgColsFor = rows => [SG_DESIGN, ...SG_NUMS, ...Object.entries(SG_YARN_RU)
   .filter(([y]) => !SG_RARE.includes(y) || rows.some(r => r.values[y + "_yarn"] || r.values[y + "_lot"]))
   .flatMap(([y, t]) => [{k: `${y}_yarn`, t, yarn: 1, sep: 1, slot: y}, {k: `${y}_lot`, t: "лот", lot: 1, slot: y}])];
 let SG_COLS = sgColsFor([]);
@@ -3294,15 +3298,16 @@ function renderGrid() {
     ...SG_COLS.filter(c => c.yarn).map(c => `<th colspan="2" class="sep">${c.t}</th>`)].join("");
   $("#sg-table thead").innerHTML = `<tr class="grp">${grp}</tr><tr class="cols">
     <th class="stk s0"><input type="checkbox" id="sg-all" aria-label="Отметить все станки"></th>
-    <th class="stk s1">Станок</th><th class="stk s2">Дизайн</th><th>Код ткани</th>${SG_COLS.map(c =>
+    <th class="stk s1">Станок</th><th class="stk s2">Дизайн</th><th>Код ткани</th>${SG_COLS.filter(c => !c.design).map(c =>
       `<th class="${c.num ? "n" : ""}${c.sep ? " sep" : ""}">${c.yarn ? "пряжа" : c.lot ? "лот" : c.t}</th>`).join("")}</tr>`;
+  const cell = (r, ri, c, ci) => `<input class="sg${r.manual[c.k] ? "" : " ref"}${c.num ? " num" : ""}${c.yarn ? " yw" : ""}"
+      data-r="${ri}" data-c="${ci}" value="${esc(SG_ORIG[ri][c.k])}"${c.yarn ? ` data-pick="yarn:${c.slot}"` : c.lot ? ` data-pick="lot:${c.slot}"` : ""}
+      ${edit ? "" : " readonly"} autocomplete="off" aria-label="${esc(r.loom)}: ${c.t}">`;
   $("#sg-table tbody").innerHTML = SG.rows.map((r, ri) => `<tr data-r="${ri}"${sgInFilter(r) ? "" : ' class="hidden"'}>
     <td class="stk s0"><input type="checkbox" class="sg-pick" aria-label="Отметить ${esc(r.loom)}"></td>
-    <td class="stk s1"><strong>${esc(r.loom)}</strong></td><td class="stk s2">${esc(r.design || "")}</td><td class="note">${esc(r.cloth || "")}</td>
-    ${SG_COLS.map((c, ci) => `<td${sep(c)}><input class="sg${r.manual[c.k] ? "" : " ref"}${c.num ? " num" : ""}${c.yarn ? " yw" : ""}"
-      data-r="${ri}" data-c="${ci}" value="${esc(SG_ORIG[ri][c.k])}"${c.yarn ? ` data-pick="yarn:${c.slot}"` : c.lot ? ` data-pick="lot:${c.slot}"` : ""}
-      ${edit ? "" : " readonly"} autocomplete="off" aria-label="${esc(r.loom)}: ${c.t}"></td>`).join("")}</tr>`).join("")
-    || `<tr><td colspan="${SG_COLS.length + 4}" class="note">Нет отчёта ни за один день — станков не из чего взять.</td></tr>`;
+    <td class="stk s1"><strong>${esc(r.loom)}</strong></td><td class="stk s2">${cell(r, ri, SG_COLS[0], 0)}</td><td class="note">${esc(r.cloth || "")}</td>
+    ${SG_COLS.map((c, ci) => c.design ? "" : `<td${sep(c)}>${cell(r, ri, c, ci)}</td>`).join("")}</tr>`).join("")
+    || `<tr><td colspan="${SG_COLS.length + 3}" class="note">Нет отчёта ни за один день — станков не из чего взять.</td></tr>`;
   $("#sg-all").onchange = e => document.querySelectorAll("#sg-table tbody tr:not(.hidden) .sg-pick")
     .forEach(x => { x.checked = e.target.checked; });
   document.querySelectorAll("#sg-table input.sg").forEach(i => { if (SG_COLS[+i.dataset.c].yarn) sgCheckYarn(i); });
