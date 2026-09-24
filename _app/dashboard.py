@@ -62,6 +62,12 @@ def plan_for_day(day):
     return {r["loom"]: dict(r) for r in rows}
 
 
+def shown_code(code):
+    """Код ткани для экрана: FACT хранит пробел как «%20» («220100tc%20390»).
+    В базе код не меняем — по нему ищутся панели, отчёты и план."""
+    return (code or "").replace("%20", " ")
+
+
 def cloth_parts(cloth):
     """Код ткани со станка (набирают руками) -> (размер, дизайн, GSM).
 
@@ -392,7 +398,7 @@ def cards(day="", letter=""):
             "oee_shift": d.get("oee_shift"), "oee_24h": d.get("oee_24h"),
             "rpm": r["rpm_now"] if r['state'] == 'run' else 0,
             "design": r["design"], "article": r["article"],
-            "cloth_name": d.get("cloth_name") or r["style_fact"],
+            "cloth_name": shown_code(d.get("cloth_name") or r["style_fact"]),
             "weft_ct": stat['weft_ct'] if stat else None,
             "warp_p_ct": stat['top_ct'] if stat else None,
             "warp_g_ct": stat['warp_ct'] if stat else None,
@@ -499,7 +505,7 @@ def rows(day, letter=""):
             "order_no": (p or {}).get("order_no"),
             "plan_product": (p or {}).get("product") or (p or {}).get("note"),
             "plan_pick": (p or {}).get("pick"),
-            "cloth": cloth,
+            "cloth": shown_code(cloth),
             "mismatch": plan_mismatch(p, cloth, master) + ppt_notes.get(loom, []),
             "style_fact": s.get("style") or l.get("style") or "",
 

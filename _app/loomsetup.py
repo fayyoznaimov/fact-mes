@@ -338,7 +338,7 @@ def grid(day):
                 if f.endswith("_yarn"):
                     v = yarns.canon(v) if v not in (None, "", "0") else ""
                 values[f] = v
-        out.append({"loom": r["loom"], "cloth": r.get("cloth"), "design": r.get("design"),
+        out.append({"loom": r["loom"], "cloth": (r.get("cloth") or "").replace("%20", " ") or None, "design": r.get("design"),
                     "values": values,
                     "manual": manual, "from_day": s.get("from_day"), "set_by": s.get("set_by")})
     return {"day": day, "report_day": rd, "rows": out}

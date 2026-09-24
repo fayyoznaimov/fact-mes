@@ -29,8 +29,9 @@ main{padding:14px 18px 30px}
 .card.stop{border-left-color:var(--stop)}
 .card.wait{box-shadow:inset 0 0 0 1px var(--stop)}
 .top{display:flex;align-items:center;gap:10px}
-.name{font-size:24px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
-.model{font-size:12px;color:var(--muted)}
+.name{font-size:24px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap;flex-shrink:0}
+.bad{color:var(--stop);font-weight:600}
+.model{font-size:12px;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .status{margin-left:auto;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .status::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--muted)}
 .card.run .status{color:var(--run)} .card.run .status::before{background:var(--run)}
@@ -100,6 +101,11 @@ const nf = (x, d = 0) => (x == null || x === "") ? "-"
   : Number(x).toLocaleString("ru-RU", {minimumFractionDigits: d, maximumFractionDigits: d});
 const dash = v => (v == null || v === "") ? "-" : v;
 
+// Остаток меньше нуля — счётчик станка ушёл за заданную длину навоя: навой
+// сработан или длина введена неверно. «−2 114 м» на карточке ничего не говорит.
+const beamLeft = r => r.remaining_m == null ? "—" : r.remaining_m < 0
+  ? `<span class="bad">сработан</span> <small>счётчик за длиной навоя на ${nf(-r.remaining_m)} м</small>`
+  : `${nf(r.remaining_m)} м${r.beam_length_m ? ` <small>из ${nf(r.beam_length_m)}</small>` : ""}`;
 const hm = m => m == null ? "—" : m >= 60 ? `${Math.floor(m / 60)} ч ${m % 60} мин` : `${m} мин`;
 function card(r) {
   const st = r.state === "run" ? "run" : r.state === "stop" ? "stop" : "none";
@@ -116,9 +122,9 @@ function card(r) {
       ${st === "stop" ? `<dt>Причина</dt><dd>${esc(r.cause_ru || "—")}</dd>` : ""}
       ${r.ticket ? `<dt>Тикет</dt><dd>${esc(r.ticket.ru)}</dd>` : ""}
       <dt>Оператор</dt><dd>${op ? `${esc(op.name)}${op.code ? " " + esc(op.code) : ""}${op.source === "FACT" ? " <small>из FACT</small>" : ""}` : "—"}</dd>
-      <dt>Дизайн</dt><dd>${dash(r.design)}</dd>
-      <dt>Ткань</dt><dd>${dash(r.cloth_name)}</dd>
-      <dt>Остаток основы</dt><dd>${nf(r.remaining_m)} м${r.beam_length_m ? ` <small>из ${nf(r.beam_length_m)}</small>` : ""}</dd>
+      <dt>Дизайн</dt><dd>${esc(dash(r.design))}</dd>
+      <dt>Ткань</dt><dd>${esc(dash(r.cloth_name))}</dd>
+      <dt>Остаток основы</dt><dd>${beamLeft(r)}</dd>
     </dl>
     <div class="kpi">
       <div><b>${nf(r.efficiency_pct,1)}%</b><span>КПД смены</span></div>
