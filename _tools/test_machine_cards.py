@@ -19,7 +19,9 @@ class CardsTest(unittest.TestCase):
                     weft_ct=2,warp_ct=1,top_ct=1,weft_stop_min=.5,warp_stop_min=.3,top_stop_min=.2)
         db = MagicMock()
         db.__enter__.return_value.execute.return_value.fetchall.return_value = [stat]
-        board = dict(looms=[dict(loom='D1',cause='Manual',running=False,state_sec=120)],
+        # needs_ticket считает доска (tickets.andon_level): карточка показывает ровно
+        # то же, что доска, — с ddb9507 своей логики порога у карточки нет.
+        board = dict(looms=[dict(loom='D1',cause='Manual',running=False,state_sec=120,needs_ticket=True)],
                      andon={'warn_min':2},source='fact',stale=False,snapshot_age_sec=5)
         with patch.object(dashboard,'fact',return_value=db), \
              patch.object(dashboard,'rows',return_value={'rows':[row],'totals':{}}) as rows, \
@@ -38,14 +40,28 @@ class CardsTest(unittest.TestCase):
             self.assertEqual(card['stops_total'],4)
             self.assertEqual(card['weft_ct'],2)
             self.assertTrue(card['awaiting_ticket'])
-            for values in ({'state_sec':119},{'ticket_category':'electrical'},
-                           {'running':True},{'cause':'Warp'},{'cause':'Power_off'}):
+            for values in ({'needs_ticket':False},):
                 original=board['looms'][0].copy()
                 board['looms'][0].update(values)
                 self.assertFalse(dashboard.cards()['rows'][0]['awaiting_ticket'])
                 board['looms'][0]=original
             board['stale']=True
             self.assertFalse(dashboard.cards()['rows'][0]['awaiting_ticket'])
+
+
+class AndonLevelTest(unittest.TestCase):
+    """Когда станок просит тикет — это решает доска (карточки берут её ответ)."""
+    def test_levels(self):
+        lvl = dashboard.tickets.andon_level
+        an = {'warn_min': 2, 'alarm_min': 10}
+        st = lambda sec, running=False: {'running': running, 'state_sec': sec}
+        self.assertEqual(lvl(st(500, True), None, 'Run', an), 'run')
+        self.assertEqual(lvl(st(500), {'category_id': 'electrical'}, 'Manual', an), 'ticket')
+        self.assertEqual(lvl(st(119), None, 'Manual', an), 'wait')        # до порога
+        self.assertEqual(lvl(st(120), None, 'Manual', an), 'noticket')
+        self.assertEqual(lvl(st(600), None, 'Manual', an), 'alarm')
+        self.assertEqual(lvl(st(180), None, 'Warp', an), 'tech')          # обрыв: станок знает причину
+        self.assertEqual(lvl(st(120), None, 'Power_off', an), 'noticket') # обесточен без причины — тоже
 
 
 if __name__=='__main__': unittest.main()
