@@ -285,12 +285,6 @@ def snapshot(src, state_dir=None, workers=8, prev=None, full=True):
             cause = st["state"]
             if cause in ("Stop", "Unknown", ""):
                 cause = det.get("cause") or "Unknown"
-            elif cause == "Other":
-                # «Other» FACT ставит выключенному станку: оборотов нет, флагов
-                # тоже — выключенный станок о себе ничего не сообщает. Флаг есть —
-                # берём его, иначе это отключение.
-                flag = det.get("cause")
-                cause = flag if flag and flag != "Unknown" else "Power_off"
             st["cause"] = cause
     return {
         "dir": d, "source": src.kind, "read_at": time.time(),
