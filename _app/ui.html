@@ -3,7 +3,9 @@
 <title>Ткацкий цех</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<!-- Шрифт с Google не держит страницу: без интернета в цеху она ждала его до таймаута.
+     Грузится в фоне (media=print → all), до того — системный шрифт. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" media="print" onload="this.media='all'">
 <style>
 :root{
   /* Холодный серый суровья и индиго красителя: цвета цеха, а не «тёплый крем» шаблонов */
