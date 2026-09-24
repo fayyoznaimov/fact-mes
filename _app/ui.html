@@ -149,6 +149,8 @@ select.art{font:inherit;font-size:12px;max-width:260px}
    раньше красной или жёлтой была почти вся таблица, и плохое не выделялось. */
 .c-red{background:#fbe1de;color:#9f1d17;font-weight:700}
 .c-yel{color:var(--warn);font-weight:600}
+.sg-bar2{align-items:center;gap:8px;margin-top:8px;padding-block:8px}
+.sg-bar2 .sg-spacer{flex:1}
 .side-prefs{display:flex;flex-direction:column;gap:6px;padding:0 10px}
 .side-prefs:empty{display:none}
 .side-prefs .language{margin:0!important}
@@ -750,16 +752,22 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
     <div class="bar">
       <div class="f"><label for="sg-day">Заправка с дня</label><input id="sg-day" type="date"></div>
       <div class="f"><label for="sg-time">Время начала заправки</label><input id="sg-time" type="time" value="07:00" required></div>
-      <button class="act" id="sd-open">Документы заправки</button>
-      <button class="act" id="ya-open">Анализ по пряже</button>
       <div class="f"><label for="sg-filter">Станки</label><input id="sg-filter" size="10"
         placeholder="D, J1-J14" autocomplete="off"></div>
       <div class="f"><label>&nbsp;</label><button class="act primary" id="sg-save">Проверить и провести…</button></div>
-      <div class="f"><label>&nbsp;</label><button class="act" id="sg-fill">Значение — на отмеченные</button></div>
-      <div class="f"><label>&nbsp;</label><button class="act" id="sg-row">Строку — на отмеченные</button></div>
-      <div class="f"><label>&nbsp;</label><button class="act" id="sg-same">Отметить с тем же кодом ткани</button></div>
       <div class="f"><label>&nbsp;</label><button class="act" id="sg-undo">Отменить правки</button></div>
       <div class="f"><label>&nbsp;</label><span class="note" id="sg-state" style="padding:7px 0"></span></div>
+    </div>
+    <!-- Вторая строка — действия с отмеченными станками; справочные окна — справа.
+         Раньше девять кнопок шли одной строкой, и главная обрезалась. -->
+    <div class="bar sg-bar2">
+      <span class="note">Отмеченные станки:</span>
+      <button class="act" id="sg-fill">Значение — на отмеченные</button>
+      <button class="act" id="sg-row">Строку — на отмеченные</button>
+      <button class="act" id="sg-same">Отметить с тем же кодом ткани</button>
+      <span class="sg-spacer"></span>
+      <button class="act" id="sd-open">Документы заправки</button>
+      <button class="act" id="ya-open">Анализ по пряже</button>
     </div>
     <p class="note" style="max-width:none;margin-top:8px">Как в Excel: <b>Enter</b> — вниз по колонке,
       <b>Ctrl+D</b> — взять значение сверху, блок из Excel вставляется целиком (<b>Ctrl+V</b> в верхнюю
