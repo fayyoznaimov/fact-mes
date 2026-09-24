@@ -3292,10 +3292,9 @@ function repCell(c, r) {
     const hot = r.ppt_gap != null && Math.abs(r.ppt_gap) > 5, sep = c.sep ? " sep" : "";
     // PPT, вес штуки, пряжу и лоты вносят руками (вкладка «Заправка»); из 1С —
     // только дизайн, размер, GSM и панели. Не введено — так и пишем.
-    if (v == null || v === "") return `<td class="n note${sep}" title="заправка не введена — введите PPT, вес и пряжу во вкладке «Заправка» (или щёлкните по номеру станка)">не введено</td>`;
+    // Не введено — так и пишем; оценка по счётчикам FACT — рядом, в расчёт не входит.
+    if (v == null || v === "") return `<td class="n note${sep}" title="PPT не введён — введите его во вкладке «Заправка» (или щёлкните по номеру станка)${r.ppt_est ? `. Оценка по счётчикам ткани FACT ≈ ${nf(r.ppt_est)} — только подсказка, в расчёт килограммов не входит` : ""}">не введено${r.ppt_est ? `<br><small>≈ ${nf(r.ppt_est)} по FACT</small>` : ""}</td>`;
     if (isMan(r, "ppt")) return `<td class="n man${sep}"${manTip(r)}>${nf(v)}</td>`;
-    // Руками не введён — посчитан по счётчикам станка в FACT (прокидки ÷ ряды ткани).
-    if (r.ppt_src === "fact") return `<td class="n${sep}" title="по станку: посчитан по счётчикам FACT (прокидки и ряды ткани); введите PPT в «Заправке», чтобы заменить">${nf(v)}<br><small class="note">по станку</small></td>`;
     return `<td class="n${sep}${hot ? " c-yel" : ""}" title="${r.ppt_fact != null
       ? `по счётчикам станка ${nf(r.ppt_fact)}${r.ppt_gap != null ? ` (${r.ppt_gap > 0 ? "+" : ""}${nf(r.ppt_gap,1)} %)` : ""}${r.ppt_spread != null ? `, разброс по дням ${nf(r.ppt_spread,1)} %` : ""}${r.ppt_note ? ` — ${esc(r.ppt_note)}` : ""}`
       : "по счётчикам не посчитан"}">${nf(v)}${r.ppt_fact != null && hot ? `<br><small>факт ${nf(r.ppt_fact)}</small>` : ""}</td>`;

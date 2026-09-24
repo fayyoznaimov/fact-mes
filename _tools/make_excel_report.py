@@ -217,7 +217,8 @@ CREATE TABLE IF NOT EXISTS report_daily (
     ground_a INTEGER, ground_b INTEGER, ground_c INTEGER, ground_total INTEGER,
     other_a INTEGER, other_b INTEGER, other_c INTEGER, other_total INTEGER,
     picks REAL, achieved_kg REAL, cloth TEXT, art_found INTEGER,
-    ppt_src TEXT,                    -- fact: PPT посчитан по счётчикам станка, руками не введён
+    ppt_src TEXT,                    -- (не используется: оценку PPT в расчёт больше не берём)
+    ppt_est INTEGER,                 -- оценка PPT по счётчикам ткани FACT — подсказка, не расчёт
     built_at TEXT DEFAULT (datetime('now','localtime')),
     PRIMARY KEY (day, loom)
 );
@@ -349,9 +350,12 @@ def build(day):
         rpm = speed.get(loom) or (round(sum(rpms) / len(rpms)) if rpms else 0)
 
         ppt, wt, pn = art.get("ppt"), art.get("weight_kg"), art.get("panels")
+        # Оценка PPT по счётчикам ткани FACT — только подсказка рядом с пустой
+        # клеткой, в расчёт килограммов не идёт: сверка 23.09 — посчиталась у 9 станков
+        # из 40, совпала с ручным отчётом у 4 (D1: 2526 при 3484). Точный PPT FACT
+        # не отдаёт — его вводят руками (Заправка) или он приходит в техкарте 1С.
         ppt_src = None
-        if not ppt and fact_ppt.get(loom):
-            ppt, ppt_src = fact_ppt[loom]["ppt"], "fact"
+        ppt_est = (fact_ppt.get(loom) or {}).get("ppt") if not ppt else None
         prod100 = round(pn * wt * (rpm * 480 * len(worked) / ppt), 1) if (ppt and wt and pn and rpm and worked) else None
         achieved = round(pn * wt * (picks / ppt), 1) if (ppt and wt and pn) else None
 
@@ -360,7 +364,7 @@ def build(day):
             # Размер пишем как в вашем файле — текстом «70 CM», иначе колонка
             # с её форматом показывает решётки вместо числа.
             "size": f"{size} CM" if size else "",
-            "rpm": rpm, "rpm_src": rpm_src, "ppt": ppt, "ppt_src": ppt_src, "weight": wt, "panels": pn,
+            "rpm": rpm, "rpm_src": rpm_src, "ppt": ppt, "ppt_src": ppt_src, "ppt_est": ppt_est, "weight": wt, "panels": pn,
             # Дизайн — из плана цеха или заказа 1С («D186/6»: дизайн/клиент). Разбор
             # кода ткани со станка даёт не тот артикул, поэтому без плана — пусто.
             "prod100": prod100, "design": s.get("design") or "", "client": s.get("client") or "",
@@ -401,17 +405,17 @@ def save_db(day, rows):
     db.executescript(SCHEMA)
     # Клиент — отдельно от дизайна (раньше писали «D327/64» одной строкой).
     have = [c[1] for c in db.execute("PRAGMA table_info(report_daily)")]
-    for col in ("client", "yarns", "ppt_src"):           # клиент — отдельно от дизайна; пряжа по местам
-        if col not in have:
-            db.execute("ALTER TABLE report_daily ADD COLUMN %s TEXT" % col)
+    for col, kind in (("client", "TEXT"), ("yarns", "TEXT"), ("ppt_src", "TEXT"), ("ppt_est", "INTEGER")):
+        if col not in have:     # клиент — отдельно от дизайна; пряжа по местам; оценка PPT
+            db.execute("ALTER TABLE report_daily ADD COLUMN %s %s" % (col, kind))
     db.execute("DELETE FROM report_daily WHERE day=?", (day,))
     db.executemany(
         "INSERT INTO report_daily (day, loom, sr, size_cm, rpm, ppt, weight_kg, panels, prod100_kg,"
         " design, client, yarns, gsm, pile_count, ground_count, loto, weft1, weft2, weft3, weft4,"
         " eff_a, eff_b, eff_c, eff_total, pile_a, pile_b, pile_c, pile_total,"
         " weft_a, weft_b, weft_c, weft_total, ground_a, ground_b, ground_c, ground_total,"
-        " other_a, other_b, other_c, other_total, picks, achieved_kg, cloth, art_found, ppt_src)"
-        " VALUES (" + ",".join("?" * 45) + ")",
+        " other_a, other_b, other_c, other_total, picks, achieved_kg, cloth, art_found, ppt_src, ppt_est)"
+        " VALUES (" + ",".join("?" * 46) + ")",
         # В лист размер идёт текстом («70 CM»), в базу — числом, чтобы по нему можно было считать.
         [(day, r["loom"], r["sr"], int(re.sub(r"\D", "", str(r["size"])) or 0) or None,
           r["rpm"], r["ppt"], r["weight"], r["panels"],
@@ -424,7 +428,7 @@ def save_db(day, rows):
           r["weft_a"], r["weft_b"], r["weft_c"], r["weft_total"],
           r["ground_a"], r["ground_b"], r["ground_c"], r["ground_total"],
           r["other_a"], r["other_b"], r["other_c"], r["other_total"],
-          r["picks"], r["achieved"], r["cloth"], r["art_found"], r.get("ppt_src")) for r in rows])
+          r["picks"], r["achieved"], r["cloth"], r["art_found"], r.get("ppt_src"), r.get("ppt_est")) for r in rows])
     db.commit()
     n = db.execute("SELECT COUNT(DISTINCT day) FROM report_daily").fetchone()[0]
     db.close()
