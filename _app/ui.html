@@ -2951,10 +2951,16 @@ async function boot() {
     if (!(await whoAmI())) return;
     document.querySelectorAll("section").forEach(s=>s.classList.add("hidden"));
     if(!SECTIONS.some(canSection)){ $("#empty-access").classList.remove("hidden"); return; }
-    const [sh, days, ops, set] = await Promise.all([
+    // Каждый справочник — сам по себе: раньше одна ошибка (пустой отчёт в новой
+    // установке, сбой одного запроса) оставляла пустыми все разделы.
+    const got = await Promise.allSettled([
       api("/api/shifts"), api("/api/report_days"),
       ["people","assign","salary","walk"].some(canSection)?api("/api/operators"):Promise.resolve({operators:[]}),
       canSection("settings")?api("/api/settings"):Promise.resolve({})]);
+    const failed = got.filter(g => g.status === "rejected").map(g => g.reason.message);
+    if (failed.length) say("Не всё загрузилось: " + [...new Set(failed)].join("; "), true);
+    const [sh, days, ops, set] = got.map((g, i) => g.status === "fulfilled" ? g.value
+      : [{shifts: []}, {days: []}, {operators: []}, {}][i]);
     SHIFTS = sh.shifts; OPERATORS = ops.operators;
     const shOpts = SHIFTS.map((s,i)=>`<option value="${i}">${shiftLabel(s)}</option>`).join("");
     $("#sal-shift").innerHTML = shOpts;
