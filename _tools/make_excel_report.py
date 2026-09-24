@@ -66,6 +66,39 @@ def running_speed(day, stride=3):
     return {loom: c.most_common(1)[0][0] for loom, c in seen.items()}
 
 
+def shift_efficiency(day):
+    """КПД смены, как его считает сам FACT (Shift_efficiency): значение в последнем
+    минутном снимке перед концом смены (15:00, 23:00, 07:00 следующего дня).
+
+    Ручной отчёт цеха пишет именно его: сверка 23.09 — после округления совпало
+    84 из 101 смены, а «работа / (работа + простой)» из сменного файла — 22.
+    Снимка в последние 10 минут смены нет — смены в ответе нет (отчёт возьмёт
+    расчёт по сменному файлу). {(станок, 'A'|'B'|'C'): КПД}"""
+    if not os.path.exists(SHOP_DB):
+        return {}
+    base = datetime.strptime(day, "%Y.%m.%d").replace(tzinfo=SHOP_TZ)
+    ends = {"A": base + timedelta(hours=15), "B": base + timedelta(hours=23),
+            "C": base + timedelta(days=1, hours=7)}
+    out = {}
+    db = sqlite3.connect(f"file:{SHOP_DB}?mode=ro", uri=True, timeout=10)
+    try:
+        for letter, end in ends.items():
+            e = int(end.timestamp())
+            try:
+                row = db.execute("SELECT data FROM machine_sample WHERE at > ? AND at < ?"
+                                 " ORDER BY at DESC LIMIT 1", (e - 600, e)).fetchone()
+            except sqlite3.OperationalError:
+                return {}
+            if not row:
+                continue
+            for loom, v in json.loads(zlib.decompress(row[0])).items():
+                if v.get("effic_shift") is not None:
+                    out[(loom, letter)] = float(v["effic_shift"])
+    finally:
+        db.close()
+    return out
+
+
 def loom_setups(day):
     """Заправка, введённая вручную в приложении: GSM, вес штуки, PPT, панели,
     пряжа и лот. Действует с дня заправки до следующей записи по станку."""
@@ -254,6 +287,7 @@ def build(day):
         sys.exit(f"Нет данных за {day}")
     mend = mending_for(day)      # среднее время одного останова по сменам, сек
     speed = running_speed(day)   # обороты — как на панели станка, из снимков FACT
+    fact_eff = shift_efficiency(day)   # КПД смен — как его считает FACT
     manual = loom_setups(day)    # введённое вручную главнее техкарты заказа из плана,
     setups = plan_setups(day)    # техкарта — главнее справочника артикулов
     for loom, m in manual.items():
@@ -295,7 +329,10 @@ def build(day):
 
         g = lambda L, k: (shifts[L][k] if L in shifts else 0)
         worked = [L for L in "ABC" if g(L, "run_min") > 5]
-        eff = [round(g(L, "effic_pct")) if L in worked else None for L in "ABC"]
+        # КПД смены — число FACT (Shift_efficiency на конец смены); нет снимка —
+        # расчёт по сменному файлу.
+        eff = [round(fact_eff[(loom, L)] if (loom, L) in fact_eff else g(L, "effic_pct"))
+               if L in worked else None for L in "ABC"]
         done = [e for e in eff if e is not None]
         pile = [g(L, "warp_top_ct") for L in "ABC"]
         weft = [g(L, "weft_ct") for L in "ABC"]

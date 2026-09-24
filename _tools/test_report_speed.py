@@ -52,6 +52,21 @@ class RunningSpeedTests(unittest.TestCase):
         speed = mer.running_speed("2026.09.23", stride=1)
         self.assertEqual(speed, {"J7": 530})      # D3 стоял — скорости нет
 
+    def test_shift_efficiency_at_shift_end(self):
+        db = sqlite3.connect(self.db)
+        end_a = datetime(2026, 9, 23, 15, 0, tzinfo=TZ)
+        put = lambda name, at, eff: db.execute("INSERT INTO machine_sample VALUES (?,?,?,?)",
+            (name, int(at.timestamp()), "", blob({"J7": {"running": True, "rpm": 530, "effic_shift": eff}})))
+        db.execute("DELETE FROM machine_sample")
+        put("a1", end_a - timedelta(minutes=3), 70.1)
+        put("a2", end_a - timedelta(minutes=1), 70.4)      # последний перед концом смены A
+        put("b0", end_a + timedelta(minutes=1), 0.0)       # уже смена B, КПД обнулился
+        end_b = datetime(2026, 9, 23, 23, 0, tzinfo=TZ)
+        put("b1", end_b - timedelta(minutes=30), 80.0)     # старше 10 минут — не берём
+        db.commit()
+        db.close()
+        self.assertEqual(mer.shift_efficiency("2026.09.23"), {("J7", "A"): 70.4})
+
     def test_no_archive(self):
         os.remove(self.db)
         self.assertEqual(mer.running_speed("2026.09.23"), {})
