@@ -1483,12 +1483,33 @@ document.querySelectorAll('nav button[data-tab]').forEach(b=>{
 });
 $('#menu-btn').innerHTML=icon('menu');$('#sidebar-close').innerHTML=icon('close');
 document.documentElement.dataset.theme='light';
-const api = async (path, body) => {
-  const r = await fetch(path, body ? {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)} : {});
+// Разбор ответа сервера. Не JSON (страница ошибки, обрыв) — понятный текст вместо
+// «Unexpected token <». 401 после входа — сессия закончилась: показываем форму входа,
+// а не красную плашку «нужно войти» в каждом разделе.
+async function readJson(r, path) {
+  if (r.status === 401 && ME && path !== "/api/login") { sessionEnded(); throw new Error("сессия закончилась — войдите снова"); }
+  if (!(r.headers.get("Content-Type") || "").includes("json"))
+    throw new Error(r.ok ? "сервер ответил не данными" : `сервер ответил ошибкой ${r.status}`);
   const j = await r.json();
-  if (j.error) throw new Error(j.error);
+  if (j.error) throw Object.assign(new Error(j.error), {status: r.status, data: j});
+  if (!r.ok) throw Object.assign(new Error(`сервер ответил ошибкой ${r.status}`), {status: r.status, data: j});
   return j;
-};
+}
+async function send(path, init) {
+  let r;
+  try { r = await fetch(path, init); }
+  catch (e) { throw new Error("нет связи с сервером цеха"); }
+  return readJson(r, path);
+}
+const api = (path, body) => send(path, body
+  ? {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)} : {});
+function sessionEnded() {
+  ME = null;
+  $("#gate").classList.remove("hidden");
+  document.body.classList.add("locked");
+  $("#login-err").textContent = "Сессия закончилась — войдите снова.";
+  $("#login-user").focus();
+}
 // Сообщение внизу справа: «Сохранено» гаснет через 4 с, ошибка висит, пока её не закроют —
 // раньше она пропадала через 6 с, и прочитать, что именно не так, не успевали.
 let SAY_T = null;
@@ -1658,7 +1679,8 @@ $("#login-form").onsubmit = async (e) => {
   try {
     r = await api("/api/login", { login, password: pass });
   } catch (e2) {
-    err.textContent = "Неверный логин или пароль";
+    // Сообщение сервера: неверный пароль, блокировка после попыток, нет связи.
+    err.textContent = e2.message.charAt(0).toUpperCase() + e2.message.slice(1);
     return;
   }
   // Временный пароль надо сменить. Пока новый не задан — вход не завершаем,
@@ -2470,8 +2492,7 @@ $("#lp-up").onclick = () => $("#lp-file").click();
 $("#lp-file").onchange = async () => {
   const f = $("#lp-file").files[0]; if (!f) return;
   try {
-    const r = await fetch("/api/loom_plan/upload", { method: "POST", body: f });
-    const j = await r.json(); if (j.error) throw new Error(j.error);
+    const j = await send("/api/loom_plan/upload", { method: "POST", body: f });
     say(`План загружен: ${dmy(j.from)}–${dmy(j.to)}, станков ${j.looms}, заказов ${j.orders.length}` +
         (j.notes.length ? `. Без изделия: ${j.notes.slice(0, 3).join("; ")}` : ""));
     loadPlan();
@@ -3615,8 +3636,7 @@ $("#yarn-imp").onclick = () => $("#yarn-file").click();
 $("#yarn-file").onchange = async () => {
   const f = $("#yarn-file").files[0]; if (!f) return;
   try {
-    const r = await fetch("/api/yarns/import", {method: "POST", body: f});
-    const j = await r.json(); if (j.error) throw new Error(j.error);
+    const j = await send("/api/yarns/import", {method: "POST", body: f});
     say(`Справочник 1С загружен: партий ${j.items} (новых ${j.new}, обновлено ${j.updated})` +
         (j.yarns_added.length ? `, новая пряжа: ${j.yarns_added.join(", ")}` : "") +
         (j.no_kind.length ? `. Без вида: ${j.no_kind.length}` : ""));
@@ -4374,11 +4394,10 @@ function docConfirm(type, payload){
       if(!checked)return;
       $('#doc-post').disabled=true;
       try{
-        const r=await fetch('/api/documents/post',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({type,payload,checksum:checked.checksum,comment:$('#doc-comment').value})});
-        const j=await r.json();
-        if(r.status===409&&j.preview){ checked=j.preview; return docRender(checked,j.error); }
-        if(j.error)throw new Error(j.error);
+        let j;
+        try{ j=await send('/api/documents/post',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({type,payload,checksum:checked.checksum,comment:$('#doc-comment').value})}); }
+        catch(e){ if(e.status===409&&e.data&&e.data.preview){ checked=e.data.preview; return docRender(checked,e.message); } throw e; }
         done=j; docDialog.close();
         const err=j.after&&j.after.after_error;
         say(`Проведён документ ${j.number}`+(j.after&&j.after.days?`; отчёт пересчитан за ${j.after.days.length} дн.`:'')+
