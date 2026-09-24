@@ -95,6 +95,7 @@ th,td{padding:6px 8px;text-align:left;border-bottom:1px solid var(--hair);white-
 th{position:sticky;top:0;background:var(--surface);font-size:12px;color:var(--ink-2);font-weight:600;z-index:1}
 thead tr.grp th{top:0;background:var(--surface-2);text-align:center;color:var(--ink-2);border-bottom:1px solid var(--rule)}
 thead tr.cols th{top:26px}
+thead tr.cols:first-child th{top:0}      /* шапка без строки групп */
 th.n,td.n{text-align:right;font-variant-numeric:tabular-nums}
 td.sep,th.sep{border-left:1px solid var(--rule)}
 tbody tr:hover{background:var(--surface-2)}
@@ -127,7 +128,22 @@ a.act.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .dot.none{background:var(--muted)}
 tr.is-stop td:first-child{box-shadow:inset 3px 0 0 #c4443b}
 tr.is-run td:first-child{box-shadow:inset 3px 0 0 #2f9e63}
-select.art{font:inherit;font-size:12px;max-width:190px}
+select.art{font:inherit;font-size:12px;max-width:260px}
+#dash-table .more{border:0;background:none;color:var(--ink-2);font-size:14px;width:28px;height:28px;cursor:pointer;border-radius:4px}
+#dash-table .more:hover{background:var(--surface-2)}
+#dash-table tr.detail td{background:var(--surface-2);white-space:normal}
+#dash-table td.st{white-space:normal;min-width:150px;max-width:260px}
+#dash-table td.st .badge{display:inline-block;margin-top:2px}
+.dash-setup{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px 20px;margin:4px 0;font-size:13px}
+.dash-setup dt{font-size:11.5px;color:var(--muted)} .dash-setup dd{margin:0}
+.dash-setup .wide{grid-column:1/-1}
+.soon-box{display:flex;flex-direction:column;gap:6px}
+.soon-box:empty{display:none}
+.soon-t{border-collapse:collapse;font-size:13px;background:var(--surface);border:1px solid var(--hair);width:auto;min-width:min(520px,100%)}
+.soon-t td{padding:5px 12px;border-top:1px solid var(--hair)}
+.soon-t tr:first-child td{border-top:0}
+.soon-t tr.near td{font-weight:600}
+.soon-box details summary{cursor:pointer;color:var(--ink-2);font-size:13px;padding:4px 0}
 /* Окраска отчёта: пороги — из шаблона Excel цеха (381 правило свелось к семи),
    а вид — по ISA-101. Заливка только у «плохо», «внимание» — цветом текста;
    раньше красной или жёлтой была почти вся таблица, и плохое не выделялось. */
@@ -788,26 +804,22 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
       <summary></summary>
       <ul style="margin:6px 0 0;padding-left:18px"></ul>
     </details>
-    <p class="note" id="dash-soon"></p>
+    <div id="dash-soon" class="soon-box"></div>
     <div class="tbl-wrap">
       <table id="dash-table">
         <thead>
-          <tr class="grp"><th colspan="4"></th><th colspan="4" class="sep">Что заправлено</th>
-            <th colspan="4" class="sep">Наработка</th><th class="sep"></th>
-            <th colspan="4" class="sep">Обрывы</th></tr>
-          <tr class="cols"><th>Станок</th><th>Состояние</th><th>Тикет</th><th class="n">Об/мин</th>
-            <th class="sep">Дизайн</th><th>Размер</th><th class="n">Плотн.</th><th>Пряжа</th>
-            <th class="n sep">Тыс. пиков</th><th class="n">Метры</th><th class="n">Полотенец</th><th class="n">КПД</th>
+          <tr class="cols"><th></th><th>Станок</th><th>Состояние · тикет</th><th class="n">Об/мин</th>
+            <th class="sep">Изделие</th>
+            <th class="n sep">Тыс. пиков</th><th class="n">Полотенец</th><th class="n">КПД, %</th>
             <th class="sep">Оператор</th>
-            <th class="n sep">Уток</th><th class="n">Основа</th><th class="n">Ворс</th>
-            <th class="n">Ручные</th></tr>
+            <th class="n sep" title="уток · основа · ворс; ручные остановы">Обрывы у · о · в</th></tr>
         </thead>
         <tbody></tbody><tfoot></tfoot>
       </table>
     </div>
-    <p class="note">Зелёный — станок работает, красный — стоит. Дизайн и пряжа берутся
-      из техкарты 1С по заправленному изделию: 1С знает только «изделие делается на этих
-      станках», поэтому артикул ставит мастер — выберите его в колонке «Дизайн».</p>
+    <p class="note">Красная полоса — станок стоит. ▸ у станка раскрывает заправку: размер, плотность,
+      пряжу с лотами, код ткани на станке. Дизайн и пряжа — из техкарты 1С по заправленному изделию;
+      если в плане изделия нет, артикул выбирает мастер там же.</p>
   </section>
 
   <!-- ПЛАН -->
@@ -1870,6 +1882,7 @@ $('#u-add').onclick=async()=>{
 
 /* --- дашборд: станок, что заправлено, кто работает, что рвётся --- */
 let DASH = null, DASH_SEQ = 0;
+const DASH_OPEN = new Set();        // раскрытые строки заправки — живут между обновлениями
 
 async function loadDash() {
   // Ответ на прежний запрос не должен затирать свежий: иначе при быстром
@@ -1925,30 +1938,52 @@ async function loadDash() {
              + (r.article_from ? ` <small>(${esc(r.article_from)})</small>` : "") + `</div>` : "");
     };
 
-    $("#dash-table tbody").innerHTML = rows.map(r => `
-      <tr class="${r.state === "run" ? "is-run" : r.state === "stop" ? "is-stop" : ""}">
+    // Главная строка — то, что мастер смотрит каждый раз: состояние, выработка,
+    // КПД, оператор, обрывы. Заправка (размер, пряжа с лотами, код ткани) — в
+    // раскрывающейся строке: раньше колонка пряжи уводила выработку за край экрана.
+    const brk = (ct, fix) => `${nf(ct)}${fix ? `<small class="note"> (${fix} мин)</small>` : ""}`;
+    $("#dash-table tbody").innerHTML = rows.map(r => {
+      const open = DASH_OPEN.has(r.loom);
+      const product = r.article_from === "план"
+        ? `<b>${esc(r.order_no)}</b> ${esc(r.design || "")}${r.client ? ` <small class="note">· ${esc(r.client)}</small>` : ""}`
+        : r.design ? esc(r.design) : `<span class="note">не задано</span>`;
+      return `<tr class="${r.state === "stop" ? "is-stop" : ""}">
+        <td><button type="button" class="more" data-more="${esc(r.loom)}" aria-expanded="${open}"
+             aria-label="Заправка станка ${esc(r.loom)}">${open ? "▾" : "▸"}</button></td>
         <td><b>${esc(r.loom)}</b>${(r.mismatch || []).length
           ? ` <span class="bad" title="${esc(r.mismatch.join("\n"))}" aria-label="расхождение с планом">⚠</span>`
-          : (r.notes || []).length ? ` <span class="note" title="${esc(r.notes.join("\n"))}" aria-label="примечание к заправке">ⓘ</span>` : ""}${
-          r.cloth ? `<br><small class="note" title="код ткани на станке">${esc(r.cloth.replace(/%20/g, " "))}</small>` : ""}</td>
-        <td><span class="dot ${r.state === "run" ? "run" : r.state === "stop" ? "stop" : "none"}"></span>${
-          r.state === "run" ? "работает" : r.state === "stop"
-            ? `стоит ${r.state_min} мин<br><small>${esc(r.reason || r.cause_ru || "")}</small>` : "—"}</td>
-        <td>${r.ticket ? `<span class="badge">${esc(r.ticket.reason)}</span>` : ""}</td>
-        <td class="n">${r.rpm_now ? nf(r.rpm_now) : ""}${
-          r.rpm_shift ? `<br><small>смена ${nf(r.rpm_shift)}</small>` : ""}</td>
-        <td class="sep">${artCell(r)}</td>
-        <td>${esc(r.size || "—")}</td><td class="n">${r.gsm || ""}</td>
-        <td><small>${yarnText(r)}</small></td>
-        <td class="n sep">${nf(r.kpicks,1)}</td><td class="n">${nf(r.meters,1)}</td>
-        <td class="n">${nf(r.towels)}${r.panels > 1 ? `<br><small>${r.pieces} × ${r.panels}</small>` : ""}</td>
+          : (r.notes || []).length ? ` <span class="note" title="${esc(r.notes.join("\n"))}" aria-label="примечание к заправке">ⓘ</span>` : ""}</td>
+        <td class="st">${r.state === "run" ? "работает" : r.state === "stop"
+            ? `<span class="dot stop"></span>стоит ${dur(r.state_min * 60)}<br><small>${esc(r.reason || r.cause_ru || "")}</small>` : "—"}${
+            r.ticket ? ` <span class="badge">тикет: ${esc(r.ticket.reason)}</span>` : ""}</td>
+        <td class="n">${r.rpm_now ? nf(r.rpm_now) : ""}</td>
+        <td class="sep">${product}</td>
+        <td class="n sep">${nf(r.kpicks,1)}</td>
+        <td class="n">${nf(r.towels)}</td>
         <td class="n">${r.effic != null ? nf(r.effic,1) : ""}</td>
-        <td class="sep">${r.operator ? `${esc(r.operator.name)} <small>${esc(r.operator.code)}</small>` : "—"}</td>
-        <td class="n sep">${nf(r.weft_ct)}${r.weft_fix_min ? `<br><small>${r.weft_fix_min} мин</small>` : ""}</td>
-        <td class="n">${nf(r.warp_ct)}${r.warp_fix_min ? `<br><small>${r.warp_fix_min} мин</small>` : ""}</td>
-        <td class="n">${nf(r.top_ct)}${r.top_fix_min ? `<br><small>${r.top_fix_min} мин</small>` : ""}</td>
-        <td class="n">${nf(r.manual_ct)}</td>
-      </tr>`).join("");
+        <td class="sep">${r.operator ? `${esc(r.operator.name)} <small class="note">${esc(r.operator.code)}</small>` : "—"}</td>
+        <td class="n sep">${nf(r.weft_ct)} · ${nf(r.warp_ct)} · ${nf(r.top_ct)}${r.manual_ct ? `<br><small class="note">ручн. ${nf(r.manual_ct)}</small>` : ""}</td>
+      </tr>
+      <tr class="detail${open ? "" : " hidden"}" data-detail="${esc(r.loom)}"><td></td><td colspan="9">
+        <dl class="dash-setup">
+          <div><dt>Изделие</dt><dd>${artCell(r)}</dd></div>
+          <div><dt>Размер</dt><dd>${esc(r.size || "—")}</dd></div>
+          <div><dt>Плотность</dt><dd>${r.gsm ? esc(r.gsm) + " г/м²" : "—"}</dd></div>
+          <div><dt>Код ткани на станке</dt><dd>${esc(r.cloth || "—")}</dd></div>
+          <div><dt>Метры</dt><dd>${nf(r.meters,1)}</dd></div>
+          <div><dt>Ряды × панели</dt><dd>${r.panels > 1 ? `${nf(r.pieces)} × ${r.panels}` : nf(r.pieces)}</dd></div>
+          <div><dt>Об/мин за смену</dt><dd>${r.rpm_shift ? nf(r.rpm_shift) : "—"}</dd></div>
+          <div><dt>Устранение, мин</dt><dd>уток ${brk(r.weft_fix_min || 0)} · основа ${brk(r.warp_fix_min || 0)} · ворс ${brk(r.top_fix_min || 0)}</dd></div>
+          <div class="wide"><dt>Пряжа</dt><dd>${yarnText(r)}</dd></div>
+          ${[...(r.mismatch || []), ...(r.notes || [])].length ? `<div class="wide"><dt>Сверка с планом</dt><dd>${[...(r.mismatch || []), ...(r.notes || [])].map(esc).join("<br>")}</dd></div>` : ""}
+        </dl></td></tr>`;
+    }).join("");
+    document.querySelectorAll("#dash-table [data-more]").forEach(b => b.onclick = () => {
+      const loom = b.dataset.more, open = !DASH_OPEN.has(loom);
+      open ? DASH_OPEN.add(loom) : DASH_OPEN.delete(loom);
+      b.setAttribute("aria-expanded", open); b.textContent = open ? "▾" : "▸";
+      $(`#dash-table tr[data-detail="${CSS.escape(loom)}"]`).classList.toggle("hidden", !open);
+    });
 
     document.querySelectorAll("select.art").forEach(s => s.onchange = async () => {
       try {
@@ -2934,15 +2969,21 @@ $("#key-add").onclick = async () => {
 
 /* --- дашборд: что случится в ближайшие часы --- */
 async function loadDashSoon() {
+  // Съём ткани и сход навоя — действия мастера: таблицей по времени, ближайшие два
+  // часа сразу, остальное — свёрнуто. Раньше это был абзац из 18 событий через «·».
   try {
     const f = await api("/api/forecast?hours=12");
-    const ev = f.events || [];
-    // Нет связи с FACT — сроки посчитаны от последнего снимка: говорим от какого.
-    $("#dash-soon").innerHTML = ev.length
-      ? `<b>Ближайшие 12 часов${f.stale ? ` <span class="bad">(данные FACT от ${esc(f.snapshot_at)} — связи нет, сроки могут сдвинуться)</span>` : ""}:</b> `
-        + ev.slice(0, 18).map(e =>
-          `${esc(e.loom)} — ${esc(e.what)} в ${e.at}${e.when ? ` (${esc(e.when)})` : e.tomorrow ? " (завтра)" : ""}`).join(" · ")
-      : f.stale ? `<span class="bad">Прогноза нет: данные FACT от ${esc(f.snapshot_at)}, связи нет.</span>` : "";
+    const ev = (f.events || []).slice().sort((a, b) => a.in_min - b.in_min);
+    const stale = f.stale ? `<p class="bad">Данные FACT от ${esc(f.snapshot_at)} — связи нет, сроки могут сдвинуться.</p>` : "";
+    if (!ev.length) { $("#dash-soon").innerHTML = stale; return; }
+    const row = e => `<tr${e.in_min <= 30 ? ' class="near"' : ""}><td class="n">${esc(e.at)}${e.when ? ` <small class="note">${esc(e.when)}</small>` : ""}</td>
+      <td class="n">через ${e.in_min >= 60 ? `${Math.floor(e.in_min / 60)} ч ${e.in_min % 60} мин` : `${e.in_min} мин`}</td>
+      <td><b>${esc(e.loom)}</b></td><td>${esc(e.what)}</td></tr>`;
+    const soon = ev.filter(e => e.in_min <= 120), later = ev.filter(e => e.in_min > 120);
+    const table = list => `<table class="soon-t"><tbody>${list.map(row).join("")}</tbody></table>`;
+    $("#dash-soon").innerHTML = `<h3 class="sect">Ближайшие 12 часов: съём ткани и сход навоя</h3>${stale}`
+      + (soon.length ? table(soon) : `<p class="note">В ближайшие два часа — ничего.</p>`)
+      + (later.length ? `<details><summary>Позже — ещё ${later.length}</summary>${table(later)}</details>` : "");
   } catch (e) { $("#dash-soon").textContent = ""; }
 }
 
