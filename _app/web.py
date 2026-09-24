@@ -675,10 +675,15 @@ class Handler(BaseHTTPRequestHandler):
                 me = current_user(self)
                 if not me:
                     return self._send(401, {"error": "нужно войти"})
-                target = body.get("user_id") or me["id"]
+                try:
+                    target = int(body.get("user_id") or me["id"])
+                except (TypeError, ValueError):
+                    raise ValueError("user_id: нужен номер пользователя")
                 if target != me["id"] and not may(me, "users"):
                     return self._send(403, {"error": "нет прав"})
-                auth.set_password(target, body.get("password", ""), must_change=False,
+                # Администратор, задавая пароль другому, решает, просить ли сменить его при входе.
+                auth.set_password(target, body.get("password", ""),
+                                  must_change=bool(body.get("must_change")) and target != me["id"],
                                   keep_token=current_token(self) if target == me["id"] else None)
                 return self._send(200, {"ok": True})
             if u.path == "/api/users":
@@ -691,7 +696,8 @@ class Handler(BaseHTTPRequestHandler):
                                      body.get("active"), actor_id=me["id"], **access_args)
                 else:
                     auth.create_user(body.get("login"), body.get("name"),
-                                     body.get("role", "viewer"), body.get("password", ""), **access_args)
+                                     body.get("role", "viewer"), body.get("password", ""),
+                                     must_change=bool(body.get("must_change")), **access_args)
                 return self._send(200, {"ok": True})
             if u.path.startswith("/api/tickets/"):
                 return self._tickets(u.path, body)

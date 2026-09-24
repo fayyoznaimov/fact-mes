@@ -13,6 +13,7 @@
 import hashlib
 import json
 import os
+import re
 import secrets
 import sqlite3
 from datetime import datetime, timedelta
@@ -214,14 +215,26 @@ def _hash(password, salt):
                                bytes.fromhex(salt), ITERATIONS).hex()
 
 
-def create_user(login, name, role, password, must_change=True, access=None):
+PASSWORD_MIN = 6
+LOGIN_RE = re.compile(r"[a-z0-9][a-z0-9._-]{1,31}")
+
+
+def check_password(password):
+    if not password or len(password) < PASSWORD_MIN:
+        raise ValueError("пароль короче %d символов" % PASSWORD_MIN)
+
+
+def create_user(login, name, role, password, must_change=False, access=None):
+    """Пароль задаёт администратор; просить ли сменить его при первом входе —
+    тоже он (раньше смена была обязательной, и заданный пароль не работал)."""
     if role not in ROLES:
         raise ValueError("неизвестная роль")
     login = (login or "").strip().lower()
     if not login or not password:
         raise ValueError("нужны логин и пароль")
-    if len(password) < 6:
-        raise ValueError("пароль короче шести символов")
+    if not LOGIN_RE.fullmatch(login):
+        raise ValueError("логин: латинские буквы, цифры, точка, дефис или подчёркивание, от 2 до 32 символов")
+    check_password(password)
     access = _validate_access(access, role)
     salt = secrets.token_hex(16)
     conn = db()
@@ -247,10 +260,12 @@ def set_password(user_id, password, must_change=False, keep_token=None):
     При смене своего пароля веб-клиент сохраняет только текущую сессию.
     При сбросе администратором или из консоли закрываются все сессии цели.
     """
-    if not password or len(password) < 6:
-        raise ValueError("пароль короче шести символов")
+    check_password(password)
     salt = secrets.token_hex(16)
     conn = db()
+    if not conn.execute("SELECT 1 FROM app_user WHERE id=?", (user_id,)).fetchone():
+        conn.close()
+        raise ValueError("пользователь не найден")
     conn.execute("UPDATE app_user SET pwd_hash=?, pwd_salt=?, must_change=? WHERE id=?",
                  (_hash(password, salt), salt, 1 if must_change else 0, user_id))
     conn.execute("DELETE FROM app_session WHERE user_id=? AND token IS NOT ?",

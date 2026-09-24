@@ -172,6 +172,8 @@ dialog.ls h3{margin:0;font-size:16px}
 .ls-yarn th,.ls-yarn td{padding:4px 6px;border-bottom:1px solid var(--hair);white-space:normal}
 .ls-yarn th[scope=row]{position:static;text-align:left;font-size:13px;color:var(--ink-2);text-transform:none;letter-spacing:0}
 .ls-yarn input{width:100%}
+dialog.ls .bar,dialog.ls .access-panel{background:none;border:0;box-shadow:none;padding:0}
+dialog.ls .err{color:var(--critical);margin:0}
 dialog.ls .btns{display:flex;gap:8px;justify-content:flex-end}
 /* Проверка документа перед проведением: сначала вердикт, потом что мешает, потом что изменится */
 dialog.doc{width:min(940px,95vw);max-height:92vh}
@@ -599,29 +601,57 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
 
   <!-- ПОЛЬЗОВАТЕЛИ -->
   <section id="tab-users" class="hidden">
-    <h3 id="u-heading">Новый пользователь</h3>
     <div class="bar">
-      <div class="f"><label for="u-login">Логин</label><input id="u-login" size="12" autocomplete="off"></div>
-      <div class="f"><label for="u-name">Имя</label><input id="u-name" size="20" autocomplete="off"></div>
-      <div class="f"><label for="u-role">Роль</label><select id="u-role"></select></div>
-      <div class="f" id="u-pass-wrap"><label for="u-pass">Временный пароль</label><input id="u-pass" type="password" size="14" autocomplete="new-password"></div>
-      <div class="f"><label for="u-mode">Настройка доступа</label><select id="u-mode"><option value="custom">Индивидуально</option><option value="role">По шаблону роли</option></select></div>
-      <div class="f"><label>&nbsp;</label><button class="act primary" id="u-add">Создать</button></div>
-      <div class="f"><label>&nbsp;</label><button class="act hidden" id="u-cancel">Отмена</button></div>
+      <div class="f"><label>&nbsp;</label><button class="act primary" id="u-new">Добавить пользователя…</button></div>
     </div>
-    <div class="access-panel" id="u-access">
-      <p class="note">Сначала выберите доступные разделы, затем разрешённые действия. Просмотр раздела не разрешает менять его данные.</p>
-      <fieldset><legend>Что пользователь видит</legend><div class="access-grid" id="u-sections"></div></fieldset>
-      <fieldset><legend>Что пользователь может менять</legend><div class="access-grid" id="u-actions"></div></fieldset>
-      <p class="note" id="u-access-note"></p>
-    </div>
-    <div class="tbl-wrap" style="margin-top:14px">
+    <div class="tbl-wrap">
       <table id="u-table">
         <thead><tr><th>Логин</th><th>Имя</th><th>Роль</th><th>Доступ</th><th>Активен</th><th>Последний вход</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
-    <p class="note">Администратор управляет пользователями и имеет полный доступ. Индивидуальные ограничения проверяются сервером при каждом запросе.</p>
+    <p class="note">Администратор видит всё и управляет пользователями. Остальным доступ задают разделами и действиями;
+      сервер проверяет его при каждом запросе.</p>
+
+    <dialog id="u-dlg" class="ls doc"><form method="dialog" id="u-form">
+      <h3 id="u-heading">Новый пользователь</h3>
+      <div class="bar">
+        <div class="f"><label for="u-login">Логин</label><input id="u-login" size="14" autocomplete="off" pattern="[a-z0-9][a-z0-9._\-]{1,31}"></div>
+        <div class="f"><label for="u-name">Имя</label><input id="u-name" size="22" autocomplete="off"></div>
+        <div class="f"><label for="u-role">Роль</label><select id="u-role"></select></div>
+      </div>
+      <div class="bar" id="u-pass-wrap">
+        <div class="f"><label for="u-pass">Пароль</label><input id="u-pass" type="text" size="16" autocomplete="new-password" spellcheck="false"></div>
+        <div class="f"><label>&nbsp;</label><button type="button" class="act" id="u-gen">Придумать</button></div>
+        <label class="ack"><input type="checkbox" id="u-must"> попросить сменить пароль при первом входе</label>
+      </div>
+      <div class="bar">
+        <div class="f"><label for="u-mode">Доступ</label><select id="u-mode">
+          <option value="role">как у роли</option><option value="custom">выбрать вручную</option></select></div>
+        <div class="f"><label for="u-copy">Скопировать доступ у</label><select id="u-copy"></select></div>
+      </div>
+      <div class="access-panel" id="u-access">
+        <fieldset><legend>Что пользователь видит</legend><div class="access-grid" id="u-sections"></div></fieldset>
+        <fieldset><legend>Что пользователь может менять</legend><div class="access-grid" id="u-actions"></div></fieldset>
+        <p class="note" id="u-access-note"></p>
+      </div>
+      <p class="err" id="u-err" role="alert"></p>
+      <div class="btns"><button class="act" value="cancel" formnovalidate>Отмена</button>
+        <button class="act primary" id="u-add" type="button">Создать</button></div>
+    </form></dialog>
+
+    <dialog id="u-pw-dlg" class="ls"><form method="dialog">
+      <h3 id="u-pw-title">Пароль</h3>
+      <div class="bar">
+        <div class="f"><label for="u-pw">Новый пароль</label><input id="u-pw" type="text" size="18" autocomplete="new-password" spellcheck="false"></div>
+        <div class="f"><label>&nbsp;</label><button type="button" class="act" id="u-pw-gen">Придумать</button></div>
+      </div>
+      <label class="ack"><input type="checkbox" id="u-pw-must"> попросить сменить при следующем входе</label>
+      <p class="note">Все открытые сеансы этого пользователя закроются.</p>
+      <p class="err" id="u-pw-err" role="alert"></p>
+      <div class="btns"><button class="act" value="cancel" formnovalidate>Отмена</button>
+        <button class="act primary" id="u-pw-save" type="button">Задать пароль</button></div>
+    </form></dialog>
   </section>
 
   <!-- ОТЧЁТ -->
@@ -1735,13 +1765,6 @@ $('#u-access').onchange=e=>{
   USER_DRAFT.permissions=USER_DRAFT.permissions.filter(id=>ACCESS_CATALOG.permissions.find(p=>p.id===id).sections.some(s=>USER_DRAFT.sections.includes(s)));
   renderAccessFields();
 };
-function resetUserForm(){
-  USER_EDIT=null;USER_DRAFT=null;$('#u-login').value='';$('#u-name').value='';$('#u-pass').value='';
-  $('#u-login').disabled=false;$('#u-role').value='viewer';$('#u-mode').value='custom';
-  $('#u-pass-wrap').classList.remove('hidden');$('#u-cancel').classList.add('hidden');
-  $('#u-add').textContent=tr('Создать');$('#u-heading').textContent=tr('Новый пользователь');renderAccessFields();
-}
-$('#u-cancel').onclick=resetUserForm;
 async function renderUsers(){
   if(!can('users'))return;
   try{
@@ -1750,29 +1773,68 @@ async function renderUsers(){
       <td data-i18n-skip>${esc(u.login)}</td><td data-i18n-skip>${esc(u.name)}</td><td>${esc(tr(ROLES[u.role]||u.role))}</td>
       <td>${tr(u.access_mode==='custom'?'Индивидуально':'По шаблону роли')} · ${(u.sections||[]).filter(x=>!['bottle','kpi'].includes(x)).length}</td>
       <td>${tr(u.active?'Да':'Нет')}</td><td class="n">${u.last_login?esc(u.last_login.slice(0,16).replace('T',' ')):'—'}</td>
-      <td><button class="act" data-user-edit="${u.id}">${tr('Изменить доступ')}</button> <button class="act" data-off="${u.id}" ${u.id===ME.id?'disabled':''}>${tr(u.active?'Отключить':'Включить')}</button></td></tr>`).join('');
-    renderAccessFields();
+      <td><button class="act" data-user-edit="${u.id}">${tr('Изменить')}</button> <button class="act" data-pw="${u.id}">${tr('Пароль…')}</button> <button class="act" data-off="${u.id}" ${u.id===ME.id?'disabled':''}>${tr(u.active?'Отключить':'Включить')}</button></td></tr>`).join('');
   }catch(e){say('Список пользователей не загрузился: '+e.message,true);}
 }
+// Пароль, который легко продиктовать: без похожих символов (0/O, 1/l/I).
+const genPassword=()=>{const a='abcdefghjkmnpqrstuvwxyz23456789';const r=crypto.getRandomValues(new Uint32Array(10));return [...r].map(x=>a[x%a.length]).join('');};
+// Создание и правка — в окне: раньше форма нового пользователя и сетка прав
+// всегда стояли над списком, и правка чужих прав выглядела как создание.
+function openUserDialog(u){
+  USER_EDIT=u?u.id:null;
+  USER_DRAFT=u&&u.access_mode==='custom'?{sections:[...u.sections],permissions:[...u.permissions]}:null;
+  $('#u-login').value=u?u.login:'';$('#u-login').disabled=!!u;$('#u-name').value=u?u.name:'';
+  $('#u-role').value=u?u.role:'viewer';$('#u-mode').value=u?u.access_mode:'role';
+  $('#u-pass').value=u?'':genPassword();$('#u-must').checked=false;$('#u-pass-wrap').classList.toggle('hidden',!!u);
+  // Скопировать доступ: роль и отмеченные разделы/действия другого пользователя.
+  $('#u-copy').innerHTML=`<option value="">—</option>`+USER_ROWS.filter(x=>!u||x.id!==u.id)
+    .map(x=>`<option value="${x.id}">${esc(x.name)} (${esc(x.login)})</option>`).join('');
+  $('#u-add').textContent=tr(u?'Сохранить':'Создать');
+  $('#u-heading').textContent=u?tr('Пользователь')+' '+u.login:tr('Новый пользователь');
+  $('#u-err').textContent='';renderAccessFields();$('#u-dlg').showModal();(u?$('#u-name'):$('#u-login')).focus();
+}
+$('#u-new').onclick=()=>openUserDialog(null);
+$('#u-gen').onclick=()=>{$('#u-pass').value=genPassword();};
+$('#u-copy').onchange=()=>{
+  const src=USER_ROWS.find(x=>String(x.id)===$('#u-copy').value);if(!src)return;
+  $('#u-role').value=src.role;
+  if(src.role!=='admin'){$('#u-mode').value=src.access_mode;
+    USER_DRAFT=src.access_mode==='custom'?{sections:[...src.sections],permissions:[...src.permissions]}:null;}
+  renderAccessFields();say(`Доступ взят у ${src.name} — проверьте и сохраните`);
+};
+let PW_USER=null;
 $('#u-table').onclick=async e=>{
-  const edit=e.target.closest('[data-user-edit]'),off=e.target.closest('[data-off]');if(!edit&&!off)return;
-  const u=USER_ROWS.find(x=>String(x.id)===(edit?.dataset.userEdit||off.dataset.off));if(!u)return;
-  if(edit){
-    USER_EDIT=u.id;USER_DRAFT={sections:[...u.sections],permissions:[...u.permissions]};
-    $('#u-login').value=u.login;$('#u-login').disabled=true;$('#u-name').value=u.name;$('#u-role').value=u.role;$('#u-mode').value=u.access_mode;
-    $('#u-pass').value='';$('#u-pass-wrap').classList.add('hidden');$('#u-cancel').classList.remove('hidden');
-    $('#u-add').textContent=tr('Сохранить');$('#u-heading').textContent=tr('Изменить доступ');renderAccessFields();$('#u-heading').scrollIntoView({block:'start'});
-  }else try{await api('/api/users',{id:u.id,active:!u.active});await renderUsers();}catch(err){say(err.message,true);}
+  const btn=e.target.closest('[data-user-edit],[data-off],[data-pw]');if(!btn)return;
+  const id=btn.dataset.userEdit||btn.dataset.off||btn.dataset.pw;
+  const u=USER_ROWS.find(x=>String(x.id)===id);if(!u)return;
+  if(btn.dataset.userEdit)return openUserDialog(u);
+  if(btn.dataset.pw){PW_USER=u;$('#u-pw-title').textContent=tr('Пароль для')+' '+u.login;$('#u-pw').value=genPassword();
+    $('#u-pw-must').checked=false;$('#u-pw-dlg').showModal();$('#u-pw').select();return;}
+  try{await api('/api/users',{id:u.id,active:!u.active});await renderUsers();say(u.active?`${u.login} отключён`:`${u.login} включён`);}
+  catch(err){say(err.message,true);}
+};
+$('#u-pw-gen').onclick=()=>{$('#u-pw').value=genPassword();$('#u-pw').select();};
+$('#u-pw-save').onclick=async()=>{
+  const password=$('#u-pw').value;
+  $('#u-pw-err').textContent='';
+  if(password.length<6)return $('#u-pw-err').textContent='Пароль — не короче шести символов';
+  try{await api('/api/password',{user_id:PW_USER.id,password,must_change:$('#u-pw-must').checked});
+    $('#u-pw-dlg').close();say(`Пароль для ${PW_USER.login}: ${password} — передайте его пользователю`);}
+  catch(e){$('#u-pw-err').textContent='Пароль не задан: '+e.message;}
 };
 $('#u-add').onclick=async()=>{
-  const login=$('#u-login').value.trim(),name=$('#u-name').value.trim(),password=$('#u-pass').value,role=$('#u-role').value;
-  if(!USER_EDIT&&(!login||!password))return say('Нужны логин и временный пароль',true);
+  const login=$('#u-login').value.trim().toLowerCase(),name=$('#u-name').value.trim(),password=$('#u-pass').value,role=$('#u-role').value;
+  const err=t=>{$('#u-err').textContent=t;};err('');
+  if(!USER_EDIT&&!login)return err('Нужен логин');
+  if(!USER_EDIT&&password.length<6)return err('Пароль — не короче шести символов');
   const access=role==='admin'||$('#u-mode').value==='role'?null:readAccessFields();
-  if(access&&!access.sections.length)return say('Выберите хотя бы один раздел',true);
-  const body=USER_EDIT?{id:USER_EDIT,name:name||login,role,access}:{login,name:name||login,password,role,access};
+  if(access&&!access.sections.length)return err('Выберите хотя бы один раздел');
+  const body=USER_EDIT?{id:USER_EDIT,name:name||login,role,access}
+    :{login,name:name||login,password,must_change:$('#u-must').checked,role,access};
   $('#u-add').disabled=true;
-  try{await api('/api/users',body);resetUserForm();await renderUsers();say('Права пользователя сохранены');}
-  catch(e){say(e.message,true);}finally{$('#u-add').disabled=false;}
+  try{await api('/api/users',body);$('#u-dlg').close();await renderUsers();
+    say(USER_EDIT?'Пользователь сохранён':`Пользователь ${login} создан, пароль: ${password} — передайте его пользователю`);}
+  catch(e){err(e.message.charAt(0).toUpperCase()+e.message.slice(1));}finally{$('#u-add').disabled=false;}
 };
 
 /* --- дашборд: станок, что заправлено, кто работает, что рвётся --- */
