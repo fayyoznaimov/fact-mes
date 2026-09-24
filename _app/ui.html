@@ -137,6 +137,9 @@ select.art{font:inherit;font-size:12px;max-width:260px}
 .dash-setup{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px 20px;margin:4px 0;font-size:13px}
 .dash-setup dt{font-size:11.5px;color:var(--muted)} .dash-setup dd{margin:0}
 .dash-setup .wide{grid-column:1/-1}
+.tk-cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px}
+.tk-cats .act{min-height:44px;text-align:left;white-space:normal}
+#tk-table .act.need{color:var(--critical);border-color:color-mix(in srgb,var(--critical) 45%,transparent)}
 .soon-box{display:flex;flex-direction:column;gap:6px}
 .soon-box:empty{display:none}
 .soon-t{border-collapse:collapse;font-size:13px;background:var(--surface);border:1px solid var(--hair);width:auto;min-width:min(520px,100%)}
@@ -1396,8 +1399,8 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
     <div class="bar">
       <div class="f"><label>Монитор в цехе</label>
         <a class="act primary" href="/wall" target="_blank" style="text-decoration:none">Открыть доску</a></div>
-      <div class="f"><label for="tk-from">С дня</label><input id="tk-from" type="date"></div>
-      <div class="f"><label for="tk-to">По день</label><input id="tk-to" type="date"></div>
+      <div class="f"><label for="tk-from">С</label><input id="tk-from" type="date"></div>
+      <div class="f"><label for="tk-to">По</label><input id="tk-to" type="date"></div>
       <div class="f"><label for="tk-shift">Смена</label><select id="tk-shift">
         <option value="">все</option><option>A</option><option>B</option><option>C</option></select></div>
       <div class="f"><label for="tk-looms">Станки</label><input id="tk-looms" size="10"
@@ -1418,6 +1421,12 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
         <tbody></tbody>
       </table>
     </div>
+    <dialog id="tk-cat-dlg" class="ls"><form method="dialog">
+      <h3 id="tk-cat-title">Причина простоя</h3>
+      <p class="note" id="tk-cat-info"></p>
+      <div class="tk-cats" id="tk-cat-list"></div>
+      <div class="btns"><button class="act" value="cancel">Отмена</button></div>
+    </form></dialog>
     <p class="note">Станок сам называет причину только по датчику — уток, основа, ворс, кромка;
       её тикет не перебивает. Всё остальное (обесточен, ручной останов, «прочее») объясняет тикет:
       вызвали электрика — весь этот простой уходит в электрическую проблему.</p>
@@ -2788,10 +2797,11 @@ function renderTickets() {
     ...top.map(([reason, b]) => [reason, `${dur(b.s)}<small> · ${b.n}</small>`]),
   ].map(([l,v])=>`<div class="tile"><div class="l">${esc(l)}</div><div class="v">${v}</div></div>`).join("");
 
-  const edit = TK_EDIT;
-  const opts = c => TK_CATS.map(x =>
-    `<option value="${x.id}"${x.id===c?" selected":""}>${esc(x.name)}</option>`).join("");
-  $("#tk-table tbody").innerHTML = rows.map(r => `<tr>
+  // Строк — сотня и «ещё»: раньше рисовался весь период, в каждой строке свой
+  // список причин — 1 400 строк, ~30 тысяч элементов и секунда блокировки.
+  // Причину выбирают в одном окне (кнопки крупные — удобно и на сенсорном экране).
+  const edit = TK_EDIT, shown = rows.slice(0, TK_SHOW);
+  $("#tk-table tbody").innerHTML = shown.map(r => `<tr>
     <td>${esc(r.loom)} <button class="act" data-ticket-audit="${r.id}" title="История тикета">№ ${r.id}</button></td>
     <td class="n">${r.started_at.slice(5,16).replace("T"," ")}</td>
     <td>${esc((r.shift || "").slice(-1))}</td>
@@ -2799,31 +2809,45 @@ function renderTickets() {
     <td>${esc(r.cause_ru || "—")}</td>
     <td>${esc(r.reason)}</td>
     <td>${esc(r.reason_from)}</td>
-    <td>${edit ? `<select data-cls="${r.id}"><option value="">— выбрать —</option>${opts(r.category_id)}</select>`
-               : (r.category_name || "—")}</td>
+    <td>${edit ? `<button class="act${r.category_id ? "" : " need"}" data-cls="${r.id}">${esc(r.category_name || "— выбрать —")}</button>`
+               : esc(r.category_name || "—")}</td>
     <td>${r.open && edit ? `<button class="act" data-close="${r.id}">Закрыть</button>`
                          : (r.open ? '<span class="ok">открыт</span>' : "")}</td></tr>`).join("")
+    + (rows.length > shown.length ? `<tr><td colspan="9"><button class="act" id="tk-more">Показать ещё ${Math.min(100, rows.length - shown.length)} · осталось ${rows.length - shown.length}</button></td></tr>` : "")
     || `<tr><td colspan="9" class="note">За выбранный период тикетов нет.</td></tr>`;
-
-  document.querySelectorAll("[data-cls]").forEach(s => s.onchange = async () => {
-    if (!s.value) return;
-    try { await api("/api/tickets/classify", { id: Number(s.dataset.cls), category_id: s.value });
-          say("Причина записана"); loadTickets(); }
-    catch (e) { say("Не записалось: " + e.message, true); }
-  });
-  document.querySelectorAll("[data-close]").forEach(b => b.onclick = async () => {
-    try { await api("/api/tickets/close", { id: Number(b.dataset.close) }); loadTickets(); }
-    catch (e) { say("Не закрылся: " + e.message, true); }
-  });
+  TK_ROWS = rows;
 }
+let TK_SHOW = 100, TK_ROWS = [], TK_PICK = null;
+$("#tk-table tbody").onclick = async e => {
+  const more = e.target.closest("#tk-more"), cls = e.target.closest("[data-cls]"), close = e.target.closest("[data-close]");
+  if (more) { TK_SHOW += 100; return renderTickets(); }
+  if (cls) {
+    const r = TK_ROWS.find(x => String(x.id) === cls.dataset.cls); if (!r) return;
+    TK_PICK = r;
+    $("#tk-cat-title").textContent = `Причина простоя · ${r.loom} · № ${r.id}`;
+    $("#tk-cat-info").textContent = `${r.started_at.slice(5,16).replace("T"," ")}, простой ${dur(r.duration_sec)}. Станок сообщает: ${r.cause_ru || "—"}.`;
+    $("#tk-cat-list").innerHTML = TK_CATS.map(x => `<button type="button" class="act${x.id === r.category_id ? " primary" : ""}" data-pick="${esc(x.id)}">${esc(x.name)}</button>`).join("");
+    return $("#tk-cat-dlg").showModal();
+  }
+  if (close) {
+    try { await api("/api/tickets/close", { id: Number(close.dataset.close) }); loadTickets(); }
+    catch (err) { say("Не закрылся: " + err.message, true); }
+  }
+};
+$("#tk-cat-list").onclick = async e => {
+  const b = e.target.closest("[data-pick]"); if (!b || !TK_PICK) return;
+  try { await api("/api/tickets/classify", { id: TK_PICK.id, category_id: b.dataset.pick });
+        $("#tk-cat-dlg").close(); say(`${TK_PICK.loom}: причина записана`); loadTickets(); }
+  catch (err) { say("Не записалось: " + err.message, true); }
+};
 document.querySelectorAll("[data-tk-sort]").forEach(th => th.onclick = () => {
   const k = th.dataset.tkSort;
   TK_SORT = {k, dir: TK_SORT.k === k ? -TK_SORT.dir : (k === "started_at" || k === "duration_sec" ? -1 : 1)};
-  renderTickets();
+  TK_SHOW = 100; renderTickets();
 });
 ["#tk-from", "#tk-to"].forEach(id => $(id).onchange = loadTickets);
-$("#tk-shift").onchange = renderTickets;
-$("#tk-looms").oninput = renderTickets;
+$("#tk-shift").onchange = () => { TK_SHOW = 100; renderTickets(); };
+$("#tk-looms").oninput = () => { TK_SHOW = 100; renderTickets(); };
 $("#tk-reload").onclick = loadTickets;
 $("#tk-filter").onchange = loadTickets;   // «открытые» спрашиваем у сервера
 
