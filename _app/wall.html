@@ -13,8 +13,9 @@
   --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
 }
 *{box-sizing:border-box}
+html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);
-     -webkit-font-smoothing:antialiased}
+     -webkit-font-smoothing:antialiased;display:flex;flex-direction:column;min-height:100vh}
 header{display:flex;align-items:center;gap:18px;flex-wrap:wrap;
        padding:14px 20px;border-bottom:1px solid var(--rule);background:var(--panel)}
 h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em}
@@ -31,14 +32,37 @@ h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em}
 .banner{padding:12px 20px;font-size:18px;font-weight:600;line-height:1.35}
 .banner.alarm{background:var(--alarm);color:#fff}
 .banner.stale{background:var(--stale);color:#111}
-main{padding:16px 20px 28px}
+main{padding:16px 20px 28px;flex:1}
 .grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+/* Монитор цеха: все станки зоны на одном экране, без прокрутки — с трёх метров
+   не видно того, что ниже края. Колонки и ряды считает render(). */
+body.fit{height:100vh;overflow:hidden}
+body.fit main{min-height:0;padding:12px 16px}
+body.fit .grid{height:100%;grid-template-columns:repeat(var(--cols),minmax(0,1fr));
+  grid-template-rows:repeat(var(--rows),minmax(0,1fr))}
+body.fit .tile{min-height:0;overflow:hidden;padding:9px 12px}
+body.fit .reason{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.fit .clock{white-space:nowrap}
+body.fit .tile-top,body.fit .reason{flex-shrink:0}
+body.fit .sub{flex-wrap:nowrap;overflow:hidden;white-space:nowrap;min-height:0}
+/* Невысокий монитор (1366×768): плитки ниже — шрифт и строки под ними компактнее. */
+@media (max-height:900px){
+  body.fit .loom{font-size:22px} body.fit .clock{font-size:15px}
+  body.fit .reason{font-size:13px} body.fit .sub{font-size:11px;gap:6px}
+  body.fit .tile{gap:3px;padding:7px 10px}
+  body.fit .banner{font-size:15px;padding:8px 16px}
+  body.fit .soon{flex-wrap:nowrap;overflow:hidden;white-space:nowrap;padding:6px 16px;font-size:13px}
+  body.fit header{padding:8px 16px} body.fit .count b{font-size:20px}
+  /* метка дублирует цвет плитки и текст причины — на низком экране её обрезало */
+  body.fit .badge{display:none}
+}
 .tile{position:relative;background:var(--panel);border:1px solid var(--rule);
       border-left:5px solid var(--rule);border-radius:5px;padding:11px 13px;cursor:pointer;
       display:flex;flex-direction:column;gap:5px;min-height:112px}
 .tile:hover{background:var(--panel-2)}
 .tile:focus-visible{outline:2px solid var(--ticket);outline-offset:2px}
-.tile.run{border-left-color:var(--run);opacity:.72}
+.tile.run{border-left-color:var(--rule)}
+.tile.run .reason,.tile.run .loom{color:var(--muted)}
 .tile.tech{border-left-color:var(--tech)}
 .tile.off{border-left-color:var(--off)}
 .tile.wait{border-left-color:var(--wait)}
@@ -117,7 +141,7 @@ a{color:#9cc2ff}
 <div class="soon" id="soon" hidden></div>
 <footer>
   <div class="legend">
-    <span><i style="background:var(--run)"></i>работает</span>
+    <span><i style="background:var(--rule)"></i>работает</span>
     <span><i style="background:var(--tech)"></i>обрыв, станок знает причину</span>
     <span><i style="background:var(--wait)"></i>только что встал</span>
     <span><i style="background:var(--none)"></i>стоит без тикета</span>
@@ -130,6 +154,7 @@ a{color:#9cc2ff}
 <dialog id="dlg"><form method="dialog" class="dlg">
   <h2 id="d-title">Станок</h2>
   <p class="note" id="d-state"></p>
+  <div id="d-brk"></div>
   <div class="cats" id="d-cats"></div>
   <p class="note" id="d-hint"></p>
   <div class="row">
@@ -185,6 +210,13 @@ const hhmm = sec => {
   return h ? `${h}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`
            : `${m}:${String(s).padStart(2,"0")}`;
 };
+
+// Время на плитке: первый час — «м:сс» (идёт счёт), дальше — «67 ч 38»: секунды
+// в «67:38:20» с трёх метров — шум, а «4:09» не отличить от четырёх часов.
+// У работающего станка время не показываем — важно только, сколько стоит.
+const clockText = sec => { sec = Math.max(0, sec|0);
+  return sec < 3600 ? hhmm(sec) : `${Math.floor(sec/3600)} ч ${String(Math.floor(sec%3600/60)).padStart(2,"0")}`; };
+const tileClock = l => l.running ? "" : clockText(l.state_sec);
 
 /* Уровень андона. Сервер присылает его, но секунды тикают здесь: станок
    должен покраснеть ровно на десятой минуте, а не при следующем снимке. */
@@ -278,7 +310,7 @@ function render() {
   ban.hidden = REVIEW || !alarms.length;
   if (!ban.hidden) {
     ban.textContent = `Стоят без тикета дольше ${an.alarm_min} мин: `
-      + alarms.slice(0, 8).map(l => `${esc(l.loom)} · ${hhmm(l.state_sec)}`).join(", ")
+      + alarms.slice(0, 8).map(l => `${l.loom} · ${clockText(l.state_sec)}`).join(", ")
       + (alarms.length > 8 ? ` и ещё ${alarms.length - 8}` : "")
       + " — нажмите на станок и выберите, кого вызвали";
   }
@@ -298,7 +330,7 @@ function render() {
         aria-label="Станок ${esc(l.loom)}">
       <div class="tile-top"><span class="loom">${esc(l.loom)}</span>
         <span class="clock">${REVIEW && l.breaks ? l.breaks.stop_min + " мин"
-                                                 : hhmm(l.state_sec)}</span></div>
+                                                 : tileClock(l)}</span></div>
       <div class="reason">${esc(reasonText(l, lvl))}</div>
       <div class="sub">
         <span>${esc(l.style)}</span>
@@ -308,9 +340,10 @@ function render() {
         ${!REVIEW && lvl === "noticket" ? '<span class="badge m">нет тикета</span>' : ""}
         ${!REVIEW && lvl === "alarm" ? `<span class="badge a">${l.escalated ? "мастеру сообщено" : "тревога"}</span>` : ""}
       </div>
-      ${breaksBlock(l)}
+      ${REVIEW ? breaksBlock(l) : ""}
     </div>`;
   }).join("");
+  fitGrid(looms.length);
   setFoot();
 
   document.querySelectorAll(".tile").forEach(t => {
@@ -319,6 +352,20 @@ function render() {
     t.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } };
   });
 }
+
+// Сетка под число станков: 40 — 8×5 на весь экран. На узком экране (телефон,
+// планшет) и при разборе дня — обычная прокрутка.
+function fitGrid(n) {
+  const fit = !REVIEW && n > 0 && innerWidth >= 1100 && innerHeight >= 650;
+  document.body.classList.toggle("fit", fit);
+  if (!fit) return;
+  // Площадь под плитки — без шапки, баннеров и подвала; плитка чуть шире, чем высокая.
+  const grid = $("#grid"), w = grid.clientWidth || innerWidth, h = grid.clientHeight || innerHeight;
+  const cols = Math.max(1, Math.min(n, Math.floor(w / 150), Math.round(Math.sqrt(n * w / h / 1.3))));
+  grid.style.setProperty("--cols", cols);
+  grid.style.setProperty("--rows", Math.ceil(n / cols));
+}
+addEventListener("resize", () => { if (DATA) render(); });
 
 function setFoot() {
   const d = DATA;
@@ -342,6 +389,7 @@ function openDialog(loom) {
     : `Стоит ${hhmm(loom.state_sec)}. Станок сообщает: ${loom.cause_ru}. `
       + `Причина простоя: ${loom.reason} (${loom.reason_from}).`;
 
+  $("#d-brk").innerHTML = breaksBlock(loom);     // обрывы за смену — здесь, а не на плитке
   const techLocked = !loom.running && lv === "tech";
   $("#d-cats").innerHTML = (techLocked || loom.running) ? "" :
     DATA.categories.map(c =>
@@ -451,7 +499,7 @@ setInterval(() => {
   if (changed) return render();
   document.querySelectorAll(".tile").forEach(t => {
     const l = DATA.looms.find(x => x.loom === t.dataset.loom);
-    if (l) t.querySelector(".clock").textContent = hhmm(l.state_sec);
+    if (l) t.querySelector(".clock").textContent = tileClock(l);
   });
 }, 1000);
 </script>
