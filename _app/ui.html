@@ -568,6 +568,13 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) thead tr.grp th{background:var(--surface-2)}}
 :root[data-theme="dark"] thead tr.grp th{background:var(--surface-2)}
 :root[data-theme="dark"] tbody tr:hover{background:var(--surface-2)}
+/* Сенсорный экран (панель у станка, планшет мастера): кнопки, поля и флажки не
+   меньше 44 px — в перчатках в 20-пиксельный флажок не попасть. Мышь — как было. */
+@media (pointer:coarse){
+  button.act,a.act,select,input:not([type=checkbox]):not([type=radio]),nav button,.chip,#lp-table button,#rep-table th.tg{min-height:44px!important}
+  input[type=checkbox],input[type=radio]{width:22px;height:22px}
+  td input[type=checkbox]{margin:10px}
+}
 </style>
 
 <div class="wrap">
