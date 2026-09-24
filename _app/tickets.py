@@ -33,9 +33,12 @@ from datetime import datetime, timedelta
 import cache
 import hub
 import livestate
+import logs
 import storage
 from livestate import CAUSE_FLAGS, loom_file  # noqa: F401 — для старых вызовов
 from storage import shop
+
+LOG = logs.get("tickets")
 
 # Откуда брать живое состояние: mirror — папка зеркала, fact — сервер по сети.
 SOURCE = {"mode": "mirror", "url": "http://172.0.30.9"}
@@ -165,6 +168,18 @@ def db():
         cols = [r[1] for r in conn.execute("PRAGMA table_info(ticket)")]
         if "escalated_at" not in cols:
             conn.execute("ALTER TABLE ticket ADD COLUMN escalated_at TEXT")
+            conn.commit()
+        # Один открытый тикет на станок — ограничение самой базы. Если старые
+        # дубли уже есть, индекс не создаём и пишем в журнал: объединять их —
+        # решение человека, не миграции.
+        dup = conn.execute("SELECT loom, COUNT(*) n FROM ticket WHERE ended_at IS NULL"
+                           " GROUP BY loom HAVING n > 1").fetchall()
+        if dup:
+            LOG.warning("несколько открытых тикетов на станке: %s — индекс единственности не создан",
+                        ", ".join("%s (%d)" % (r["loom"], r["n"]) for r in dup))
+        else:
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS ticket_one_open ON ticket(loom)"
+                         " WHERE ended_at IS NULL")
             conn.commit()
         _migrated = True
     import productionlog
@@ -429,6 +444,9 @@ def open_ticket(loom, who="вручную", category_id=None, comment=""):
     now = datetime.now().astimezone()
     started = now - timedelta(seconds=st["state_sec"] if not st["running"] else 0)
     conn = db()
+    # Проверка и вставка — одной транзакцией записи: иначе сборщик и монитор,
+    # прочитав «открытого тикета нет», заводили два тикета на один останов.
+    conn.execute("BEGIN IMMEDIATE")
     # Тикет на этот останов мог уже завести сборщик — тогда пишем в него.
     row = conn.execute("SELECT id FROM ticket WHERE loom=? AND ended_at IS NULL"
                        " ORDER BY started_at DESC LIMIT 1", (loom,)).fetchone()
@@ -557,6 +575,7 @@ def poll_once():
     _, live = state_now(max_age=0)
     now = datetime.now().astimezone()
     conn = db()
+    conn.execute("BEGIN IMMEDIATE")     # см. open_ticket: чтение и вставка вместе
     open_rows = {r["loom"]: r for r in
                  conn.execute("SELECT * FROM ticket WHERE ended_at IS NULL")}
     changed = False
