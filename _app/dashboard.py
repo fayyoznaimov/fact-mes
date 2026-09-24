@@ -97,11 +97,15 @@ def _code_design(d):
 GSM_TOLERANCE = 10       # 307 на станке и 300 в плане — одно и то же
 
 
-def plan_mismatch(plan, cloth, master=None):
+def plan_mismatch(plan, cloth, master=None, split=False):
     """Чем станок расходится с планом — список фраз. Сравниваем только то, что
-    известно с обеих сторон: неразобранный код ткани расхождением не считаем."""
+    известно с обеих сторон: неразобранный код ткани расхождением не считаем.
+
+    split=True — (расхождения, подсказки): на станке не тот размер или дизайн —
+    это тревога; GSM в пределах одного изделия и выбор мастера — подсказка.
+    Раньше всё шло одним списком, и ⚠ горел у трёх четвертей станков."""
     if not plan or not plan.get("order_no"):
-        return []
+        return ([], []) if split else []
     import loomplan
     out = []
     size, design, gsm = cloth_parts(cloth)
@@ -114,12 +118,19 @@ def plan_mismatch(plan, cloth, master=None):
         diff.append("дизайн")
     if gsm and plan.get("gsm") and abs(int(gsm) - int(plan["gsm"])) > GSM_TOLERANCE:
         diff.append("GSM")
-    if diff:
-        out.append("на станке «%s», по плану %s (заказ %s) — не совпадает %s"
-                   % (cloth, plan.get("product") or "—", plan["order_no"], ", ".join(diff)))
+    text = lambda what: ("на станке «%s», по плану %s (заказ %s) — не совпадает %s"
+                         % (shown_code(cloth), plan.get("product") or "—", plan["order_no"], what))
+    serious = [d for d in diff if d != "GSM"]
+    notes = []
+    if serious:
+        out.append(text(", ".join(diff)))
+    elif diff:
+        notes.append(text("GSM"))
     if master and plan.get("product_code") and master != plan["product_code"]:
-        out.append("мастер поставил «%s», по плану «%s»" % (master, plan["product_code"]))
-    return out
+        notes.append("мастер поставил «%s», по плану «%s»" % (master, plan["product_code"]))
+    if split:
+        return out, notes
+    return out + notes
 
 
 def current_articles(day=None):
@@ -466,6 +477,7 @@ def rows(day, letter=""):
         card = cards.get(key) or cards.get(code or "", {})
         y = yarn.get(key) or yarn.get(code or "", {})
         cloth = (det.get(loom) or {}).get("cloth_name") or s.get("cloth") or ""
+        mism, notes = plan_mismatch(p, cloth, master, split=True)
         # Дизайн и клиент — раздельно: в плане «D327/64» — дизайн D327, клиент 64.
         design = p["design"] if p and p.get("design") else design_of(code)
         client = (p or {}).get("client")
@@ -506,7 +518,8 @@ def rows(day, letter=""):
             "plan_product": (p or {}).get("product") or (p or {}).get("note"),
             "plan_pick": (p or {}).get("pick"),
             "cloth": shown_code(cloth),
-            "mismatch": plan_mismatch(p, cloth, master) + ppt_notes.get(loom, []),
+            "mismatch": mism,
+            "notes": notes + ppt_notes.get(loom, []),
             "style_fact": s.get("style") or l.get("style") or "",
 
             "kpicks": round((s.get("picks") or 0) / 1000, 1),

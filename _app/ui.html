@@ -12,10 +12,10 @@
      у отклонений (стоит, тревога, нет причины), чтобы красное было видно сразу. */
   color-scheme:light;
   --page:#e8ecf0; --surface:#ffffff; --surface-2:#f3f5f8; --ink:#151d26; --ink-2:#3f4b58;
-  --muted:#6a7582; --hair:#dde2e8; --rule:#c3cbd4; --accent:#1f5fa8;
+  --muted:#5a6572; --hair:#dde2e8; --rule:#c3cbd4; --accent:#1f5fa8;
   --s1:#1f5fa8; --s2:#d9652b; --s3:#2e8a64; --good:#2e7d4f; --critical:#c62828;
-  --warn:#c98a00; --change:#e6eefa;
-  --chrome:#1d2631; --chrome-2:#273241; --chrome-ink:#c3cdd8; --chrome-mute:#7f8c99;
+  --warn:#8a5a00; --change:#e6eefa;
+  --chrome:#1d2631; --chrome-2:#273241; --chrome-ink:#c3cdd8; --chrome-mute:#8e9aa7;
   --ctl:32px; --radius:4px;
 }
 :root[data-theme="dark"]{
@@ -128,12 +128,11 @@ a.act.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 tr.is-stop td:first-child{box-shadow:inset 3px 0 0 #c4443b}
 tr.is-run td:first-child{box-shadow:inset 3px 0 0 #2f9e63}
 select.art{font:inherit;font-size:12px;max-width:190px}
-/* Окраска отчёта — те же правила и цвета, что в шаблоне Excel (381 правило
-   свелось к семи порогам). Цвета заданы явно: это цвета цеха, а не темы. */
-.c-red{background:#FF0000;color:#fff;font-weight:600}
-.c-yel{background:#FFFF00;color:#111;font-weight:600}
-.c-rpm{background:#FFD966;color:#111}
-.c-rpm2{background:#F4B084;color:#111}
+/* Окраска отчёта: пороги — из шаблона Excel цеха (381 правило свелось к семи),
+   а вид — по ISA-101. Заливка только у «плохо», «внимание» — цветом текста;
+   раньше красной или жёлтой была почти вся таблица, и плохое не выделялось. */
+.c-red{background:#fbe1de;color:#9f1d17;font-weight:700}
+.c-yel{color:var(--warn);font-weight:600}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:8px}
 .legend i{display:inline-block;width:22px;height:11px;border:1px solid var(--hair);margin-right:5px;vertical-align:-1px}
 /* до входа показываем только форму входа: она лежит внутри .wrap, поэтому
@@ -686,10 +685,8 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
         <button class="act primary" id="ls-save" type="button">Проверить и провести…</button></div>
     </form></dialog>
     <div class="legend">
-      <span><i style="background:#FF0000"></i>плохо: КПД 1–69, ворс 41+, уток и основа 61+, прочие 21+, «Итого» 121+</span>
-      <span><i style="background:#FFFF00"></i>внимание: КПД 70–79, ворс 30–40, уток и основа 50–60, прочие 16–20, «Итого» 91–120</span>
-      <span><i style="background:#FFD966"></i>об/мин 250–519</span>
-      <span><i style="background:#F4B084"></i>об/мин ниже 500</span>
+      <span><i class="c-red" style="font-style:normal;text-align:center;line-height:11px">1</i>плохо: КПД 1–69, ворс 41+, уток и основа 61+, прочие 21+, «Итого» 121+</span>
+      <span><i class="c-yel" style="font-style:normal;text-align:center;line-height:11px;border-color:transparent">1</i>внимание: КПД 70–79, ворс 30–40, уток и основа 50–60, прочие 16–20, «Итого» 91–120</span>
     </div>
   </section>
 
@@ -1455,6 +1452,10 @@ const $ = s => document.querySelector(s);
 const tr = text => window.MesI18n ? MesI18n.t(text) : text;
 const confirmTranslated = text => window.confirm(tr(text));
 const nf = (x,d=0) => (x==null||x==="") ? "" : Number(x).toLocaleString(document.documentElement.lang==='en'?'en-GB':'ru-RU',{minimumFractionDigits:d,maximumFractionDigits:d});
+// Цвет причины простоя — один на весь интерфейс (История станков, Простои, Ганта):
+// раньше уток был красным в одном разделе, бирюзовым в другом и синим по кругу в третьем.
+const CAUSE_COLOR = {Weft: "#df5656", Warp: "#d99829", Warp_top: "#b983db", Manual: "#5f8bd1",
+                     Power_off: "#59626d", Other: "#bd737c"};
 const ICONS = {
   menu:'M4 6h16M4 12h16M4 18h16',close:'m14 6-6 6 6 6',
   dash:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
@@ -1806,7 +1807,7 @@ async function loadDash() {
     // Станок ткёт не то, что в плане, или мастер поставил другой артикул — видно сразу.
     const warn = d.mismatches || [];
     $("#dash-warn").classList.toggle("hidden", !warn.length);
-    $("#dash-warn summary").textContent = `Расхождения с планом: ${warn.length} ${warn.length === 1 ? "станок" : "станков"} — проверьте код ткани на станке или план`;
+    $("#dash-warn summary").textContent = `На станке не то, что в плане: ${warn.length} — проверьте код ткани на станке или план`;
     $("#dash-warn ul").innerHTML = warn.map(w => `<li><b>${esc(w.loom)}</b> — ${esc(w.text)}</li>`).join("");
 
     const only = $("#dash-only").value;
@@ -1834,7 +1835,8 @@ async function loadDash() {
     $("#dash-table tbody").innerHTML = rows.map(r => `
       <tr class="${r.state === "run" ? "is-run" : r.state === "stop" ? "is-stop" : ""}">
         <td><b>${esc(r.loom)}</b>${(r.mismatch || []).length
-          ? ` <span class="bad" title="${esc(r.mismatch.join("\n"))}" aria-label="расхождение с планом">⚠</span>` : ""}${
+          ? ` <span class="bad" title="${esc(r.mismatch.join("\n"))}" aria-label="расхождение с планом">⚠</span>`
+          : (r.notes || []).length ? ` <span class="note" title="${esc(r.notes.join("\n"))}" aria-label="примечание к заправке">ⓘ</span>` : ""}${
           r.cloth ? `<br><small class="note" title="код ткани на станке">${esc(r.cloth.replace(/%20/g, " "))}</small>` : ""}</td>
         <td><span class="dot ${r.state === "run" ? "run" : r.state === "stop" ? "stop" : "none"}"></span>${
           r.state === "run" ? "работает" : r.state === "stop"
@@ -1971,7 +1973,7 @@ const hueOf = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charC
 
 /* --- План → Ганта: план и факт станков на временной оси (как «Диаграмма Ганта» в DPA) --- */
 const GT = {from: null, data: null, tl: null};
-const TL_COL = {Weft: "#1f9faa", Warp: "#2d58d6", Warp_top: "#7048d8", Manual: "#e07b12", Other: "#8a939c"};
+const TL_COL = CAUSE_COLOR;
 const gtMonday = () => { const t = new Date(); t.setDate(t.getDate() - (t.getDay() + 6) % 7); return ymd(t); };
 const gtAdd = (d, n) => { const t = new Date(d.replace(/\./g, "-") + "T12:00"); t.setDate(t.getDate() + n); return ymd(t); };
 const gtIso = t => `${ymd(t).replace(/\./g, "-")}T${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}:00`;
@@ -2895,13 +2897,8 @@ const paintEff = v => {
   if (x >= 70 && x <= 79) return " c-yel";
   return "";
 };
-const paintRpm = v => {
-  const x = Number(v);
-  if (!x || isNaN(x)) return "";
-  if (x >= 250 && x <= 519) return " c-rpm";
-  if (x < 500) return " c-rpm2";
-  return "";
-};
+// Обороты не красим: в шаблоне Excel «250–519» закрашивало почти каждый станок.
+const paintRpm = () => "";
 
 /* --- отчёт --- */
 $("#rep-day").onchange = () => loadReport(false);
@@ -4061,7 +4058,10 @@ $("#kpi-go").onclick = async () => {
 };
 
 /* --- простои --- */
-const SER = ["--s1","--s2","--s3","--s1","--s2","--s3"];
+// Причины в сводке сервера — по-русски; цвет — тот же, что у причины в Истории станков.
+const EX_CAUSE = {"Уток": "Weft", "Основа": "Warp", "Верхний навой": "Warp_top", "Ручные остановы": "Manual",
+                  "Питание выключено": "Power_off", "Прочее": "Other"};
+const exColor = n => CAUSE_COLOR[EX_CAUSE[n]] || CAUSE_COLOR.Other;
 document.querySelectorAll("#ex-shifts .chip").forEach(c => c.onclick = () => {
   const on = c.getAttribute("aria-pressed") === "true";
   if (on && document.querySelectorAll('#ex-shifts .chip[aria-pressed="true"]').length === 1) return;
@@ -4089,9 +4089,9 @@ async function loadExplorer() {
     const causes = Object.entries(d.causes).sort((x,y)=>y[1]-x[1]);
     const sum = causes.reduce((s,c)=>s+c[1],0) || 1;
     $("#ex-stack").innerHTML = causes.map(([n,h],i) =>
-      `<div title="${n}: ${nf(h)} ч" style="width:${100*h/sum}%;background:var(${SER[i%SER.length]})"></div>`).join("");
+      `<div title="${esc(n)}: ${nf(h)} ч" style="width:${100*h/sum}%;background:${exColor(n)}"></div>`).join("");
     $("#ex-legend").innerHTML = causes.map(([n,h],i) =>
-      `<span class="chip" style="cursor:default"><b style="display:inline-block;width:9px;height:9px;margin-right:6px;background:var(${SER[i%SER.length]})"></b>${n} — ${nf(h)} ч</span>`).join("");
+      `<span class="chip" style="cursor:default"><b style="display:inline-block;width:9px;height:9px;margin-right:6px;background:${exColor(n)}"></b>${esc(n)} — ${nf(h)} ч</span>`).join("");
     $("#ex-table tbody").innerHTML = d.by_loom.map(l => `<tr>
       <td><strong>${esc(l.loom)}</strong></td><td class="n${l.eff<60?" bad":""}">${nf(l.eff,1)}</td>
       <td class="n">${nf(l.kpicks)}</td><td class="n">${nf(l.weft_ct)}</td><td class="n">${nf(l.weft_cmpx,1)}</td>
@@ -4160,8 +4160,8 @@ const mhTime = (s, full=false) => {
 // Один словарь цветов для лент и легенды: раньше лента «работа по снимкам» была
 // синей, как «ручной останов» в легенде, а «стоит по снимкам» — оранжевой, как основа.
 // Работа — приглушённая (норма по ISA-101), цветом выделены только остановы.
-const MH_CAUSES = [['Weft','#df5656','Уток'],['Warp','#d99829','Основа'],['Warp_top','#b983db','Ворс'],
-  ['Manual','#5f8bd1','Ручной останов'],['Other','#bd737c','Другие остановы']];
+const MH_CAUSES = [['Weft','Уток'],['Warp','Основа'],['Warp_top','Ворс'],['Manual','Ручной останов'],
+  ['Other','Другие остановы']].map(([k, t]) => [k, CAUSE_COLOR[k], t]);
 const MH_SEGS = {estimated_run:['#a3bfad','Работа · по сменным итогам'], observed_run:['#c9d8ce','Работа · по снимкам FACT'],
   observed_stop:['#59626d','Стоит · по снимкам FACT (обесточен или нет записи в журнале)'], stop:['#bd737c','']};
 const mhColor = cause => (MH_CAUSES.find(c => c[0] === cause) || MH_CAUSES[MH_CAUSES.length - 1])[1];
