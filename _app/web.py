@@ -671,8 +671,10 @@ class Handler(BaseHTTPRequestHandler):
             # при любом Content-Type, защита держалась на одном SameSite=Lax.
             if not isinstance(body, dict):
                 raise ValueError("ожидается JSON-объект")
+            # Ключ API (программы) подделать с чужого сайта нельзя — только cookie.
             ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
-            if ctype != "application/json":
+            by_key = self.headers.get("X-Api-Key") or (self.headers.get("Authorization") or "").startswith("Bearer ")
+            if ctype != "application/json" and not by_key:
                 return self._send(415, {"error": "ожидается Content-Type: application/json"})
             if u.path == "/api/login":
                 return self._login(body)

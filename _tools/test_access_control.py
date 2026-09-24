@@ -181,6 +181,8 @@ class HttpAccessTest(AccessTest):
         if key:
             headers["X-Api-Key"] = key
         raw = None if body is None else json.dumps(body).encode()
+        if raw is not None:
+            headers["Content-Type"] = "application/json"      # как шлёт браузер
         c = http.client.HTTPConnection("127.0.0.1", self.server.server_port, timeout=3)
         try:
             c.request(method, path, body=raw, headers=headers)
