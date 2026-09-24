@@ -101,10 +101,9 @@ const nf = (x, d = 0) => (x == null || x === "") ? "-"
   : Number(x).toLocaleString("ru-RU", {minimumFractionDigits: d, maximumFractionDigits: d});
 const dash = v => (v == null || v === "") ? "-" : v;
 
-// Остаток меньше нуля — счётчик станка ушёл за заданную длину навоя: навой
-// сработан или длина введена неверно. «−2 114 м» на карточке ничего не говорит.
-const beamLeft = r => r.remaining_m == null ? "—" : r.remaining_m < 0
-  ? `<span class="bad">сработан</span> <small>счётчик за длиной навоя на ${nf(-r.remaining_m)} м</small>`
+// Остаток — как его отдаёт FACT, в том числе меньше нуля (так бывает в данных
+// станка); толковать число за FACT не беремся.
+const beamLeft = r => r.remaining_m == null ? "—"
   : `${nf(r.remaining_m)} м${r.beam_length_m ? ` <small>из ${nf(r.beam_length_m)}</small>` : ""}`;
 const hm = m => m == null ? "—" : m >= 60 ? `${Math.floor(m / 60)} ч ${m % 60} мин` : `${m} мин`;
 function card(r) {

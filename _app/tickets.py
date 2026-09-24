@@ -55,6 +55,9 @@ CAUSE_RU = {
     "Out_of_product": "Нет продукции", "Manual": "Ручной останов", "Warp_top": "Ворс (верхний навой)",
     "Warp": "Основа", "False_selvage": "Ложная кромка", "Leno_L": "Перевивка (лев)",
     "Leno_R": "Перевивка (прав)", "Weft": "Уток",
+    # Состояние FACT «Other»: станок стоит и причину не назвал (флаги нулевые).
+    # Подписываем ровно так — без догадок, обесточен ли он.
+    "Other": "Прочее",
 }
 
 # Английские названия — для доски, где смотрят и наладчики Toyota, и цех.
@@ -64,7 +67,7 @@ CAUSE_EN = {
     "Warp_out": "Warp out", "Cloth_doffing": "Cloth doffing", "Cloth_mending": "Cloth mending",
     "Out_of_product": "Out of product", "Manual": "Manual stop", "Warp_top": "Pile warp",
     "Warp": "Ground warp", "False_selvage": "False selvage", "Leno_L": "Leno left",
-    "Leno_R": "Leno right", "Weft": "Weft",
+    "Leno_R": "Leno right", "Weft": "Weft", "Other": "Other",
 }
 
 # Категории тикетов.
