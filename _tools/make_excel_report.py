@@ -16,6 +16,9 @@ import os
 import re
 import sqlite3
 import sys
+import zlib
+from collections import Counter
+from datetime import datetime, timedelta, timezone
 
 from build_shift_report import parse_cloth, fact_meta, load_shifts
 
@@ -30,6 +33,37 @@ SHOP_DB = os.path.join(os.path.dirname(HERE), "_app", "shop.db")
 # полиэстер, Б — бордюр, Бк — бордюр кручёная, Бп — бордюр полиэстер.
 LOT_LABELS = (("pile", "В"), ("ground", "Г"), ("weft1", "У"), ("weft2", "К"), ("hemply", "Кк"),
               ("hempoly", "Кп"), ("weft3", "Б"), ("fancyply", "Бк"), ("weft4", "Бп"))
+
+
+SHOP_TZ = timezone(timedelta(hours=5))       # время цеха — Ташкент, без переходов
+
+
+def running_speed(day, stride=3):
+    """Скорость станка из FACT за сутки отчёта (07:00 — 07:00 следующего дня):
+    самое частое значение Rpm минутных снимков, пока станок работает.
+
+    Так обороты пишет ручной отчёт цеха (с панели станка): сверка 23.09 — у 30
+    из 35 станков в пределах 5 об/мин. Среднее «прокидки / время работы» из
+    сменного файла ниже на ~4 % (разгон и торможение), и 100 % выработки по нему
+    занижалась. Снимков нет — {} (тогда отчёт берёт среднее из смен)."""
+    if not os.path.exists(SHOP_DB):
+        return {}
+    start = datetime.strptime(day, "%Y.%m.%d").replace(hour=7, tzinfo=SHOP_TZ)
+    a, b = int(start.timestamp()), int((start + timedelta(days=1)).timestamp())
+    db = sqlite3.connect(f"file:{SHOP_DB}?mode=ro", uri=True, timeout=10)
+    seen = {}
+    try:
+        rows = db.execute("SELECT data FROM machine_sample WHERE at >= ? AND at < ? ORDER BY at",
+                          (a, b)).fetchall()
+    except sqlite3.OperationalError:
+        rows = []                   # архива снимков ещё нет
+    finally:
+        db.close()
+    for (blob,) in rows[::stride]:  # каждый третий снимок — скорость меняется редко
+        for loom, v in json.loads(zlib.decompress(blob)).items():
+            if v.get("running") and v.get("rpm"):
+                seen.setdefault(loom, Counter())[int(v["rpm"])] += 1
+    return {loom: c.most_common(1)[0][0] for loom, c in seen.items()}
 
 
 def loom_setups(day):
@@ -219,6 +253,7 @@ def build(day):
     if not per_loom:
         sys.exit(f"Нет данных за {day}")
     mend = mending_for(day)      # среднее время одного останова по сменам, сек
+    speed = running_speed(day)   # обороты — как на панели станка, из снимков FACT
     manual = loom_setups(day)    # введённое вручную главнее техкарты заказа из плана,
     setups = plan_setups(day)    # техкарта — главнее справочника артикулов
     for loom, m in manual.items():
@@ -273,7 +308,8 @@ def build(day):
         other = [manual_stops(L) for L in "ABC"]
         picks = sum(g(L, "product_kpick") for L in "ABC") * 1000
         rpms = [g(L, "rpm") for L in "ABC" if g(L, "rpm")]
-        rpm = round(sum(rpms) / len(rpms)) if rpms else 0
+        rpm_src = "fact" if speed.get(loom) else "avg"
+        rpm = speed.get(loom) or (round(sum(rpms) / len(rpms)) if rpms else 0)
 
         ppt, wt, pn = art.get("ppt"), art.get("weight_kg"), art.get("panels")
         ppt_src = None
@@ -287,7 +323,7 @@ def build(day):
             # Размер пишем как в вашем файле — текстом «70 CM», иначе колонка
             # с её форматом показывает решётки вместо числа.
             "size": f"{size} CM" if size else "",
-            "rpm": rpm, "ppt": ppt, "ppt_src": ppt_src, "weight": wt, "panels": pn,
+            "rpm": rpm, "rpm_src": rpm_src, "ppt": ppt, "ppt_src": ppt_src, "weight": wt, "panels": pn,
             # Дизайн — из плана цеха или заказа 1С («D186/6»: дизайн/клиент). Разбор
             # кода ткани со станка даёт не тот артикул, поэтому без плана — пусто.
             "prod100": prod100, "design": s.get("design") or "", "client": s.get("client") or "",
