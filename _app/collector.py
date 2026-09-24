@@ -107,6 +107,31 @@ def other_alive(status=None):
     return True
 
 
+_LOCK = None
+
+
+def _take_lock():
+    """Неблокирующий захват run/collector.lock на весь срок процесса."""
+    global _LOCK
+    if _LOCK is not None:
+        return True
+    os.makedirs(storage.RUN_DIR, exist_ok=True)
+    f = open(os.path.join(storage.RUN_DIR, "collector.lock"), "a+")
+    try:
+        if os.name == "nt":
+            import msvcrt
+            f.seek(0)
+            msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        f.close()
+        return False
+    _LOCK = f
+    return True
+
+
 class Collector:
     def __init__(self, src, on_live=None, on_ingest=None):
         self.src = src
@@ -127,7 +152,10 @@ class Collector:
     # --- отметка «я жив» ---
 
     def claim(self):
-        if other_alive():
+        """Стать единственным сборщиком. Блокировка ОС держится, пока жив процесс:
+        отметка «я жив» по времени её не заменяет — медленный проход FACT
+        дольше 30 с выглядел смертью, и запускался второй писатель."""
+        if other_alive() or not _take_lock():
             return False
         self.beat()
         return True
@@ -425,22 +453,24 @@ def start_in_app(src, on_live=None, on_ingest=None):
     """Запуск внутри приложения. Если отдельный сборщик уже работает — не мешаем,
     но присматриваем: остановился он — поднимаем свой, иначе доска замрёт."""
     def launch():
+        # Захват не удался (второй процесс держит блокировку) — не запускаемся:
+        # раньше результат claim() не проверялся, и писателей становилось два.
         c = Collector(src, on_live=on_live, on_ingest=on_ingest)
-        c.claim()
-        return c.start()
+        return c.start() if c.claim() else None
 
     s = read_status()
     if not other_alive(s):
-        return launch()
+        started = launch()
+        if started:
+            return started
     LOG.info("сборщик уже работает отдельно (pid %s) — жду; остановится — запущу свой",
              s.get("pid"))
 
     def standby():
         while True:
             time.sleep(BEAT_STALE_SEC / 2)
-            if not other_alive():
-                LOG.info("отдельный сборщик остановился — запускаю сборщик в приложении")
-                launch()
+            if not other_alive() and launch():
+                LOG.info("отдельный сборщик остановился — сборщик запущен в приложении")
                 return
     threading.Thread(target=standby, name="collector:standby", daemon=True).start()
     return None
