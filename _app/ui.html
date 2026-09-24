@@ -4,8 +4,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- Шрифт с Google не держит страницу: без интернета в цеху она ждала его до таймаута.
-     Грузится в фоне (media=print → all), до того — системный шрифт. -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" media="print" onload="this.media='all'">
+     Грузится в фоне (media=print → all, переключает скрипт ниже), до того — системный шрифт. -->
+<link rel="stylesheet" id="font-css" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" media="print">
 <style>
 :root{
   /* Промышленный интерфейс по ISA-101: спокойный стальной серый, цвет — только
@@ -1456,6 +1456,9 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
 <script src="/ui_i18n.js"></script>
 <script>
 const $ = s => document.querySelector(s);
+// Включить шрифт, когда догрузится. Обработчик здесь, а не в onload разметки:
+// политика безопасности страницы (CSP) запрещает встроенные обработчики.
+(l => { if (!l) return; const on = () => { l.media = "all"; }; l.sheet ? on() : l.addEventListener("load", on); })($("#font-css"));
 const tr = text => window.MesI18n ? MesI18n.t(text) : text;
 const confirmTranslated = text => window.confirm(tr(text));
 const nf = (x,d=0) => (x==null||x==="") ? "" : Number(x).toLocaleString(document.documentElement.lang==='en'?'en-GB':'ru-RU',{minimumFractionDigits:d,maximumFractionDigits:d});

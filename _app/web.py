@@ -12,10 +12,13 @@ people.py, planning.py и tickets.py, доступ к базам — в storage.
                   как только поменялись (Server-Sent Events).
 """
 import argparse
+import base64
 import gzip
+import hashlib
 import http.cookies
 import json
 import os
+import re
 import time
 from datetime import datetime
 
@@ -204,6 +207,21 @@ def may(user, permission):
 
 
 _page_cache = {}
+_INLINE_SCRIPT = re.compile(rb"<script>(.*?)</script>", re.S)
+
+
+def page_csp(data):
+    """Политика безопасности страницы: выполняются только наши встроенные скрипты
+    (по хешу) и файлы с нашего адреса. Разметка, попавшая в страницу из данных
+    (<img onerror>, <svg onload>, <script>), не выполнится, даже если где-то
+    забыли экранировать вывод."""
+    hashes = " ".join("'sha256-%s'" % base64.b64encode(hashlib.sha256(m).digest()).decode()
+                      for m in _INLINE_SCRIPT.findall(data))
+    return ("default-src 'self'; script-src 'self' %s; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; "
+            "connect-src 'self'; frame-src 'self'; frame-ancestors 'self'; "
+            "object-src 'none'; base-uri 'none'; form-action 'self'" % hashes)
 
 
 def page_bytes(name):
@@ -212,7 +230,8 @@ def page_bytes(name):
     mtime = os.path.getmtime(path)
     c = _page_cache.get(name)
     if not c or c["mtime"] != mtime:
-        c = {"mtime": mtime, "data": open(path, "rb").read()}
+        data = open(path, "rb").read()
+        c = {"mtime": mtime, "data": data, "csp": page_csp(data)}
         _page_cache[name] = c
     return c["data"]
 
@@ -222,7 +241,7 @@ class Handler(BaseHTTPRequestHandler):
     # запрос. Content-Length мы ставим всегда, так что это безопасно.
     protocol_version = "HTTP/1.1"
 
-    def _send(self, code, body, ctype="application/json; charset=utf-8"):
+    def _send(self, code, body, ctype="application/json; charset=utf-8", headers=None):
         data = body if isinstance(body, bytes) else json.dumps(body, ensure_ascii=False).encode()
         # Сжатие: страница и ответы по сети цеха идут в разы легче, а на десяти
         # одновременных пользователях это заметно снимает нагрузку.
@@ -235,8 +254,18 @@ class Handler(BaseHTTPRequestHandler):
         if encoding:
             self.send_header("Content-Encoding", encoding)
         self.send_header("Content-Length", str(len(data)))
+        self.send_header("X-Content-Type-Options", "nosniff")
+        for k, v in (headers or {}).items():
+            self.send_header(k, v)
         self.end_headers()
         self.wfile.write(data)
+
+    def _send_page(self, name):
+        """HTML-страница приложения с политикой безопасности."""
+        data = page_bytes(name)
+        self._send(200, data, "text/html; charset=utf-8", {
+            "Content-Security-Policy": _page_cache[name]["csp"],
+            "X-Frame-Options": "SAMEORIGIN", "Referrer-Policy": "same-origin"})
 
     def log_message(self, *a):
         pass
@@ -338,7 +367,7 @@ class Handler(BaseHTTPRequestHandler):
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
         try:
             if u.path in ("/", "/index.html"):
-                return self._send(200, page_bytes("ui.html"), "text/html; charset=utf-8")
+                return self._send_page("ui.html")
             if u.path == "/ui_i18n.js":
                 return self._send(200, page_bytes("ui_i18n.js"), "text/javascript; charset=utf-8")
             if u.path.startswith("/api/v1/"):
@@ -371,10 +400,10 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/wall":
                 user = current_user(self)
                 if not user:
-                    return self._send(200, page_bytes("ui.html"), "text/html; charset=utf-8")
+                    return self._send_page("ui.html")
                 if not may_read(user, "/api/live"):
                     return self._send(403, {"error": "нет доступа к доске цеха"})
-                return self._send(200, page_bytes("wall.html"), "text/html; charset=utf-8")
+                return self._send_page("wall.html")
             if u.path == "/api/live":
                 return self._send(200, live_payload(q))
             if u.path == "/api/forecast":
@@ -428,10 +457,10 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/cards":
                 user = current_user(self)
                 if not user:
-                    return self._send(200, page_bytes("ui.html"), "text/html; charset=utf-8")
+                    return self._send_page("ui.html")
                 if not may_read(user, "/api/cards"):
                     return self._send(403, {"error": "нет доступа к техкартам"})
-                return self._send(200, page_bytes("cards.html"), "text/html; charset=utf-8")
+                return self._send_page("cards.html")
             if u.path == "/api/cards":
                 return self._send(200, dashboard.cards(q.get("day") or "",
                                                        q.get("shift", "")))
@@ -557,7 +586,10 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/health":
                 return self._send(200, health())
             if u.path == "/api/docs":
-                return self._send(200, api.docs_html(), "text/html; charset=utf-8")
+                docs = api.docs_html()
+                docs = docs if isinstance(docs, bytes) else docs.encode()
+                return self._send(200, docs, "text/html; charset=utf-8",
+                                  {"Content-Security-Policy": page_csp(docs)})
             if u.path == "/api/keys":
                 if not may(current_user(self), "users"):
                     return self._send(403, {"error": "нет прав"})
