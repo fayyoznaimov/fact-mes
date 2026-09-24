@@ -3591,8 +3591,9 @@ $("#as-apply").onclick = () => {
   if ($("#as-search").value.trim() && !id) return say("Выберите оператора из списка", true);
   document.querySelectorAll("#as-table tbody tr").forEach(tr => {
     const cb = tr.querySelector("input[type=checkbox]"), sel = tr.querySelector("select");
-    if (cb && cb.checked && sel) sel.value = id;
+    if (cb && cb.checked && sel) { sel.value = id; cb.checked = false; }   // назначили — галку снимаем
   });
+  $("#as-all").checked = false;
   asSummary();
 };
 const opLabel = o => `${esc(o.name)} (${esc(o.code)})`;
