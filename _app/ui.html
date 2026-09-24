@@ -1411,6 +1411,15 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
 
   <!-- НАСТРОЙКИ -->
   <section id="tab-settings" class="hidden">
+    <!-- Разделы настроек — вкладками: раньше ставка, причины, андон и ключи API шли
+         одной длинной страницей. -->
+    <div class="seg" role="tablist" aria-label="Разделы настроек">
+      <button role="tab" data-pane="rate" aria-selected="true">Ставка</button>
+      <button role="tab" data-pane="reasons" aria-selected="false">Причины простоя</button>
+      <button role="tab" data-pane="andon" aria-selected="false">Андон и уведомления</button>
+      <button role="tab" data-pane="keys" aria-selected="false" id="set-keys-tab">Ключи API</button>
+    </div>
+    <div class="pane" data-pane="rate" role="tabpanel">
     <div class="bar">
       <div class="f"><label for="set-from">Действует с</label><input id="set-from" type="date"></div>
       <div class="f"><label for="set-rate">Ставка, сум</label><input id="set-rate" size="10" inputmode="decimal"></div>
@@ -1423,8 +1432,9 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
       Проверьте единицу: станок даёт около 220 тысяч пиков за смену.</p>
     <div class="tbl-wrap" style="margin-top:8px"><table id="set-rates"><thead><tr><th>Действует с</th><th class="n">Ставка, сум</th>
       <th>За что</th><th>Документ</th><th>Кто</th><th>Когда</th></tr></thead><tbody></tbody></table></div>
+    </div>
 
-    <h3 class="sect">Причины простоя</h3>
+    <div class="pane hidden" data-pane="reasons" role="tabpanel">
     <div class="bar">
       <div class="f"><label>&nbsp;</label><button class="act primary" id="rs-add">Добавить причину…</button></div>
       <div class="f"><label>&nbsp;</label><button class="act" id="rs-docs">Изменения справочника</button></div>
@@ -1436,8 +1446,10 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
       <thead><tr><th>Причина</th><th>В отчёте</th><th>Категория</th><th>Когда действует</th>
         <th>Где предлагать</th><th class="n">Порядок</th><th>Состояние</th><th></th></tr></thead>
       <tbody></tbody></table></div>
+    </div>
 
-    <h3 class="sect">Андон: станок стоит без тикета</h3>
+    <div class="pane hidden" data-pane="andon" role="tabpanel">
+    <p class="note">Станок стоит без тикета: когда просить причину, когда поднимать тревогу и писать мастеру.</p>
     <div class="bar">
       <div class="f"><label for="an-warn">Тикет, если стоит дольше, мин</label><input id="an-warn" size="4" inputmode="numeric"></div>
       <div class="f"><label for="an-alarm">Тревога на доске через, мин</label><input id="an-alarm" size="4" inputmode="numeric"></div>
@@ -1448,8 +1460,10 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
       просить причину. Тревога и телеграм мастеру — не раньше этого порога. Обрыв, который станок
       назвал сам (уток, основа, ворс), тоже не раньше, но и не раньше 15 минут. 0 в последнем поле —
       не писать в телеграм.</p>
+    </div>
 
-    <h3 class="sect">Ключи API для 1С и других программ</h3>
+    <div class="pane hidden" data-pane="keys" role="tabpanel">
+    <p class="note">Ключи для 1С и других программ, которые берут данные цеха или присылают заказы.</p>
     <div class="bar">
       <div class="f"><label for="key-name">Для кого</label><input id="key-name" size="18" placeholder="1С, бот, BI"></div>
       <div class="f"><label>Права</label><div class="checks">
@@ -1469,6 +1483,7 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
           <th>Последний запрос</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
+    </div>
     </div>
   </section>
 </div>
@@ -1586,7 +1601,7 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   if (t === "history") loadHistory();
   if (t === "plan") onTab("plan", loadPlan);
   if (t === "manual") onTab("manual", loadManual);
-  if (t === "settings") onTab("settings", loadKeys);
+  if (t === "settings") onTab("settings", () => { if (!$("#tab-settings .pane[data-pane=keys]").classList.contains("hidden")) loadKeys(); });
   if (t === "assign") onTab("assign", loadAssign);
   if (t === "setup") onTab("setup", loadGrid);
   if (t === "docs") onTab("docs", dxLoad);
@@ -1695,6 +1710,8 @@ async function whoAmI() {
   $("#u-role").innerHTML = Object.entries(ROLES).map(([k,v])=>`<option value="${k}">${v}</option>`).join("");
   $("#u-role").value="viewer";
   if (can("users")) renderAccessFields();
+  $('#set-keys-tab').classList.toggle('hidden', !can('users'));
+  SETTINGS_PANES.restore();
   $('#rep-excel').disabled=!can('export');
   $('#lp-up').disabled=!can('plan_edit');
   return true;
@@ -1933,6 +1950,23 @@ $("#dash-go").onclick = loadDash;
 $("#dash-only").onchange = loadDash;
 
 /* План: разделы (по станкам, заказы, сверка PPT, 1С, коды ткани) вместо одной длинной страницы */
+// Вкладки внутри раздела (Настройки, дальше — другие): выбранная запоминается.
+function sectionPanes(sectionId, key, onShow) {
+  const sec = $("#" + sectionId);
+  const tabs = () => [...sec.querySelectorAll(":scope > .seg button")].filter(b => !b.classList.contains("hidden"));
+  const show = p => {
+    if (!tabs().some(b => b.dataset.pane === p)) p = tabs()[0].dataset.pane;
+    sec.querySelectorAll(":scope > .seg button").forEach(b => b.setAttribute("aria-selected", b.dataset.pane === p));
+    sec.querySelectorAll(":scope > .pane").forEach(x => x.classList.toggle("hidden", x.dataset.pane !== p));
+    try { localStorage.setItem(key, p); } catch (e) {}
+    if (onShow) onShow(p);
+  };
+  sec.querySelectorAll(":scope > .seg button").forEach(b => b.onclick = () => show(b.dataset.pane));
+  let last = null; try { last = localStorage.getItem(key); } catch (e) {}
+  return { show, restore: () => show(last) };
+}
+const SETTINGS_PANES = sectionPanes("tab-settings", "settings-pane", p => { if (p === "keys") loadKeys(); });
+
 function planPane(p) {
   if (!document.querySelector(`#tab-plan .pane[data-pane="${p}"]`)) p = "loom";
   document.querySelectorAll("#tab-plan .seg button").forEach(b => b.setAttribute("aria-selected", b.dataset.pane === p));
@@ -4539,7 +4573,7 @@ $('#dx-new').onclick=async e=>{
   let d=null;
   if(b.dataset.new==='payroll')d=await docConfirm('payroll',{from,to});
   if(b.dataset.new==='report')d=await docConfirm('report',{from,to});
-  if(b.dataset.new==='rate'){document.querySelector('nav button[data-tab="settings"]').click();$('#set-rate').focus();return;}
+  if(b.dataset.new==='rate'){document.querySelector('nav button[data-tab="settings"]').click();SETTINGS_PANES.show('rate');$('#set-rate').focus();return;}
   if(d){await dxLoad();dxOpen(d.id);}
 };
 async function dxLoad(){
