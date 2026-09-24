@@ -51,6 +51,19 @@ def loom_setups(day):
     return {r["loom"]: dict(r) for r in rows}
 
 
+def loom_ppt(day, cloths):
+    """PPT по счётчикам станка (_app/pptloom.py); без приложения рядом — пусто."""
+    app = os.path.join(os.path.dirname(HERE), "_app")
+    if app not in sys.path:
+        sys.path.insert(0, app)
+    try:
+        import pptloom
+        return pptloom.for_day(day, cloths)
+    except Exception as e:          # отчёт важнее: без PPT по станку он всё равно строится
+        print("  PPT по станку не посчитан: %s: %s" % (type(e).__name__, e))
+        return {}
+
+
 # Колонка пряжи техкарты 1С -> поле заправки.
 # Место техкарты 1С -> место заправки: каждое своё, с лотом. В Excel 4 колонки утка:
 # уток, кромка (с кручёной и полиэстером), бордюр (с кручёной), бордюр полиэстер.
@@ -137,6 +150,7 @@ CREATE TABLE IF NOT EXISTS report_daily (
     ground_a INTEGER, ground_b INTEGER, ground_c INTEGER, ground_total INTEGER,
     other_a INTEGER, other_b INTEGER, other_c INTEGER, other_total INTEGER,
     picks REAL, achieved_kg REAL, cloth TEXT, art_found INTEGER,
+    ppt_src TEXT,                    -- fact: PPT посчитан по счётчикам станка, руками не введён
     built_at TEXT DEFAULT (datetime('now','localtime')),
     PRIMARY KEY (day, loom)
 );
@@ -210,6 +224,9 @@ def build(day):
     for loom, m in manual.items():
         s = setups.setdefault(loom, {})
         s.update({k: v for k, v in m.items() if v not in (None, "")})
+    # PPT по станку — из счётчиков FACT (прокидки и ряды текущей ткани), когда
+    # руками не введён. Только станки, считающие штукой ряд (D); у J штука — отрез.
+    fact_ppt = loom_ppt(day, {loom: (meta.get(loom) or {}).get("cloth", "") for loom in per_loom})
 
     out = []
     for loom, shifts in per_loom.items():
@@ -259,6 +276,9 @@ def build(day):
         rpm = round(sum(rpms) / len(rpms)) if rpms else 0
 
         ppt, wt, pn = art.get("ppt"), art.get("weight_kg"), art.get("panels")
+        ppt_src = None
+        if not ppt and fact_ppt.get(loom):
+            ppt, ppt_src = fact_ppt[loom]["ppt"], "fact"
         prod100 = round(pn * wt * (rpm * 480 * len(worked) / ppt), 1) if (ppt and wt and pn and rpm and worked) else None
         achieved = round(pn * wt * (picks / ppt), 1) if (ppt and wt and pn) else None
 
@@ -267,7 +287,7 @@ def build(day):
             # Размер пишем как в вашем файле — текстом «70 CM», иначе колонка
             # с её форматом показывает решётки вместо числа.
             "size": f"{size} CM" if size else "",
-            "rpm": rpm, "ppt": ppt, "weight": wt, "panels": pn,
+            "rpm": rpm, "ppt": ppt, "ppt_src": ppt_src, "weight": wt, "panels": pn,
             # Дизайн — из плана цеха или заказа 1С («D186/6»: дизайн/клиент). Разбор
             # кода ткани со станка даёт не тот артикул, поэтому без плана — пусто.
             "prod100": prod100, "design": s.get("design") or "", "client": s.get("client") or "",
@@ -308,7 +328,7 @@ def save_db(day, rows):
     db.executescript(SCHEMA)
     # Клиент — отдельно от дизайна (раньше писали «D327/64» одной строкой).
     have = [c[1] for c in db.execute("PRAGMA table_info(report_daily)")]
-    for col in ("client", "yarns"):           # клиент — отдельно от дизайна; пряжа по местам
+    for col in ("client", "yarns", "ppt_src"):           # клиент — отдельно от дизайна; пряжа по местам
         if col not in have:
             db.execute("ALTER TABLE report_daily ADD COLUMN %s TEXT" % col)
     db.execute("DELETE FROM report_daily WHERE day=?", (day,))
@@ -317,8 +337,8 @@ def save_db(day, rows):
         " design, client, yarns, gsm, pile_count, ground_count, loto, weft1, weft2, weft3, weft4,"
         " eff_a, eff_b, eff_c, eff_total, pile_a, pile_b, pile_c, pile_total,"
         " weft_a, weft_b, weft_c, weft_total, ground_a, ground_b, ground_c, ground_total,"
-        " other_a, other_b, other_c, other_total, picks, achieved_kg, cloth, art_found)"
-        " VALUES (" + ",".join("?" * 44) + ")",
+        " other_a, other_b, other_c, other_total, picks, achieved_kg, cloth, art_found, ppt_src)"
+        " VALUES (" + ",".join("?" * 45) + ")",
         # В лист размер идёт текстом («70 CM»), в базу — числом, чтобы по нему можно было считать.
         [(day, r["loom"], r["sr"], int(re.sub(r"\D", "", str(r["size"])) or 0) or None,
           r["rpm"], r["ppt"], r["weight"], r["panels"],
@@ -331,7 +351,7 @@ def save_db(day, rows):
           r["weft_a"], r["weft_b"], r["weft_c"], r["weft_total"],
           r["ground_a"], r["ground_b"], r["ground_c"], r["ground_total"],
           r["other_a"], r["other_b"], r["other_c"], r["other_total"],
-          r["picks"], r["achieved"], r["cloth"], r["art_found"]) for r in rows])
+          r["picks"], r["achieved"], r["cloth"], r["art_found"], r.get("ppt_src")) for r in rows])
     db.commit()
     n = db.execute("SELECT COUNT(DISTINCT day) FROM report_daily").fetchone()[0]
     db.close()
