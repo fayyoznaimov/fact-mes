@@ -218,8 +218,8 @@ def page_csp(data):
     hashes = " ".join("'sha256-%s'" % base64.b64encode(hashlib.sha256(m).digest()).decode()
                       for m in _INLINE_SCRIPT.findall(data))
     return ("default-src 'self'; script-src 'self' %s; "
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-            "font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; "
+            "style-src 'self' 'unsafe-inline'; "
+            "font-src 'self' data:; img-src 'self' data: blob:; "
             "connect-src 'self'; frame-src 'self'; frame-ancestors 'self'; "
             "object-src 'none'; base-uri 'none'; form-action 'self'" % hashes)
 
@@ -231,7 +231,8 @@ def page_bytes(name):
     c = _page_cache.get(name)
     if not c or c["mtime"] != mtime:
         data = open(path, "rb").read()
-        c = {"mtime": mtime, "data": data, "csp": page_csp(data)}
+        c = {"mtime": mtime, "data": data, "csp": page_csp(data),
+             "etag": '"%s"' % hashlib.sha1(data).hexdigest()[:20]}
         _page_cache[name] = c
     return c["data"]
 
@@ -260,12 +261,39 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _not_modified(self, etag):
+        """Браузер уже держит эту версию файла — «304», без тела (93 КБ страницы
+        не качаются на каждом открытии)."""
+        if etag and etag in (self.headers.get("If-None-Match") or ""):
+            self.send_response(304)
+            self.send_header("ETag", etag)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return True
+        return False
+
     def _send_page(self, name):
         """HTML-страница приложения с политикой безопасности."""
         data = page_bytes(name)
+        c = _page_cache[name]
+        if self._not_modified(c["etag"]):
+            return
         self._send(200, data, "text/html; charset=utf-8", {
-            "Content-Security-Policy": _page_cache[name]["csp"],
+            "Content-Security-Policy": c["csp"], "ETag": c["etag"], "Cache-Control": "no-cache",
             "X-Frame-Options": "SAMEORIGIN", "Referrer-Policy": "same-origin"})
+
+    STATIC_TYPES = {".woff2": "font/woff2", ".css": "text/css; charset=utf-8",
+                    ".txt": "text/plain; charset=utf-8", ".js": "text/javascript; charset=utf-8"}
+
+    def _send_static(self, name, max_age=0):
+        """Файл из _app (шрифты, скрипт перевода) с ETag."""
+        data = page_bytes(name)
+        c = _page_cache[name]
+        if self._not_modified(c["etag"]):
+            return
+        ctype = self.STATIC_TYPES.get(os.path.splitext(name)[1], "application/octet-stream")
+        self._send(200, data, ctype, {"ETag": c["etag"],
+                   "Cache-Control": "public, max-age=%d" % max_age if max_age else "no-cache"})
 
     def log_message(self, *a):
         pass
@@ -369,7 +397,14 @@ class Handler(BaseHTTPRequestHandler):
             if u.path in ("/", "/index.html"):
                 return self._send_page("ui.html")
             if u.path == "/ui_i18n.js":
-                return self._send(200, page_bytes("ui_i18n.js"), "text/javascript; charset=utf-8")
+                return self._send_static("ui_i18n.js")
+            if u.path.startswith("/fonts/"):
+                # Шрифты — с нашего сервера: без интернета цеховой ПК ждал Google.
+                name = u.path[len("/fonts/"):]
+                if (not re.fullmatch(r"[a-z0-9-]+\.(woff2|css|txt)", name)
+                        or not os.path.isfile(os.path.join(HERE, "fonts", name))):
+                    return self._send(404, {"error": "нет такого файла"})
+                return self._send_static("fonts/" + name, max_age=7 * 86400)
             if u.path.startswith("/api/v1/"):
                 return self._api("GET", u.path, q, None)
             if u.path.startswith("/api/") and u.path not in PUBLIC_GET:
