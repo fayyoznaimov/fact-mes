@@ -1600,6 +1600,9 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("nav button").forEach(x => x.setAttribute("aria-current", x === b));
   document.querySelectorAll("section").forEach(s => s.classList.add("hidden"));
   $("#tab-" + t).classList.remove("hidden");
+  // Ленты Истории станков — ~40 тысяч элементов SVG; раздел при входе всё равно
+  // грузит данные заново, поэтому при уходе ленты убираем, а не держим в странице.
+  if (t !== "history") { $("#mh-grid").innerHTML = ""; $("#mh-detail").classList.add("hidden"); }
   const cardsFrame = $("#machine-cards-frame");
   if (t === "cards") {
     if (!cardsFrame.getAttribute("src")) cardsFrame.src = "/cards";
