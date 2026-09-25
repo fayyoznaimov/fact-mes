@@ -213,7 +213,11 @@ def _report_day(day):
             row["ppt_gap"] = round(100.0 * (d["ppt_fact"] - row["ppt"]) / row["ppt"], 1)
             row["ppt_note"] = None if d["verdict"] == "ok" else d["text"].split(" — ", 1)[-1]
             continue
+        # По коду ткани — только если под кодом шло одно изделие (trusted): у D7 и
+        # D11 один код и разный PPT (3223 и 5370), недоверенное число в подсказке
+        # вводило в заблуждение.
         p = ppt.get(row.get("cloth") or "")
+        p = p if p and p.get("trusted") else None
         row["ppt_fact"] = p["ppt"] if p else None
         row["ppt_spread"] = p["spread"] if p else None
         # Расхождение показываем только там, где счётчикам можно верить:
