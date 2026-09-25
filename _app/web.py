@@ -1076,6 +1076,13 @@ def health():
                 round(age / 60) if age is not None else "—", why)
         elif live_mode:
             out["checks"]["fact"] = "ок, снимок %d с назад" % age
+        # Часы станков против FACT: расхождение режет смену не там.
+        snap = livestate.load() or {}
+        skew = {n: ((st.get("details") or {}).get("clock_skew_sec"))
+                for n, st in (snap.get("looms") or {}).items()}
+        off = sorted((n, v) for n, v in skew.items() if v is not None and abs(v) >= 60)
+        out["checks"]["loom_clocks"] = ("ок, все в пределах минуты" if not off else
+            "расходятся с FACT: " + ", ".join("%s %+d мин" % (n, round(v / 60)) for n, v in off))
     else:
         out["checks"]["collector"] = "не работает"
         if live_mode:

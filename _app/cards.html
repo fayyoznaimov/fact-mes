@@ -129,6 +129,7 @@ function card(r) {
       <dt>Дизайн</dt><dd>${esc(dash(r.design))}</dd>
       <dt>Ткань</dt><dd>${esc(dash(r.cloth_name))}</dd>
       <dt>Остаток основы</dt><dd>${beamLeft(r)}</dd>
+      ${r.clock_skew_min ? `<dt>Часы станка</dt><dd class="bad">${r.clock_skew_min < 0 ? "отстают" : "спешат"} на ${Math.abs(r.clock_skew_min)} мин</dd>` : ""}
     </dl>
     <div class="kpi">
       <div><b>${nf(r.efficiency_pct,1)}%</b><span>КПД смены</span></div>

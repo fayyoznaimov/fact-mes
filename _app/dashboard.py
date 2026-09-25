@@ -414,6 +414,9 @@ def cards(day="", letter=""):
             "warp_p_ct": stat['top_ct'] if stat else None,
             "warp_g_ct": stat['warp_ct'] if stat else None,
             "remaining_m": d.get("remaining_m"), "beam_length_m": d.get("beam_length_m"),
+            # Часы станка против времени FACT, если разошлись на минуту и больше.
+            "clock_skew_min": (round(d["clock_skew_sec"] / 60)
+                               if abs(d.get("clock_skew_sec") or 0) >= 60 else None),
             "picks_total": round(stat['picks'] / 1000, 1) if stat else None,
             "towels": round(stat['pieces'] * r['panels']) if stat else None,
             "panels": r["panels"], "rows_woven": stat['pieces'] if stat else None,

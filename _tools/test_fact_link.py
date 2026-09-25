@@ -69,6 +69,13 @@ class FactLinkTests(unittest.TestCase):
         self.assertEqual(looms["D3"]["cause"], "Other")       # на связи, флаги нулевые — «прочее», не «обесточен»
         self.assertEqual(looms["D3"]["fact_link"], "SUCCEED")
 
+    def test_loom_clock_skew(self):
+        # 25.09 12:00:00 по FACT (UTC+5), часы станка — 11:45:21: отстают на 14 мин 39 с.
+        fact = 1790319600
+        text = "0\n%d\n(State)\nSys_time=2026 9 25 5 11 45 21 \nStop=1\n" % fact
+        self.assertEqual(livestate.parse_loom(text)["clock_skew_sec"], -879)
+        self.assertIsNone(livestate.parse_loom("0\n%d\n(State)\nStop=1\n" % fact)["clock_skew_sec"])
+
     def test_parse_log(self):
         done = livestate.parse_collect_log(LOG_DONE)
         self.assertTrue(done["completed"])

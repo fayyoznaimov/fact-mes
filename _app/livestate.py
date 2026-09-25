@@ -20,11 +20,13 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 from email.utils import formatdate, parsedate_to_datetime
 
 import storage
 
 OPESTATE = "factdata/opestate"
+SHOP_TZ = timezone(timedelta(hours=5))      # время цеха — Ташкент, без переходов
 
 # Флаги в файле станка — в порядке проверки: сначала то, что важнее.
 CAUSE_FLAGS = ["Power_off", "Machine_failure", "Warp_out", "Cloth_doffing", "Cloth_mending",
@@ -198,7 +200,19 @@ def parse_loom(text):
         fact_time = int(lines[1])
     except (IndexError, ValueError):
         fact_time = None
+    # Часы станка (Sys_time: год месяц день день_недели час мин сек) против времени
+    # снимка FACT. Смена считается по часам — отставшие часы режут её не там
+    # (25.09: J18 отставал на 14,6 мин, остальные — в пределах 2 с).
+    skew = None
+    try:
+        y, mo, dd, _, hh, mi, ss = (int(x) for x in kv.get("Sys_time", "").split()[:7])
+        if fact_time:
+            loom_clock = datetime(y, mo, dd, hh, mi, ss, tzinfo=SHOP_TZ).timestamp()
+            skew = int(round(loom_clock - fact_time))
+    except ValueError:
+        pass
     return {
+        "clock_skew_sec": skew,
         "cause": next((f for f in CAUSE_FLAGS if kv.get(f, "").strip() == "1"), "Unknown"),
         "fact_time": fact_time,
         "signals": {k.strip(): clean(v)[:500] for k, v in kv.items()},
