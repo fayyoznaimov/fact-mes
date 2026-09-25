@@ -219,6 +219,34 @@ def parse_loom(text):
     }
 
 
+# Журнал опроса станков программой FACT (opestate/collect_log.txt, предыдущие —
+# collect_log1..3): «[2026/09/25 02:55:29] J10 (192.168.1.40) ---> POWER_OFF».
+# Это данные самого FACT о связи со станком — не наша догадка по нулевым флагам.
+COLLECT_LOG = "collect_log.txt"
+_COLLECT_LINE = re.compile(r"^\[(\d{4}/\d\d/\d\d \d\d:\d\d:\d\d)\]\s+(\S+)\s+\(([\d.]+)\)\s+--->\s+(.+?)\s*$")
+# Что FACT ответил про станок -> причина простоя. SUCCEED — связь есть, причину
+# берём из флагов, как всегда.
+LINK_CAUSE = {"POWER_OFF": "Power_off", "System ERROR": "No_link"}
+
+
+def parse_collect_log(text):
+    """{started, finished, completed, looms: {станок: ответ FACT}} одного опроса."""
+    out = {"started": None, "finished": None, "completed": False, "looms": {}}
+    for line in (text or "").splitlines():
+        line = line.strip()
+        stamp = line[1:20] if line.startswith("[") else None
+        if "START DATA COLLECTING" in line:
+            out["started"] = stamp
+        elif "END DATA COLLECTING" in line:
+            out["finished"] = stamp
+        elif "COMPLETED" in line:
+            out["completed"] = True
+        m = _COLLECT_LINE.match(line)
+        if m:
+            out["looms"][m.group(2)] = m.group(4)
+    return out
+
+
 def state_dirs(src):
     """Папки снимков, от свежей к старой: FACT пишет новую раз в минуту."""
     dirs = [d for d in src.list(OPESTATE)[0] if d.isdigit()]
@@ -231,7 +259,7 @@ def latest_dir(src):
     return state_dirs(src)[0]
 
 
-def snapshot(src, state_dir=None, workers=8, prev=None, full=True):
+def snapshot(src, state_dir=None, workers=8, prev=None, full=True, link=None):
     """Снимок: все станки с причиной останова и подробностями.
 
     full=False и prev (прошлый снимок) — файлы читаем только у стоящих станков:
@@ -279,8 +307,16 @@ def snapshot(src, state_dir=None, workers=8, prev=None, full=True):
             fact_times.append(det["fact_time"])
         st["details"] = {k: v for k, v in det.items() if k not in ("cause", "fact_time")}
         st['details_at'] = det.get('fact_time')
+        # Ответ FACT о связи со станком в этом опросе (журнал collect_log).
+        answer = (link or {}).get(name)
+        if answer:
+            st["fact_link"] = answer
+        if answer == "POWER_OFF":
+            st["running"] = False            # FACT: станок обесточен — работать не может
         if st["running"]:
             st["cause"] = "Run"
+        elif answer in LINK_CAUSE:
+            st["cause"] = LINK_CAUSE[answer]
         else:
             cause = st["state"]
             if cause in ("Stop", "Unknown", ""):

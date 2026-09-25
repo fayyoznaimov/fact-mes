@@ -140,6 +140,9 @@ class Collector:
         self.last_dir = None
         self.fresh_at = None             # когда прочитали самый свежий снимок FACT
         self.full_at = None              # когда читали файлы всех станков
+        self.snap_at = None              # когда пришёл последний новый снимок
+        self.collect_checked = 0         # когда перечитывали журнал опроса FACT
+        self.stuck_told = False          # о зависшем сборе FACT уже написали
         self.cache = {}                  # путь -> (время изменения, байты)
         self._lock = threading.Lock()
         self.next_onec = 0
@@ -187,6 +190,7 @@ class Collector:
         dirs = livestate.state_dirs(self.src)
         d = dirs[0]
         if d == self.last_dir and not force:
+            self._watch_stuck()
             return False
         t0 = time.perf_counter()
         # Раз в 5 минут — все станки; между ними — только стоящие, остальное из
@@ -195,8 +199,9 @@ class Collector:
         prev = None if full else livestate.load()
         if prev and prev.get("source") != self.src.kind:
             prev, full = None, True
+        link = self._collect_links()     # что FACT ответил про каждый станок в опросе
         try:
-            snap = livestate.snapshot(self.src, d, prev=prev, full=full)
+            snap = livestate.snapshot(self.src, d, prev=prev, full=full, link=link)
         except urllib.error.HTTPError as e:
             # FACT раз в минуту пишет новую папку снимка: в первые секунды она
             # уже видна в списке, а файлов в ней ещё нет (раньше это давало
@@ -205,9 +210,10 @@ class Collector:
             if e.code != 404 or len(dirs) < 2:
                 raise
             if dirs[1] == self.last_dir and not force:
+                self._watch_stuck()
                 return False
             d = dirs[1]
-            snap = livestate.snapshot(self.src, d, prev=prev, full=full)
+            snap = livestate.snapshot(self.src, d, prev=prev, full=full, link=link)
         livestate.save(snap)
         import productionlog
         productionlog.archive_sample(snap)
@@ -227,6 +233,9 @@ class Collector:
         if (self.status.get("last_error") or "").startswith("живое"):
             LOG.info("FACT снова отдаёт состояние")
             self.status["last_error"] = None
+        if self.stuck_told:
+            self._tell("Данные FACT снова обновляются: снимок %s." % _now_iso()[11:16])
+        self.snap_at, self.stuck_told = time.time(), False
 
         # Тикеты и андон — только по живым данным: по зеркалу это завело бы
         # тикеты на позавчерашние остановы.
@@ -263,6 +272,53 @@ class Collector:
             if left > LIVE_SEC:
                 return left
         return LIVE_SEC
+
+    # --- журнал опроса FACT: связь со станками и зависший сбор ---
+
+    def _collect_log(self):
+        """(текущий опрос, последний законченный) из opestate/collect_log*.txt."""
+        read = lambda name: livestate.parse_collect_log(
+            (self._fetch(livestate.OPESTATE + "/" + name)[0] or b"").decode("utf-8", "replace"))
+        cur = read(livestate.COLLECT_LOG)
+        done = cur if cur["completed"] else read("collect_log1.txt")
+        self.status["fact_collect"] = {
+            "started": cur["started"], "finished": cur["finished"], "completed": cur["completed"],
+            "problems": {k: v for k, v in done["looms"].items() if v != "SUCCEED"}}
+        return cur, done
+
+    def _collect_links(self):
+        """{станок: ответ FACT} последнего законченного опроса; нет журнала — {}."""
+        try:
+            return self._collect_log()[1]["looms"]
+        except (OSError, ValueError, urllib.error.URLError):
+            return {}
+
+    def _watch_stuck(self):
+        """Новых снимков нет: раз в минуту перечитать журнал опроса FACT, чтобы
+        сказать почему (24.09: сбор FACT начался в 02:56 и не закончился — доска
+        до полудня показывала снимок 02:55). Через 15 минут — одно сообщение."""
+        now = time.time()
+        if not self.snap_at or now - self.snap_at < 180 or now - self.collect_checked < 60:
+            return
+        self.collect_checked = now
+        try:
+            cur, _ = self._collect_log()
+        except (OSError, ValueError, urllib.error.URLError):
+            return
+        if now - self.snap_at >= 900 and not self.stuck_told and self.src.kind == "fact":
+            last = time.strftime("%H:%M", time.localtime(self.snap_at))
+            why = ("сбор в FACT начался в %s и не закончился — перезапустите программу сбора на ПК FACT"
+                   % cur["started"][11:16]) if cur["started"] and not cur["completed"] else "причина в журнале FACT не видна"
+            self._tell("Данные FACT не обновляются с %s: %s." % (last, why))
+            self.stuck_told = True
+
+    def _tell(self, text):
+        LOG.warning(text)
+        try:
+            import notify
+            notify.send(text)
+        except Exception as e:           # телеграм не должен ронять сборщик
+            LOG.warning("не отправилось: %s", e)
 
     def run_live(self):
         while True:

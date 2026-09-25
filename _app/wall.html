@@ -286,7 +286,9 @@ function render() {
   const d = DATA;
   if (!d) return;
   let looms = d.looms.filter(l => inZone(l.loom));
-  const lv = new Map(looms.map(l => [l.loom, level(l)]));
+  const bad = !REVIEW && (d.stale || d.error);
+  // По устаревшему снимку тревоги не поднимаем: станок мог давно запуститься.
+  const lv = new Map(looms.map(l => [l.loom, bad ? (l.running ? "run" : "wait") : level(l)]));
   looms = REVIEW
     // При разборе важно не «что сейчас», а «где больше всего потеряли».
     ? [...looms].sort((a, b) => ((b.breaks || {}).stop_min || 0) - ((a.breaks || {}).stop_min || 0))
@@ -303,16 +305,16 @@ function render() {
     + (zoneLabel ? " · " + zoneLabel : "");
   $("#c-run").textContent = looms.length - stopped.length;
   $("#c-stop").textContent = stopped.length;
-  $("#c-none").textContent = REVIEW ? "—" : noTicket.length;
-  $("#c-alarm").textContent = REVIEW ? "—" : alarms.length;
-  $("#c-alarm-box").classList.toggle("on", !REVIEW && alarms.length > 0);
+  $("#c-none").textContent = REVIEW || bad ? "—" : noTicket.length;
+  $("#c-alarm").textContent = REVIEW || bad ? "—" : alarms.length;
+  $("#c-alarm-box").classList.toggle("on", !REVIEW && !bad && alarms.length > 0);
   $("#c-brk").textContent = st.breaks_ct != null ? st.breaks_ct.toLocaleString("ru-RU") : "—";
   $("#c-brkh").textContent = st.breaks_min != null ? Math.round(st.breaks_min / 60) : "—";
 
   // Тревога крупно наверху: кого и сколько времени никто не объяснил.
   const an = d.andon || {alarm_min: 10};
   const ban = $("#banner");
-  ban.hidden = REVIEW || !alarms.length;
+  ban.hidden = REVIEW || bad || !alarms.length;
   if (!ban.hidden) {
     ban.textContent = `Стоят без тикета дольше ${an.alarm_min} мин: `
       + alarms.slice(0, 8).map(l => `${l.loom} · ${clockText(l.state_sec)}`).join(", ")
@@ -320,13 +322,19 @@ function render() {
       + " — нажмите на станок и выберите, кого вызвали";
   }
   const stale = $("#stale");
-  const bad = !REVIEW && (d.stale || d.error);
   stale.hidden = !bad;
   document.body.classList.toggle("stale", !!bad);
   if (bad) {
+    const at = d.snapshot_at ? new Date(d.snapshot_at * 1000) : new Date(Date.now() - (d.snapshot_age_sec || 0) * 1000);
+    const hm = `${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`;
+    // Причина — из журнала опроса FACT: сбор начат и не закончен — нужен перезапуск на ПК FACT.
+    const fc = d.fact_collect || {};
+    const why = fc.started && !fc.completed
+      ? ` Сбор данных в FACT начался в ${fc.started.slice(11, 16)} и не закончился — перезапустите программу сбора на ПК FACT.`
+      : "";
     stale.textContent = d.error ? "Нет данных от FACT: " + d.error
-      : `Данные не живые: FACT не присылал снимок ${Math.round((d.snapshot_age_sec || 0) / 60)} мин. `
-        + "Доска показывает последнее известное состояние.";
+      : `Данные не живые: последний снимок FACT — ${hm}${at.toDateString() === new Date().toDateString() ? "" : " " + fday(at.toISOString())}.${why}`
+        + " Доска показывает состояние на тот момент; тревоги по нему не поднимаются.";
   }
 
   $("#grid").innerHTML = looms.map(l => {
@@ -494,7 +502,8 @@ setInterval(loadSoon, 60000);
 // Секунды простоя тикают между толчками — на мониторе это видно издалека.
 // Если станок перешёл порог андона, доска перерисовывается сразу.
 setInterval(() => {
-  if (!DATA || REVIEW) return;
+  // Данные устарели — часы не тикают: иначе простой рос бы по снимку многочасовой давности.
+  if (!DATA || REVIEW || DATA.stale || DATA.error) return;
   let changed = false;
   DATA.looms.forEach(l => {
     const before = level(l);

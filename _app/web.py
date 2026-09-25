@@ -1008,6 +1008,9 @@ def live_payload(q):
     data["stats_day"] = day
     data["stats_shift"] = letter
     data["stats_totals"] = totals
+    # Данные устарели — что говорит журнал опроса FACT (начат ли и закончен ли сбор).
+    if data.get("stale"):
+        data["fact_collect"] = (collector.read_status() or {}).get("fact_collect")
     return data
 
 

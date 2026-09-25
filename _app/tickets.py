@@ -61,6 +61,8 @@ CAUSE_RU = {
     # Состояние FACT «Other»: станок стоит и причину не назвал (флаги нулевые).
     # Подписываем ровно так — без догадок, обесточен ли он.
     "Other": "Прочее",
+    # Ответ FACT в журнале опроса: станок не ответил (System ERROR).
+    "No_link": "Нет связи (FACT)",
 }
 
 # Английские названия — для доски, где смотрят и наладчики Toyota, и цех.
@@ -70,7 +72,7 @@ CAUSE_EN = {
     "Warp_out": "Warp out", "Cloth_doffing": "Cloth doffing", "Cloth_mending": "Cloth mending",
     "Out_of_product": "Out of product", "Manual": "Manual stop", "Warp_top": "Pile warp",
     "Warp": "Ground warp", "False_selvage": "False selvage", "Leno_L": "Leno left",
-    "Leno_R": "Leno right", "Weft": "Weft", "Other": "Other",
+    "Leno_R": "Leno right", "Weft": "Weft", "Other": "Other", "No_link": "No link (FACT)",
 }
 
 # Категории тикетов.
@@ -415,6 +417,9 @@ def _board_build():
         "updated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "andon": an,
         "snapshot_age_sec": age,
+        # Когда снят снимок (по часам FACT): возраст в ответе застывает, если FACT
+        # завис и доска не пересобирается, а время — нет.
+        "snapshot_at": (snap.get("fact_time") or snap.get("read_at")) if snap else None,
         "stale": bool(snap and SOURCE["mode"] == "fact" and age is not None and age > STALE_SEC),
         "totals": {
             "looms": len(rows),
