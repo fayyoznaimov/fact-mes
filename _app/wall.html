@@ -9,7 +9,7 @@
   --bg:#0b0f14; --panel:#131a22; --panel-2:#1a232d; --rule:#25313d;
   --ink:#e8eef5; --muted:#8fa3b6;
   --run:#2f9e63; --tech:#c9922b; --off:#c4443b; --ticket:#3a7bd5; --none:#8a4fc4;
-  --alarm:#e5484d; --wait:#56697a; --stale:#b7791f;
+  --alarm:#e5484d; --wait:#56697a; --stale:#b7791f; --pwr:#7a8591;
   --font:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
 }
@@ -62,8 +62,11 @@ body.fit .sub{flex-wrap:nowrap;overflow:hidden;white-space:nowrap;min-height:0}
       display:flex;flex-direction:column;gap:5px;min-height:112px}
 .tile:hover{background:var(--panel-2)}
 .tile:focus-visible{outline:2px solid var(--ticket);outline-offset:2px}
-.tile.run{border-left-color:var(--rule)}
-.tile.run .reason,.tile.run .loom{color:var(--muted)}
+.tile.run{border-left-color:var(--run);background:#10211a}
+.tile.run .reason{color:#7fd1a2}
+/* Обесточен — плитка «выключена»: пунктир, серый, не красится в тревогу. */
+.tile.pwr{background:#0d1116;border:2px dashed var(--pwr);border-left:5px solid var(--pwr)}
+.tile.pwr .loom,.tile.pwr .reason,.tile.pwr .clock{color:#a3adb8}
 .tile.tech{border-left-color:var(--tech)}
 .tile.off{border-left-color:var(--off)}
 .tile.wait{border-left-color:var(--wait)}
@@ -142,7 +145,8 @@ a{color:#9cc2ff}
 <div class="soon" id="soon" hidden></div>
 <footer>
   <div class="legend">
-    <span><i style="background:var(--rule)"></i>работает</span>
+    <span><i style="background:var(--run)"></i>работает</span>
+    <span><i style="background:var(--pwr)"></i>обесточен</span>
     <span><i style="background:var(--tech)"></i>обрыв, станок знает причину</span>
     <span><i style="background:var(--wait)"></i>только что встал</span>
     <span><i style="background:var(--none)"></i>стоит без тикета</span>
@@ -221,7 +225,13 @@ const hhmm = sec => {
 // У работающего станка время не показываем — важно только, сколько стоит.
 const clockText = sec => { sec = Math.max(0, sec|0);
   return sec < 3600 ? hhmm(sec) : `${Math.floor(sec/3600)} ч ${String(Math.floor(sec%3600/60)).padStart(2,"0")}`; };
-const tileClock = l => l.running ? "" : clockText(l.state_sec);
+// Обесточен: FACT не даёт счётчик — показываем, с какого снимка станок без питания.
+const hhmmAt = t => { const d = new Date(t * 1000);
+  const hm = d.toLocaleTimeString("ru-RU", {hour: "2-digit", minute: "2-digit"});
+  return d.toDateString() === new Date().toDateString() ? hm
+    : d.toLocaleDateString("ru-RU", {day: "2-digit", month: "2-digit"}) + " " + hm; };
+const tileClock = l => l.running ? "" : l.machine === "off" ? (l.off_since ? "с " + hhmmAt(l.off_since) : "")
+  : clockText(l.state_sec);
 
 /* Уровень андона. Сервер присылает его, но секунды тикают здесь: станок
    должен покраснеть ровно на десятой минуте, а не при следующем снимке. */
@@ -244,7 +254,8 @@ const tileClass = l => {
   }
   const lv = level(l);
   if (lv === "ticket") return "has-ticket";
-  if (lv === "tech") return l.machine === "off" ? "off" : "tech";
+  if (!l.running && l.machine === "off") return "pwr";
+  if (lv === "tech") return "tech";
   return lv;
 };
 
@@ -278,6 +289,7 @@ const breaksBlock = l => {
 function reasonText(l, lv) {
   if (REVIEW && l.breaks) return worstCause(l.breaks);
   if (l.running) return "Работает";
+  if (l.machine === "off" && lv !== "ticket") return "⏻ Обесточен" + (lv === "noticket" || lv === "alarm" ? " — нет тикета" : "");
   if (lv === "noticket" || lv === "alarm") return `${l.cause_ru} — нет тикета`;
   return l.reason || l.cause_ru;
 }

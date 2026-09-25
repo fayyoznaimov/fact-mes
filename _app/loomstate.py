@@ -150,3 +150,20 @@ def intervals(start, end, looms=None):
         return out
     finally:
         db.close()
+
+
+def current(looms=None):
+    """{станок: последний интервал} — с какого времени идёт нынешнее состояние.
+    Для обесточенного это единственный источник: FACT его счётчик не даёт."""
+    db = storage.shop_readonly()
+    try:
+        if not db.execute("SELECT 1 FROM sqlite_master WHERE name='loom_state'").fetchone():
+            return {}
+        # SQLite: при MAX() остальные столбцы берутся из той же строки.
+        rows = db.execute("SELECT loom, running, cause, start, start_exact, MAX(seen_to) AS seen_to"
+                          " FROM loom_state GROUP BY loom").fetchall()
+        return {r["loom"]: {"running": bool(r["running"]), "cause": r["cause"], "start": r["start"],
+                            "exact": bool(r["start_exact"]), "end": r["seen_to"]}
+                for r in rows if not looms or r["loom"] in looms}
+    finally:
+        db.close()

@@ -6,7 +6,7 @@
    цвет только у отклонений. Стоящий станок — красная полоса и плашка времени. */
 :root{
   --bg:#e8ecf0; --card:#fff; --rule:#dde2e8; --rule-2:#c3cbd4; --ink:#151d26; --ink-2:#3f4b58; --muted:#6a7582;
-  --run:#2e7d4f; --stop:#c62828; --warn:#a36f00; --chrome:#1d2631; --accent:#1f5fa8;
+  --pwr:#5f6b78; --run:#2e7d4f; --stop:#c62828; --warn:#a36f00; --chrome:#1d2631; --accent:#1f5fa8;
   --font:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
 }
 *{box-sizing:border-box}
@@ -28,6 +28,10 @@ main{padding:14px 18px 30px}
 .card{background:var(--card);border:1px solid var(--rule);border-left:4px solid var(--rule-2);border-radius:4px;
   padding:12px 14px;display:flex;flex-direction:column;gap:8px}
 .card.stop{border-left-color:var(--stop)}
+.card.run{border-left-color:var(--run)}
+/* Обесточен — не «стоит»: серая пунктирная рамка, свой статус. */
+.card.pwr{border:2px dashed var(--pwr);border-left:4px solid var(--pwr)}
+.card.pwr .status{color:var(--pwr)} .card.pwr .status::before{background:var(--pwr)}
 .card.wait{box-shadow:inset 0 0 0 1px var(--stop)}
 .top{display:flex;align-items:center;gap:10px}
 .name{font-size:24px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap;flex-shrink:0}
@@ -111,9 +115,15 @@ const dash = v => (v == null || v === "") ? "-" : v;
 const beamLeft = r => r.remaining_m == null ? "—"
   : `${nf(r.remaining_m)} м${r.beam_length_m ? ` <small>из ${nf(r.beam_length_m)}</small>` : ""}`;
 const hm = m => m == null ? "—" : m >= 60 ? `${Math.floor(m / 60)} ч ${m % 60} мин` : `${m} мин`;
+// С какого времени (обесточен): сегодня — «16:27», раньше — «24.09 13:36».
+const sinceText = t => { const d = new Date(t * 1000);
+  const hm = d.toLocaleTimeString("ru-RU", {hour: "2-digit", minute: "2-digit"});
+  return d.toDateString() === new Date().toDateString() ? hm
+    : d.toLocaleDateString("ru-RU", {day: "2-digit", month: "2-digit"}) + " " + hm; };
 function card(r) {
-  const st = r.state === "run" ? "run" : r.state === "stop" ? "stop" : "none";
-  const status = st === "run" ? "Работает" : st === "stop" ? `Стоит ${hm(r.state_min)}` : "Нет данных";
+  const st = r.power_off ? "pwr" : r.state === "run" ? "run" : r.state === "stop" ? "stop" : "none";
+  const status = st === "pwr" ? "⏻ Обесточен" + (r.off_since ? " с " + sinceText(r.off_since) : "") : st === "run" ? "Работает"
+    : st === "stop" ? `Стоит ${hm(r.state_min)}` : "Нет данных";
   const op = r.operator;
   return `<div class="card ${st}${r.awaiting_ticket ? " wait" : ""}">
     <div class="top">

@@ -400,6 +400,8 @@ def cards(day="", letter=""):
             "loom": r["loom"], "label": loom_label(r["loom"]),
             "model": ("Toyota " + d["model"]) if d.get("model") and d["model"] != "none" else "",
             "state": r["state"], "state_min": r["state_min"],
+            "power_off": r["state"] != "run" and state.get("machine") == "off",
+            "off_since": state.get("off_since"),
             "cause_ru": cause,
             "cause_en": tickets.CAUSE_EN.get(
                 next((k for k, v in tickets.CAUSE_RU.items() if v == cause), ""), "Undefined"),

@@ -92,6 +92,14 @@ class LoomStateTests(unittest.TestCase):
         got = loomstate.intervals(T1, T2)["D1"]
         self.assertEqual((got[0]["start"], got[0]["end"], got[0]["exact"]), (T1 - 172, T2 + 60, True))
 
+    def test_current_for_power_off(self):
+        loomstate.record(snap(T1, {"D2": st("Power_off", 0, ""), "D1": st("Run", 172)}))
+        loomstate.record(snap(T2, {"D2": st("Power_off", 0, ""), "D1": st("Weft", 20)}))
+        cur = loomstate.current(["D2"])
+        self.assertEqual(list(cur), ["D2"])
+        self.assertEqual((cur["D2"]["cause"], cur["D2"]["start"], cur["D2"]["exact"]), ("Power_off", T1, False))
+        self.assertEqual(loomstate.current()["D1"]["cause"], "Weft")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -384,10 +384,21 @@ def _board_build():
               conn.execute("SELECT * FROM ticket WHERE ended_at IS NULL")}
     conn.close()
 
+    # Обесточен: FACT не даёт счётчик — с какого времени, берём из интервалов.
+    off = [n for n, st in live.items() if not st["running"] and st.get("cause") == "Power_off"]
+    since = {}
+    if off:
+        import loomstate
+        try:
+            since = loomstate.current(off)
+        except Exception:                # sqlite: интервалы — подсказка, не основа доски
+            LOG.warning("интервалы состояний не прочитались", exc_info=True)
+
     rows = []
     for name, st in live.items():
         t = open_t.get(name)
         cause = st.get("cause", st["state"])
+        cur = since.get(name) or {}
         reason, src = resolve_reason(cause, t["category_id"] if t else None)
         level = andon_level(st, t, cause, an)
         rows.append({
@@ -404,6 +415,7 @@ def _board_build():
             "andon": level,
             "needs_ticket": level in ("noticket", "alarm"),
             "escalated": bool(t and t.get("escalated_at")),
+            "off_since": cur["start"] if cur.get("cause") == "Power_off" and not cur.get("running") else None,
         })
     # Наверху доски — то, что дольше всех стоит без объяснения.
     rank = {"alarm": 0, "noticket": 1, "wait": 2, "ticket": 3, "tech": 4, "run": 5}
