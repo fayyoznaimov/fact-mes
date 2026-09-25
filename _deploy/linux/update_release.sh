@@ -41,5 +41,6 @@ mv -Tf "$BASE/current.new" "$BASE/current"
 systemctl restart fact-mes
 sleep 6
 systemctl --no-pager --lines=0 status fact-mes || true
-. /etc/fact-mes/service.env
-curl -fsS "http://${MES_HOST}:${MES_PORT}/api/health" && echo && echo "== готово: $COMMIT (откат — на $CUR)"
+# Файл — для systemd (значения без кавычек, с пробелами): как shell его не читаем.
+env_val() { sed -n "s/^$1=//p" /etc/fact-mes/service.env | tail -1 | tr -d '"'; }
+curl -fsS "http://$(env_val MES_HOST):$(env_val MES_PORT)/api/health" && echo && echo "== готово: $COMMIT (откат — на $CUR)"
