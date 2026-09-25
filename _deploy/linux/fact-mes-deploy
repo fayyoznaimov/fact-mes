@@ -1,0 +1,69 @@
+#!/bin/sh
+# Установка выпуска MES одной командой — без пароля sudo для одного пользователя.
+#
+#   sudo fact-mes-deploy <коммит>     поставить коммит из ~/fact-mes-src
+#   sudo fact-mes-deploy rollback     вернуть предыдущий выпуск
+#
+# Ставится один раз (install-deploy.sh) в /usr/local/sbin, владелец root: сам
+# скрипт пользователь изменить не может. Код выпуска берётся из git как есть и
+# работает от пользователя fact-mes (NoNewPrivileges) — root он не получает.
+# Архив собирает и распаковывает не root, root только копирует готовые файлы.
+set -eu
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+
+REPO_USER=parisahome
+REPO=/home/$REPO_USER/fact-mes-src
+BASE=/opt/fact-mes
+ENV=/etc/fact-mes/service.env
+
+[ "$(id -u)" = 0 ] || { echo "запустите через sudo"; exit 1; }
+ARG=${1:?"коммит или rollback"}
+
+env_val() { sed -n "s/^$1=//p" "$ENV" | tail -1 | tr -d '"'; }
+health() {
+    sleep 6
+    systemctl --no-pager --lines=0 status fact-mes || true
+    curl -fsS "http://$(env_val MES_HOST):$(env_val MES_PORT)/api/health" && echo
+}
+CUR=$(readlink -f "$BASE/current")
+
+if [ "$ARG" = rollback ]; then
+    PREV=$(cat "$BASE/previous" 2>/dev/null || true)
+    [ -n "$PREV" ] && [ -d "$PREV" ] || { echo "нет предыдущего выпуска"; exit 1; }
+    ln -sfn "$PREV" "$BASE/current.new" && mv -Tf "$BASE/current.new" "$BASE/current"
+    echo "$CUR" > "$BASE/previous"
+    systemctl restart fact-mes
+    health
+    echo "== откат: $CUR -> $PREV"
+    exit 0
+fi
+
+echo "$ARG" | grep -Eq '^[0-9a-f]{7,40}$' || { echo "коммит — 7–40 шестнадцатеричных знаков"; exit 1; }
+COMMIT=$(runuser -u "$REPO_USER" -- git -C "$REPO" rev-parse --short "$ARG^{commit}")
+REL=$BASE/releases/$COMMIT
+[ -e "$REL" ] && { echo "выпуск $REL уже есть"; exit 1; }
+
+echo "== копия баз"
+systemctl start fact-mes-backup.service
+ls -1dt /var/backups/fact-mes/* | head -1
+
+echo "== код $COMMIT"
+TMP=$(runuser -u "$REPO_USER" -- mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+runuser -u "$REPO_USER" -- sh -c 'git -C "$1" archive "$2" | tar -x -C "$3"' - "$REPO" "$COMMIT" "$TMP"
+mkdir -p "$REL"
+cp -R --no-dereference "$TMP"/. "$REL"/
+# Ссылки на данные (базы, настройки, журналы) — из текущего выпуска как есть.
+(cd "$CUR" && find . -type l) | while read -r link; do
+    mkdir -p "$REL/$(dirname "$link")"
+    ln -sfn "$(readlink "$CUR/$link")" "$REL/$link"
+done
+chown -R -h root:root "$REL"
+chmod -R go-w "$REL"
+
+echo "== переключение: было $CUR"
+echo "$CUR" > "$BASE/previous"
+ln -sfn "$REL" "$BASE/current.new" && mv -Tf "$BASE/current.new" "$BASE/current"
+systemctl restart fact-mes
+health
+echo "== готово: $COMMIT (откат: sudo fact-mes-deploy rollback)"
