@@ -481,16 +481,38 @@ def open_ticket(loom, who="вручную", category_id=None, comment=""):
     return tid
 
 
-def classify(ticket_id, category_id, who, comment=""):
+class Conflict(Exception):
+    """Причину тикета уже поменял другой человек — перезаписывать молча нельзя."""
+
+
+_KEEP = object()
+
+
+def classify(ticket_id, category_id, who, comment="", was=_KEEP):
+    """Записать причину. was — причина, которую человек видел на экране: если
+    на сервере уже другая (её выбрал кто-то ещё), запись отклоняется (Conflict),
+    а не затирает чужой выбор. Без was — как раньше (старые мониторы, API)."""
     if category_id not in active_ids():
         raise ValueError("неизвестная причина простоя")
     conn = db()
-    conn.execute(
-        "UPDATE ticket SET category_id=?, comment=?, classified_by=?, classified_at=? WHERE id=?",
-        (category_id, (comment or "").strip()[:500], (who or "")[:60],
-         datetime.now().astimezone().isoformat(timespec="seconds"), ticket_id))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute("SELECT category_id, classified_by FROM ticket WHERE id=?",
+                           (ticket_id,)).fetchone()
+        if not row:
+            raise ValueError("тикет не найден")
+        if was is not _KEEP and (row["category_id"] or None) != (was or None) \
+                and row["category_id"] != category_id:
+            cat = category(row["category_id"] or "")
+            raise Conflict("причину уже указал %s: «%s»" % (
+                row["classified_by"] or "другой пользователь", cat["name"] if cat else row["category_id"]))
+        conn.execute(
+            "UPDATE ticket SET category_id=?, comment=?, classified_by=?, classified_at=? WHERE id=?",
+            (category_id, (comment or "").strip()[:500], (who or "")[:60],
+             datetime.now().astimezone().isoformat(timespec="seconds"), ticket_id))
+        conn.commit()
+    finally:
+        conn.close()
     invalidate()
 
 

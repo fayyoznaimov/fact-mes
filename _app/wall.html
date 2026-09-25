@@ -423,7 +423,8 @@ function openDialog(loom) {
     if (!CAN_EDIT) return ($("#d-msg").textContent = "Нужен вход в систему");
     try {
       if (CURRENT.ticket_id) {
-        await post("/api/tickets/classify", { id: CURRENT.ticket_id, category_id: b.dataset.cat });
+        await post("/api/tickets/classify", { id: CURRENT.ticket_id, category_id: b.dataset.cat,
+                                              was: CURRENT.ticket_category || null });
       } else {
         await post("/api/tickets/new", { loom: CURRENT.loom, category_id: b.dataset.cat });
       }

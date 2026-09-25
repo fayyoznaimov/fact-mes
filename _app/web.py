@@ -982,7 +982,11 @@ class Handler(BaseHTTPRequestHandler):
                                       body.get("comment", ""))
             return self._send(200, {"ok": True, "id": tid})
         if path == "/api/tickets/classify":
-            tickets.classify(body["id"], body.get("category_id"), who, body.get("comment", ""))
+            extra = {"was": body["was"]} if "was" in body else {}
+            try:
+                tickets.classify(body["id"], body.get("category_id"), who, body.get("comment", ""), **extra)
+            except tickets.Conflict as e:
+                return self._send(409, {"error": str(e)})
             return self._send(200, {"ok": True})
         if path == "/api/tickets/close":
             tickets.close_ticket(body["id"], who)

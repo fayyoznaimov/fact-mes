@@ -2762,9 +2762,10 @@ $("#tk-table tbody").onclick = async e => {
 };
 $("#tk-cat-list").onclick = async e => {
   const b = e.target.closest("[data-pick]"); if (!b || !TK_PICK) return;
-  try { await api("/api/tickets/classify", { id: TK_PICK.id, category_id: b.dataset.pick });
+  // was — что было на экране: если причину уже выбрал другой, сервер ответит 409.
+  try { await api("/api/tickets/classify", { id: TK_PICK.id, category_id: b.dataset.pick, was: TK_PICK.category_id || null });
         $("#tk-cat-dlg").close(); say(`${TK_PICK.loom}: причина записана`); loadTickets(); }
-  catch (err) { say("Не записалось: " + err.message, true); }
+  catch (err) { $("#tk-cat-dlg").close(); say("Не записалось: " + err.message, true); loadTickets(); }
 };
 document.querySelectorAll("[data-tk-sort]").forEach(th => th.onclick = () => {
   const k = th.dataset.tkSort;

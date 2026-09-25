@@ -66,6 +66,17 @@ class TicketRaceTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(self.open_count(), 1)
 
+    def test_classify_does_not_overwrite_someone_elses_reason(self):
+        tid = tickets.open_ticket("J1", who="монитор")
+        cats = sorted(tickets.active_ids())
+        a, b = cats[0], cats[1]
+        tickets.classify(tid, a, "мастер1", was=None)             # видел «без причины» — ок
+        with self.assertRaises(tickets.Conflict):
+            tickets.classify(tid, b, "мастер2", was=None)          # тоже видел пустую — уже нет
+        tickets.classify(tid, b, "мастер2", was=a)                  # видел выбор мастера1 — ок
+        tickets.classify(tid, b, "мастер3", was=None)               # та же причина — не конфликт
+        tickets.classify(tid, a, "api")                             # без was — как раньше
+
     def test_unique_open_index_exists(self):
         db = sqlite3.connect(storage.SHOP_DB)
         try:
