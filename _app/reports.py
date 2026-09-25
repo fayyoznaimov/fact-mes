@@ -9,6 +9,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 from datetime import datetime, timedelta
 
 import cache
@@ -639,9 +640,20 @@ def _lds_manual(date_from, date_to, group="day"):
     }
 
 
+_REBUILD_LOCK = threading.Lock()
+
+
 def rebuild_daily_reports(days):
     """Производственный отчёт (лист TOYOTA) заново за эти дни — после новых смен
-    или после ручного ввода заправки. Расчёт — в _tools/make_excel_report.py."""
+    или после ручного ввода заправки. Расчёт — в _tools/make_excel_report.py.
+
+    По одному за раз: сборщик, приём 1С (фоновый поток на каждое сообщение) и
+    правка плана пересобирали одни и те же дни одновременно."""
+    with _REBUILD_LOCK:
+        return _rebuild_daily_reports(days)
+
+
+def _rebuild_daily_reports(days):
     if TOOLS_DIR not in sys.path:
         sys.path.insert(0, TOOLS_DIR)
     import fact_api
