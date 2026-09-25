@@ -217,6 +217,11 @@ class Collector:
         livestate.save(snap)
         import productionlog
         productionlog.archive_sample(snap)
+        import loomstate
+        try:
+            loomstate.record(snap)
+        except Exception as e:           # интервалы не должны останавливать доску
+            self._error("интервалы состояний", e)
         if snap.get("full"):
             self.full_at = time.time()
         self.last_dir = d
@@ -503,8 +508,22 @@ class Collector:
             self._shift_docs()
             time.sleep(INGEST_SEC)
 
+    def run_states(self):
+        """Интервалы состояний: дочитать архив снимков (в первый раз — весь)."""
+        import loomstate
+        while True:
+            t0 = time.perf_counter()
+            try:
+                n = loomstate.catch_up()
+                if n:
+                    LOG.info("интервалы состояний: дочитано снимков %s за %.1f с", n, time.perf_counter() - t0)
+                return
+            except Exception as e:       # до успеха живые снимки в интервалы не пишутся
+                self._error("интервалы состояний", e)
+                time.sleep(300)
+
     def start(self):
-        for target in (self.run_live, self.run_ingest):
+        for target in (self.run_live, self.run_ingest, self.run_states):
             threading.Thread(target=target, name="collector:" + target.__name__,
                              daemon=True).start()
         return self
