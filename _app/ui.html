@@ -1265,7 +1265,7 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
         <thead><tr><th>Станок</th><th class="n">КПД</th><th class="n">Тыс. пиков</th>
           <th class="n">Уток</th><th class="n">Уток /cmpx</th><th class="n">Основа</th><th class="n">Ворс</th>
           <th class="n">Ручных</th><th class="n">Ручные, ч</th><th class="n">Ожидание, ч</th>
-          <th class="n">Прочее, ч</th><th class="n">Без питания, ч</th><th class="n">Смен</th></tr></thead>
+          <th class="n">Сход навоя, ч</th><th class="n">Прочее, ч</th><th class="n">Без питания, ч</th><th class="n">Смен</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -4149,7 +4149,9 @@ $("#op-import").onclick = async () => {
 // Причины в сводке сервера — по-русски; цвет — тот же, что у причины в Истории станков.
 const EX_CAUSE = {"Уток": "Weft", "Основа": "Warp", "Верхний навой": "Warp_top", "Ручные остановы": "Manual",
                   "Питание выключено": "Power_off", "Прочее": "Other"};
-const exColor = n => CAUSE_COLOR[EX_CAUSE[n]] || CAUSE_COLOR.Other;
+// Сход навоя и съём ткани — не обрывы: свои цвета, не из палитры причин станка.
+const EX_EXTRA = {"Сход навоя": "#3f9c96", "Съём ткани": "#8e9a3a"};
+const exColor = n => EX_EXTRA[n] || CAUSE_COLOR[EX_CAUSE[n]] || CAUSE_COLOR.Other;
 document.querySelectorAll("#ex-shifts .chip").forEach(c => c.onclick = () => {
   const on = c.getAttribute("aria-pressed") === "true";
   if (on && document.querySelectorAll('#ex-shifts .chip[aria-pressed="true"]').length === 1) return;
@@ -4185,7 +4187,7 @@ async function loadExplorer() {
       <td class="n">${nf(l.kpicks)}</td><td class="n">${nf(l.weft_ct)}</td><td class="n">${nf(l.weft_cmpx,1)}</td>
       <td class="n">${nf(l.warp_ct)}</td><td class="n">${nf(l.top_ct)}</td>
       <td class="n">${nf(l.manual_ct)}</td><td class="n">${nf(l.manual_h,1)}</td>
-      <td class="n">${nf(l.wait_h,1)}</td><td class="n">${nf(l.other_h,1)}</td><td class="n">${nf(l.power_h,1)}</td>
+      <td class="n">${nf(l.wait_h,1)}</td><td class="n">${nf(l.warp_out_h,1)}</td><td class="n">${nf(l.other_h,1)}</td><td class="n">${nf(l.power_h,1)}</td>
       <td class="n">${l.shifts}${l.idle_shifts ? `<span class="note" title="смены, где станок не работал (≤ 5 мин)"> · ${l.idle_shifts} без работы</span>` : ""}</td></tr>`).join("");
   } catch (e) { say("Простои не загрузились: " + e.message, true); }
 }

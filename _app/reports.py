@@ -19,6 +19,20 @@ import tickets
 from storage import REPORTS_DIR, SHIFT_LETTERS, TOOLS_DIR, fact
 
 
+# Из «прочих» категорий FACT (stop_tm) выделяем две, у которых есть смысл для
+# цеха (METRICS.md, по шаблону Toyota): 6 — сход навоя, время до перезаправки;
+# 7 — съём ткани. 25.09 у D2, D3, J1, J20 по 4,8 ч схода навоя были в «прочем».
+WARP_OUT, DOFF = 6, 7
+
+
+def raw_min(raw, i):
+    """Минуты категории i из строки stop_tm_raw."""
+    try:
+        return float((raw or "").split()[i])
+    except (IndexError, ValueError):
+        return 0.0
+
+
 def shift_rows(day, letter, idle=False):
     """Строки по станкам за смену: выработка, КПД, обрывы, ожидание оператора.
 
@@ -30,7 +44,7 @@ def shift_rows(day, letter, idle=False):
             "SELECT loom, style, rpm, effic_pct, run_min, stop_min, picks, meters, pieces,"
             " weft_ct, weft_fix_min, weft_mttr_sec, top_ct, top_fix_min, top_mttr_sec,"
             " warp_ct, warp_fix_min, warp_mttr_sec, manual_ct, manual_min, wait_total_min,"
-            " power_min, other_min"
+            " power_min, other_min, stop_tm_raw"
             " FROM shift_full WHERE day=? AND letter=?" + ("" if idle else " AND run_min > 5")
             + " ORDER BY loom", (day, letter))]
 
@@ -273,13 +287,22 @@ def explorer(q):
             " SUM(wait_total_min) wait, COUNT(*) shifts,"
             " SUM(run_min <= 5) idle_shifts, SUM(other_min) other_min, SUM(power_min) power_min"
             " FROM shift_full WHERE " + cond + " GROUP BY loom", args).fetchall()
+        split = {}                       # станок -> [сход навоя, съём ткани], мин
+        for r in db.execute("SELECT loom, stop_tm_raw FROM shift_full WHERE " + cond, args):
+            v = split.setdefault(r["loom"], [0.0, 0.0])
+            v[0] += raw_min(r["stop_tm_raw"], WARP_OUT)
+            v[1] += raw_min(r["stop_tm_raw"], DOFF)
 
     run = tot["run"] or 0.0
     stop = tot["stop"] or 0.0
     cal = run + stop
+    warp_out = sum(v[0] for v in split.values())
+    doff = sum(v[1] for v in split.values())
     causes = {"Уток": tot["weft"] or 0, "Ручные остановы": tot["manual"] or 0,
               "Основа": tot["warp"] or 0, "Верхний навой": tot["top"] or 0,
-              "Питание выключено": tot["power"] or 0, "Прочее": tot["other"] or 0}
+              "Сход навоя": warp_out, "Съём ткани": doff,
+              "Питание выключено": tot["power"] or 0,
+              "Прочее": max(0.0, (tot["other"] or 0) - warp_out - doff)}
 
     looms_out = []
     for r in looms_rows:
@@ -293,7 +316,9 @@ def explorer(q):
             "manual_ct": int(r["manual_ct"] or 0), "manual_h": round((r["manual_min"] or 0) / 60, 1),
             "wait_h": round((r["wait"] or 0) / 60, 1), "shifts": int(r["shifts"] or 0),
             "idle_shifts": int(r["idle_shifts"] or 0),
-            "other_h": round((r["other_min"] or 0) / 60, 1), "power_h": round((r["power_min"] or 0) / 60, 1),
+            "warp_out_h": round(split.get(r["loom"], [0, 0])[0] / 60, 1),
+            "other_h": round(max(0.0, (r["other_min"] or 0) - sum(split.get(r["loom"], [0, 0]))) / 60, 1),
+            "power_h": round((r["power_min"] or 0) / 60, 1),
         })
     looms_out.sort(key=lambda x: x["eff"])
 
@@ -319,7 +344,11 @@ def walk(day, letter):
         parts = [("уток", r["weft_fix_min"]), ("ворс", r["top_fix_min"]),
                  ("основа", r["warp_fix_min"]), ("ручные", r["manual_min"]),
                  ("ожидание оператора", r["wait_total_min"]),
-                 ("прочее", r["other_min"]), ("без питания", r["power_min"])]
+                 ("сход навоя", raw_min(r["stop_tm_raw"], WARP_OUT)),
+                 ("съём ткани", raw_min(r["stop_tm_raw"], DOFF)),
+                 ("прочее", max(0.0, (r["other_min"] or 0) - raw_min(r["stop_tm_raw"], WARP_OUT)
+                                - raw_min(r["stop_tm_raw"], DOFF))),
+                 ("без питания", r["power_min"])]
         parts = [p for p in parts if p[1] and p[1] > 0]
         parts.sort(key=lambda p: -p[1])
         out.append({

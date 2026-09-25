@@ -19,6 +19,10 @@ J10 = ("shift 2026.09.25.0,mac_name J10,style 650,cloth 200100TC%20390,seisan 0.
        "run_tm 0.000,stop_ttm 456.950,stop_ct 0 0 0 0 0 0 0 0 0 0 0 0 0,"
        "stop_tm 0 0 0 0 0 0 0 0 0 23.033 456.950 0 0,stop_wtm 0 0 0 0 0 0 0 0 0 0 0 0 0")
 
+D2 = ("shift 2026.09.25.0,mac_name D2,style Towel,cloth 70140D152500,seisan 0.0 0.2 0.2 0,"
+      "run_tm 0.000,stop_ttm 290.383,stop_ct 0 0 0 0 0 0 0 0 0 0 0 0 0,"
+      "stop_tm 0 0 0 0 0 0 290.383 0 0 0 0 0 0,stop_wtm 0 0 0 0 0 0 0 0 0 0 0 0 0")
+
 
 class ExplorerIdleTests(unittest.TestCase):
     def setUp(self):
@@ -27,7 +31,7 @@ class ExplorerIdleTests(unittest.TestCase):
         storage.FACT_DB = os.path.join(self.dir.name, "fact.db")
         db = sqlite3.connect(storage.FACT_DB)
         db.executescript(ingest.SHIFT_SCHEMA)
-        rows = ingest.shift_rows("2026.09.25.0", J14 + "\n" + J10)
+        rows = ingest.shift_rows("2026.09.25.0", "\n".join((J14, J10, D2)))
         db.executemany("INSERT INTO shift_full VALUES (%s)" % ",".join("?" * len(rows[0])), rows)
         db.commit()
         db.close()
@@ -42,15 +46,19 @@ class ExplorerIdleTests(unittest.TestCase):
         self.assertIn("J10", looms)
         self.assertEqual((looms["J10"]["eff"], looms["J10"]["idle_shifts"]), (0, 1))
         self.assertEqual((looms["J10"]["other_h"], looms["J10"]["power_h"]), (7.6, 0.4))
-        self.assertEqual(d["totals"]["idle_shifts"], 1)
-        self.assertEqual(d["totals"]["stop_h"], round((112.383 + 456.95) / 60))
-        self.assertEqual(d["by_loom"][0]["loom"], "J10")          # худший — первым
+        self.assertEqual(d["totals"]["idle_shifts"], 2)
+        self.assertEqual(d["totals"]["stop_h"], round((112.383 + 456.95 + 290.383) / 60))
+        # Категория 6 FACT — сход навоя, не «прочее».
+        self.assertEqual((looms["D2"]["warp_out_h"], looms["D2"]["other_h"]), (4.8, 0))
+        self.assertEqual(d["causes"]["Сход навоя"], 4.8)
+        self.assertEqual(d["causes"]["Прочее"], round((456.95 + 3.433) / 60, 1))
 
     def test_walk_shows_idle_loom(self):
         rows = {r["loom"]: r for r in reports.walk("2026.09.25", "A")["rows"]}
         self.assertTrue(rows["J10"]["idle"])
         self.assertEqual((rows["J10"]["main"], rows["J10"]["main_min"]), ("прочее", 457))
         self.assertFalse(rows["J14"]["idle"])
+        self.assertEqual((rows["D2"]["main"], rows["D2"]["main_min"]), ("сход навоя", 290))
 
     def test_payroll_rows_still_skip_idle(self):
         self.assertEqual([r["loom"] for r in reports.shift_rows("2026.09.25", "A")], ["J14"])
