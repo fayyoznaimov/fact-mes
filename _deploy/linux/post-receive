@@ -1,0 +1,39 @@
+#!/bin/sh
+# Хук репозитория ~/git/fact-mes.git на сервере MES: push в main — тесты, и
+# если прошли — установка выпуска (fact-mes-deploy). Результат виден в ответе
+# на git push и в ~/git/deploy.log.
+#
+# Поставить или обновить после правки:
+#   install -m 0755 _deploy/linux/post-receive ~/git/fact-mes.git/hooks/post-receive
+unset GIT_DIR GIT_WORK_TREE
+REPO=$HOME/git/fact-mes.git
+WORK=$HOME/fact-mes-src
+LOG=$HOME/git/deploy.log
+
+while read -r old new ref; do
+    [ "$ref" = refs/heads/main ] || continue
+    [ "$new" = 0000000000000000000000000000000000000000 ] && continue
+    C=$(git -C "$REPO" rev-parse --short "$new")
+    {
+        echo "== $(date '+%F %T') push $C: $(git -C "$REPO" log -1 --format=%s "$new")"
+        # Рабочая копия на сервере получает коммит (без переключения файлов):
+        # fact-mes-deploy берёт код из неё.
+        git -C "$WORK" fetch -q server
+        T=$(mktemp -d)
+        git -C "$REPO" archive "$new" | tar -x -C "$T"
+        fail=
+        for t in "$T"/_tools/test_*.py; do
+            if ! python3 "$t" > "$T/test.log" 2>&1; then
+                fail="$fail $(basename "$t")"
+                tail -15 "$T/test.log"
+            fi
+        done
+        rm -rf "$T"
+        if [ -n "$fail" ]; then
+            echo "== тесты не прошли:$fail — выпуск НЕ установлен, на сервере прежний"
+        else
+            echo "== тесты прошли, ставлю $C"
+            sudo -n /usr/local/sbin/fact-mes-deploy "$C" 2>&1 | grep -E '^==|"ok"' | cut -c1-200
+        fi
+    } 2>&1 | tee -a "$LOG"
+done
