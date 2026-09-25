@@ -19,15 +19,20 @@ import tickets
 from storage import REPORTS_DIR, SHIFT_LETTERS, TOOLS_DIR, fact
 
 
-def shift_rows(day, letter):
-    """Строки по станкам за смену: выработка, КПД, обрывы, ожидание оператора."""
+def shift_rows(day, letter, idle=False):
+    """Строки по станкам за смену: выработка, КПД, обрывы, ожидание оператора.
+
+    idle=True — и станки, простоявшие всю смену (работа ≤ 5 мин): для выработки
+    и оплаты их нет, а для разбора простоев это самые большие потери.
+    """
     with fact() as db:
         return [dict(r) for r in db.execute(
             "SELECT loom, style, rpm, effic_pct, run_min, stop_min, picks, meters, pieces,"
             " weft_ct, weft_fix_min, weft_mttr_sec, top_ct, top_fix_min, top_mttr_sec,"
-            " warp_ct, warp_fix_min, warp_mttr_sec, manual_ct, manual_min, wait_total_min"
-            " FROM shift_full WHERE day=? AND letter=? AND run_min > 5 ORDER BY loom",
-            (day, letter))]
+            " warp_ct, warp_fix_min, warp_mttr_sec, manual_ct, manual_min, wait_total_min,"
+            " power_min, other_min"
+            " FROM shift_full WHERE day=? AND letter=?" + ("" if idle else " AND run_min > 5")
+            + " ORDER BY loom", (day, letter))]
 
 
 def available_shifts(limit=120):
@@ -234,7 +239,9 @@ def explorer(q):
     Считается тремя запросами GROUP BY: тащить тысячи строк в Python и складывать
     их там на порядок медленнее, а при 80 станках разница станет решающей.
     """
-    where = ["day BETWEEN ? AND ?", "run_min > 5"]
+    # Станки, простоявшие всю смену, — тоже: FACT пишет их простой по причинам
+    # (25.09 J10: «прочее» 457 мин и 23 мин без питания), раньше они выпадали.
+    where = ["day BETWEEN ? AND ?"]
     args = [q.get("from", "0000"), q.get("to", "9999")]
     letters = [c for c in (q.get("shifts") or "ABC") if c in SHIFT_LETTERS]
     where.append("letter IN (%s)" % ",".join("?" * len(letters)))
@@ -252,6 +259,7 @@ def explorer(q):
     with fact() as db:
         tot = db.execute(
             "SELECT SUM(run_min) run, SUM(stop_min) stop, SUM(picks) picks, COUNT(*) n,"
+            " SUM(run_min <= 5) idle,"
             " SUM(weft_stop_min) weft, SUM(manual_min) manual, SUM(warp_stop_min) warp,"
             " SUM(top_stop_min) top, SUM(power_min) power, SUM(other_min) other"
             " FROM shift_full WHERE " + cond, args).fetchone()
@@ -262,7 +270,8 @@ def explorer(q):
             "SELECT loom, SUM(run_min) run, SUM(stop_min) stop, SUM(picks) picks,"
             " SUM(weft_ct) weft_ct, SUM(warp_ct) warp_ct, SUM(top_ct) top_ct,"
             " SUM(manual_ct) manual_ct, SUM(manual_min) manual_min,"
-            " SUM(wait_total_min) wait, COUNT(*) shifts"
+            " SUM(wait_total_min) wait, COUNT(*) shifts,"
+            " SUM(run_min <= 5) idle_shifts, SUM(other_min) other_min, SUM(power_min) power_min"
             " FROM shift_full WHERE " + cond + " GROUP BY loom", args).fetchall()
 
     run = tot["run"] or 0.0
@@ -283,13 +292,16 @@ def explorer(q):
             "warp_ct": int(r["warp_ct"] or 0), "top_ct": int(r["top_ct"] or 0),
             "manual_ct": int(r["manual_ct"] or 0), "manual_h": round((r["manual_min"] or 0) / 60, 1),
             "wait_h": round((r["wait"] or 0) / 60, 1), "shifts": int(r["shifts"] or 0),
+            "idle_shifts": int(r["idle_shifts"] or 0),
+            "other_h": round((r["other_min"] or 0) / 60, 1), "power_h": round((r["power_min"] or 0) / 60, 1),
         })
     looms_out.sort(key=lambda x: x["eff"])
 
     return {
         "totals": {"eff": round(100 * run / cal, 1) if cal else 0,
                    "run_h": round(run / 60), "stop_h": round(stop / 60),
-                   "mpicks": round((tot["picks"] or 0) / 1e6, 2), "rows": tot["n"] or 0},
+                   "mpicks": round((tot["picks"] or 0) / 1e6, 2), "rows": tot["n"] or 0,
+                   "idle_shifts": int(tot["idle"] or 0)},
         "causes": {k: round(v / 60, 1) for k, v in causes.items() if v > 0},
         "by_day": [{"day": r["day"],
                     "eff": round(100 * (r["run"] or 0) / ((r["run"] or 0) + (r["stop"] or 0)), 1)
@@ -301,12 +313,13 @@ def explorer(q):
 
 def walk(day, letter):
     """Обход цеха: станки с наибольшими потерями за смену и причина простоя."""
-    rows = shift_rows(day, letter)
+    rows = shift_rows(day, letter, idle=True)
     out = []
     for r in rows:
         parts = [("уток", r["weft_fix_min"]), ("ворс", r["top_fix_min"]),
                  ("основа", r["warp_fix_min"]), ("ручные", r["manual_min"]),
-                 ("ожидание оператора", r["wait_total_min"])]
+                 ("ожидание оператора", r["wait_total_min"]),
+                 ("прочее", r["other_min"]), ("без питания", r["power_min"])]
         parts = [p for p in parts if p[1] and p[1] > 0]
         parts.sort(key=lambda p: -p[1])
         out.append({
@@ -314,6 +327,7 @@ def walk(day, letter):
             "eff": r["effic_pct"], "stop_min": round(r["stop_min"]),
             "weft_ct": r["weft_ct"], "top_ct": r["top_ct"], "warp_ct": r["warp_ct"],
             "manual_ct": r["manual_ct"], "wait_min": round(r["wait_total_min"]),
+            "idle": (r["run_min"] or 0) <= 5,
             "main": parts[0][0] if parts else "—",
             "main_min": round(parts[0][1]) if parts else 0,
         })

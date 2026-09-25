@@ -1264,7 +1264,8 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
       <table id="ex-table">
         <thead><tr><th>Станок</th><th class="n">КПД</th><th class="n">Тыс. пиков</th>
           <th class="n">Уток</th><th class="n">Уток /cmpx</th><th class="n">Основа</th><th class="n">Ворс</th>
-          <th class="n">Ручных</th><th class="n">Ручные, ч</th><th class="n">Ожидание, ч</th><th class="n">Смен</th></tr></thead>
+          <th class="n">Ручных</th><th class="n">Ручные, ч</th><th class="n">Ожидание, ч</th>
+          <th class="n">Прочее, ч</th><th class="n">Без питания, ч</th><th class="n">Смен</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -4171,7 +4172,7 @@ async function loadExplorer() {
       ["Простой", `${nf(t.stop_h)}<small> ч</small>`],
       ["Выработка", `${nf(t.mpicks,2)}<small> млн пиков</small>`],
       ["Ручные остановы", `${nf(d.causes["Ручные остановы"]||0)}<small> ч</small>`],
-      ["Записей", nf(t.rows)],
+      ["Смен без работы", `${nf(t.idle_shifts || 0)}<small> из ${nf(t.rows)}</small>`],
     ].map(([l,v])=>`<div class="tile"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("");
     const causes = Object.entries(d.causes).sort((x,y)=>y[1]-x[1]);
     const sum = causes.reduce((s,c)=>s+c[1],0) || 1;
@@ -4184,7 +4185,8 @@ async function loadExplorer() {
       <td class="n">${nf(l.kpicks)}</td><td class="n">${nf(l.weft_ct)}</td><td class="n">${nf(l.weft_cmpx,1)}</td>
       <td class="n">${nf(l.warp_ct)}</td><td class="n">${nf(l.top_ct)}</td>
       <td class="n">${nf(l.manual_ct)}</td><td class="n">${nf(l.manual_h,1)}</td>
-      <td class="n">${nf(l.wait_h,1)}</td><td class="n">${l.shifts}</td></tr>`).join("");
+      <td class="n">${nf(l.wait_h,1)}</td><td class="n">${nf(l.other_h,1)}</td><td class="n">${nf(l.power_h,1)}</td>
+      <td class="n">${l.shifts}${l.idle_shifts ? `<span class="note" title="смены, где станок не работал (≤ 5 мин)"> · ${l.idle_shifts} без работы</span>` : ""}</td></tr>`).join("");
   } catch (e) { say("Простои не загрузились: " + e.message, true); }
 }
 
@@ -4197,7 +4199,7 @@ async function loadWalk() {
   try {
     const d = await api(`/api/walk?day=${s.day}&shift=${s.shift}`);
     $("#wk-table tbody").innerHTML = d.rows.map(r => `<tr>
-      <td><strong>${esc(r.loom)}</strong></td><td>${r.style && r.style !== "Undefined" ? esc(r.style) : '<span class="note">не задан</span>'}</td>
+      <td><strong>${esc(r.loom)}</strong>${r.idle ? ' <span class="note">вся смена</span>' : ""}</td><td>${r.style && r.style !== "Undefined" ? esc(r.style) : '<span class="note">не задан</span>'}</td>
       <td>${esc(r.main)}</td><td class="n">${nf(r.main_min)}</td>
       <td class="n${r.eff<60?" bad":""}">${nf(r.eff,1)}</td><td class="n">${nf(r.stop_min)}</td>
       <td class="n">${nf(r.weft_ct)}</td><td class="n">${nf(r.top_ct)}</td><td class="n">${nf(r.warp_ct)}</td>
