@@ -1066,8 +1066,14 @@ def health():
         # Снимок обновляется, только когда FACT выложил новый (раз в минуту).
         if live_mode and (age is None or age > tickets.STALE_SEC):
             out["ok"] = False
-            out["checks"]["fact"] = "нет свежих данных %s с: %s" % (
-                age if age is not None else "—", s.get("last_error") or "FACT молчит")
+            # Причина — из журнала опроса FACT, если он её показывает; иначе последняя
+            # ошибка сборщика (она может быть про смены, а не про живой снимок).
+            fc = s.get("fact_collect") or {}
+            why = ("сбор в FACT начат в %s и не закончен — перезапустите программу сбора на ПК FACT"
+                   % fc["started"][11:16]) if fc.get("started") and not fc.get("completed") \
+                else (s.get("last_error") or "FACT не выкладывает новых снимков")
+            out["checks"]["fact"] = "нет свежего снимка %s мин: %s" % (
+                round(age / 60) if age is not None else "—", why)
         elif live_mode:
             out["checks"]["fact"] = "ок, снимок %d с назад" % age
     else:
