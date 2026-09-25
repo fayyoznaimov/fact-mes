@@ -87,16 +87,21 @@ class HistoryTest(unittest.TestCase):
         self.assertEqual(len(loomsetup.documents()),2)
 
     def test_archive_and_gaps(self):
+        import loomstate
         def machine(seconds):return dict(running=True,state='Run',cause='Run',state_sec=seconds)
-        for at,seconds in [(1000,10),(1060,70),(1120,5),(1400,300)]:
+        # 1060 → 1120: счётчик начался заново (5 с) — между снимками был останов.
+        for at,seconds in [(1000,10),(1060,70),(1120,5),(1400,285)]:
             history.archive_sample(dict(source='fact',dir=str(at),fact_time=at,looms={'J1':machine(seconds)}))
         history.archive_sample(dict(source='mirror'))
-        archive=history.sample_archive(1000,1500)
-        self.assertEqual(len(archive),4)
+        self.assertEqual(len(history.sample_archive(1000,1500)),4)
+        loomstate._READY.clear()
+        self.assertEqual(loomstate.catch_up(),4)
+        states=loomstate.intervals(1000,1500)['J1']
+        self.assertEqual([(x['start'],x['end']) for x in states],[(990,1060),(1115,1400)])
         row=dict(loom='J1',segments=[dict(start=1000,end=1500,kind='unknown')],totals={})
-        machinehistory.add_observations(row,archive,1000,1500,1500)
-        self.assertEqual(row['totals']['observed_run'],60)
-        self.assertEqual(row['totals']['unknown'],440)
+        machinehistory.add_observations(row,states,1000,1500,1500)
+        self.assertEqual(row['totals']['observed_run'],60+285)
+        self.assertEqual(row['totals']['unknown'],55+100)
         self.assertEqual(sum(row['totals'].values()),500)
 
     def test_ticket_creation_closure_actor_and_counter_noise(self):

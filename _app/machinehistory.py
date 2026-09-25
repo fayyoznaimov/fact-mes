@@ -134,27 +134,19 @@ def timeline(day="", period="day", looms=""):
         return _cached(chosen, period, selected, storage.FACT_DB, storage.SHOP_DB, int(monotonic() // 30))
 
 
-def add_observations(row, archive, start, end, now):
-    """Заполнять пробелы только между согласующимися соседними снимками.
+def add_observations(row, states, start, end, now):
+    """Заполнить неизвестные промежутки интервалами состояний FACT (loom_state).
 
-    Не протягивать состояние через разрыв связи или незамеченный перезапуск.
-    Журнал остановов имеет приоритет перед минутными снимками.
+    Журнал остановов и расчёт по сменным итогам имеют приоритет. Интервал —
+    от начала по счётчику FACT до последнего снимка, где состояние было;
+    между интервалами остаётся «неизвестно».
     """
-    observed, previous = [], None
-    for at, machines in archive:
-        value = machines.get(row['loom'])
-        if not value or value.get('state') in ('Unknown', ''):
-            previous = None
-            continue
-        if previous:
-            pa, pv = previous
-            gap = at - pa
-            if (0 < gap <= 120 and at <= now and value.get('running') == pv.get('running')
-                    and value.get('cause') == pv.get('cause') and (value.get('state_sec') or 0) >= gap):
-                a, b = max(start, pa), min(end, at)
-                if b > a:
-                    observed.append(dict(start=a,end=b,kind='observed_run' if value.get('running') else 'observed_stop'))
-        previous = at, value
+    observed = []
+    for x in states:
+        a, b = max(start, x["start"]), min(end, now, x["end"])
+        if b > a:
+            observed.append(dict(start=a, end=b, kind="observed_run" if x["running"] else "observed_stop",
+                                 cause=None if x["running"] else x["cause"]))
     if not observed:
         return
     points = sorted({v for s in row['segments'] + observed for v in (s['start'],s['end'])})
@@ -163,13 +155,16 @@ def add_observations(row, archive, start, end, now):
         while si < len(row['segments']) and row['segments'][si]['end'] <= a:si += 1
         while oi < len(observed) and observed[oi]['end'] <= a:oi += 1
         if si >= len(row['segments']):break
-        kind = row['segments'][si]['kind']
-        if kind == 'unknown' and oi < len(observed) and observed[oi]['start'] <= a:
-            kind = observed[oi]['kind']
-        if result and result[-1]['kind'] == kind:
+        seg = {'kind': row['segments'][si]['kind']}
+        if seg['kind'] == 'unknown' and oi < len(observed) and observed[oi]['start'] <= a:
+            seg = {'kind': observed[oi]['kind']}
+            if observed[oi]['cause']:
+                seg['cause'] = observed[oi]['cause']
+                seg['reason'] = tickets.CAUSE_RU.get(seg['cause'], seg['cause'])
+        if result and result[-1]['kind'] == seg['kind'] and result[-1].get('cause') == seg.get('cause'):
             result[-1]['end'] = b
         else:
-            result.append(dict(start=a,end=b,kind=kind))
+            result.append(dict(seg, start=a, end=b))
     row['segments'] = result
     row['totals'] = {k:sum(s['end']-s['start'] for s in result if s['kind']==k)
                      for k in ('stop','estimated_run','unknown','future','observed_run','observed_stop')}
@@ -236,10 +231,10 @@ def _load(day, period, selected):
                                      for e in row["events"]) - row["totals"]["stop"]
             row["tickets"] = []
             result.append(row)
-    import productionlog
-    archive = productionlog.sample_archive(start, min(end, now))
+    import loomstate
+    states = loomstate.intervals(start, min(end, now), chosen)
     for row in result:
-        add_observations(row, archive, start, end, now)
+        add_observations(row, states.get(row["loom"], []), start, end, now)
     # Тикеты — отдельный источник. Их интервалы не заменяют сигналы Toyota.
     with closing(storage.shop_readonly()) as db:
         if db.execute("SELECT 1 FROM sqlite_master WHERE name='ticket'").fetchone() and chosen:

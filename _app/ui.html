@@ -4254,6 +4254,9 @@ const MH_SEGS = {estimated_run:['#a3bfad','Работа · по сменным �
 const mhColor = cause => (MH_CAUSES.find(c => c[0] === cause) || MH_CAUSES[MH_CAUSES.length - 1])[1];
 // Простой станка: остановы по журналу Toyota и стоянка, видная только по снимкам FACT
 // (стоящий без причины станок в журнал не попадает — у D3 был «0 ч 0 мин» при простое весь день).
+// Подсказка отрезка по снимкам FACT: состояние, причина от FACT и время.
+const mhSegTitle = s => !s.kind.startsWith('observed') ? '' :
+  `${s.kind === 'observed_run' ? 'Работа' : 'Стоит' + (s.reason ? ': ' + s.reason : '')} · по снимкам FACT · ${mhTime(s.start,true)} — ${mhTime(s.end,true)}`;
 const mhStop = t => (t.stop || 0) + (t.observed_stop || 0);
 $('#mh-legend').innerHTML = MH_CAUSES.map(([, c, t]) => `<span><i class="mh-key" style="background:${c}"></i>${t}</span>`).join('')
   + ['estimated_run', 'observed_run', 'observed_stop'].map(k => `<span><i class="mh-key" style="background:${MH_SEGS[k][0]}"></i>${MH_SEGS[k][1]}</span>`).join('')
@@ -4289,7 +4292,7 @@ function renderHistory() {
   const hours = span/3600, step = hours===24 ? 3 : 1;
   const ticks = Array.from({length:hours/step+1},(_,i)=>`<span style="left:${i*step/hours*100}%">${i===hours/step && hours===24?'24:00':mhTime(MH.start+i*step*3600).slice(0,5)}</span>`).join('');
   $('#mh-grid').innerHTML = `<div class="mh-row mh-axis"><span>Станок</span><div class="mh-ticks">${ticks}</div><span class="mh-total">Простой</span></div>`+MH.rows.map((r,ri)=>{
-    const segs = r.segments.filter(s=>s.kind!=='future').map(s=>rect(s.start,s.end,((MH_SEGS[s.kind] || [])[0] || `url(#mh-unknown-${ri})`),'',s.kind.startsWith('observed')?'Подтверждено соседними снимками FACT':'')).join('');
+    const segs = r.segments.filter(s=>s.kind!=='future').map(s=>rect(s.start,s.end,((MH_SEGS[s.kind] || [])[0] || `url(#mh-unknown-${ri})`),'',mhSegTitle(s))).join('');
     const events = r.events.map((e,i)=>rect(e.start,e.end,mhColor(e.cause),`data-event="${i}"`,`${e.reason} · ${mhTime(e.start,true)} — ${mhTime(e.end,true)} · ${mhDuration(e.duration_sec)}`)).join('');
     const tickets = r.tickets.map((t,i)=>`<rect x="${pct(Math.max(MH.start,t.start))}" y="32" height="5" width="${Math.max(0,100*(Math.min(MH.end,t.end,MH.generated_at)-Math.max(MH.start,t.start))/span)}" fill="#348ec1" data-ticket="${i}"><title>Тикет ${t.id}: ${esc(t.reason)}</title></rect>`).join('');
     return `<div class="mh-row" data-row="${ri}"><button type="button" data-loom="${ri}" aria-label="История ${esc(r.loom)}">${esc(r.loom)}</button><svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="${esc(r.loom)}: ${r.events.length} остановов. Подробности по кнопке станка."><defs><pattern id="mh-unknown-${ri}" width="0.7" height="7" patternUnits="userSpaceOnUse"><rect width="0.7" height="7" fill="var(--surface-2)"/><path d="M0 7 L0.7 0" stroke="var(--rule)" stroke-width="0.16"/></pattern></defs>${segs}${events}${tickets}</svg><span class="mh-total">${Math.floor(mhStop(r.totals)/3600)} ч ${Math.floor(mhStop(r.totals)%3600/60)} мин</span></div>`;
