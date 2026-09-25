@@ -409,7 +409,7 @@ def _board_build():
     rank = {"alarm": 0, "noticket": 1, "wait": 2, "ticket": 3, "tech": 4, "run": 5}
     rows.sort(key=lambda r: (rank[r["andon"]], -r["state_sec"]))
 
-    age = int(time.time() - snap["read_at"]) if snap else None
+    age = livestate.age_sec(snap)
     stopped = [r for r in rows if not r["running"]]
     payload = {
         "looms": rows, "categories": categories("operator"), "shift": current_shift(),

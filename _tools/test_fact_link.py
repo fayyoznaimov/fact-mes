@@ -33,7 +33,7 @@ def write(root, rel, text):
         f.write(text)
 
 
-def make_mirror(root, current_log):
+def make_mirror(root, current_log, fact_time=None):
     d = "factdata/opestate/255832814384"
     write(root, d + "/list_data.txt", "".join(
         "%s,%s,Towel,%s,600,0,0,0,0,0,0,0,0,0,0,0,0\n" % (ip, name, "Other" if name != "J10" else "Run")
@@ -41,7 +41,7 @@ def make_mirror(root, current_log):
     write(root, d + "/layout.txt", "".join("1,1,0,0,%s,JAT,%s\n" % (ip, name) for name, ip in LOOMS.items()))
     for name, ip in LOOMS.items():
         write(root, d + "/loom/%s.txt" % livestate.loom_file(ip),
-              "0\n%d\n(State)\nStop=1\nWeft=0\nManual=0\nPower_off=0\n" % int(time.time()))
+              "0\n%d\n(State)\nStop=1\nWeft=0\nManual=0\nPower_off=0\n" % int(fact_time or time.time()))
     write(root, "factdata/opestate/collect_log.txt", current_log)
     write(root, "factdata/opestate/collect_log1.txt", LOG_DONE)
 
@@ -56,8 +56,8 @@ class FactLinkTests(unittest.TestCase):
         storage.LIVE_FILE = self.old
         self.dir.cleanup()
 
-    def collector(self, current_log):
-        make_mirror(self.dir.name, current_log)
+    def collector(self, current_log, fact_time=None):
+        make_mirror(self.dir.name, current_log, fact_time)
         return collector.Collector(livestate.MirrorSource(os.path.join(self.dir.name)))
 
     def test_causes_from_fact_log(self):
@@ -99,6 +99,23 @@ class FactLinkTests(unittest.TestCase):
         self.assertIn("02:56", told[0])
         self.assertIn("перезапустите", told[0])
         self.assertFalse(c.status["fact_collect"]["completed"])
+
+    def test_old_snapshot_after_restart_is_not_fresh(self):
+        # 25.09: сервер перезапустили днём, FACT висел с 02:55 — первый прочитанный
+        # снимок ночной, доска не должна считать его живым и заводить по нему тикеты.
+        old = time.time() - 12 * 3600
+        c = self.collector(LOG_STUCK, fact_time=old)
+        c.src.kind = "fact"
+        with patch("tickets.poll_once") as poll:
+            c.live_once(force=True)
+        poll.assert_not_called()
+        self.assertLessEqual(c.snap_at, old + 1)
+        snap = livestate.load(storage.LIVE_FILE)
+        self.assertGreater(livestate.age_sec(snap), 11 * 3600)
+        told = []
+        with patch.object(c, "_tell", side_effect=told.append):
+            c._watch_stuck()
+        self.assertEqual(len(told), 1)
 
 
 if __name__ == "__main__":

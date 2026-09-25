@@ -233,13 +233,18 @@ class Collector:
         if (self.status.get("last_error") or "").startswith("живое"):
             LOG.info("FACT снова отдаёт состояние")
             self.status["last_error"] = None
-        if self.stuck_told:
+        # Время снимка — по FACT: после перезапуска первым читается и висящий
+        # с ночи снимок, он не свежий.
+        now = time.time()
+        self.snap_at = min(now, snap.get("fact_time") or now) if self.src.kind == "fact" else now
+        fresh = now - self.snap_at <= 180
+        if self.stuck_told and fresh:
             self._tell("Данные FACT снова обновляются: снимок %s." % _now_iso()[11:16])
-        self.snap_at, self.stuck_told = time.time(), False
+            self.stuck_told = False
 
-        # Тикеты и андон — только по живым данным: по зеркалу это завело бы
-        # тикеты на позавчерашние остановы.
-        if self.src.kind == "fact":
+        # Тикеты и андон — только по живым данным: по зеркалу или старому снимку
+        # это завело бы тикеты на давно прошедшие остановы.
+        if self.src.kind == "fact" and fresh:
             import tickets
             tickets.poll_once()
             self._escalate(tickets)

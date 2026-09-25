@@ -376,6 +376,20 @@ def load(path=None):
     return _file["data"]
 
 
+def age_sec(snap, now=None):
+    """Сколько секунд снимку. Для FACT — по его собственному времени: после
+    перезапуска сборщик заново читает висящий с ночи снимок, и «прочитан только
+    что» не значит «свежий» (25.09: доска после перезапуска показала снимок
+    02:55 как живой)."""
+    if not snap:
+        return None
+    now = now or time.time()
+    age = now - snap["read_at"]
+    if snap.get("source") == "fact" and snap.get("fact_time"):
+        age = max(age, now - snap["fact_time"])
+    return int(age)
+
+
 def lag_sec(snap, now=None):
     """На сколько снимок отстаёт от жизни: FACT собрал данные, мы их прочитали.
 

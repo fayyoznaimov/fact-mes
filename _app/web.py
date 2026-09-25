@@ -1062,6 +1062,8 @@ def health():
         live = s.get("live") or {}
         ing = s.get("ingest") or {}
         age = _age_sec(live.get("at"))
+        if age is not None and live.get("fact_time"):     # по часам FACT: снимок мог висеть с ночи
+            age = max(age, int(time.time() - live["fact_time"]))
         out["checks"]["collector"] = "ок: pid %s, снимок FACT %s, станков %s, стоит %s" % (
             s.get("pid"), live.get("dir", "—"), live.get("looms", "—"), live.get("stopped", "—"))
         out["checks"]["ingest"] = ("ок: %s, остановов за проход %s, %s мс" % (
