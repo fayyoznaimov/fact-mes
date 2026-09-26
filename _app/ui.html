@@ -162,6 +162,19 @@ select.art{font:inherit;font-size:12px;max-width:260px}
    скрываем соседей, а не весь блок */
 body.locked .wrap > *:not(#gate){display:none}
 .grid2{display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:start}
+/* Расстановка по цеху: станки на своих местах (layout.txt FACT), у каждого —
+   оператор; полоса цвета оператора показывает его участок. */
+.as-map{display:grid;gap:6px;margin-bottom:12px;overflow-x:auto;padding:10px;background:var(--surface);
+  border:1px solid var(--hair);border-radius:6px}
+.as-map button{font:inherit;text-align:left;min-width:0;min-height:52px;padding:6px 8px;cursor:pointer;
+  border:1px solid var(--rule);border-radius:4px;background:var(--surface);color:var(--ink);line-height:1.25;
+  box-shadow:inset 4px 0 0 hsl(var(--h) 60% 50%)}
+.as-map button b{display:block;font-size:14px}
+.as-map button span{display:block;font-size:12px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.as-map button.free{border-style:dashed;box-shadow:none}
+.as-map button.free span{color:var(--warn)}
+.as-map button[aria-pressed="true"]{outline:3px solid var(--accent);outline-offset:-3px}
+.as-map button:disabled{cursor:default}
 @media (max-width:900px){ .grid2{grid-template-columns:1fr} }
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{padding:5px 10px;border:1px solid var(--rule);background:var(--surface);color:var(--ink);font:inherit;border-radius:999px;font-size:12px;cursor:pointer}
@@ -1178,6 +1191,7 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
           <div class="f"><label>&nbsp;</label><button class="act" id="as-prev">Как в прошлую такую смену</button></div>
           <div class="f"><label>&nbsp;</label><button class="act" id="as-fact">Из FACT</button></div>
         </div>
+        <div id="as-map" class="as-map" hidden aria-label="Станки по местам в цехе"></div>
         <div class="tbl-wrap">
           <table id="as-table">
             <thead><tr><th><input type="checkbox" id="as-all" aria-label="Отметить все станки"></th>
@@ -3852,8 +3866,8 @@ const asMarkShift = () => document.querySelectorAll("#as-shifts .chip")
 document.querySelectorAll("#as-shifts .chip").forEach(c => c.onclick = () => {
   AS_SH = c.dataset.sh; asMarkShift(); loadAssign(); });
 $("#as-day").onchange = loadAssign;
-$("#as-all").onchange = e => document.querySelectorAll("#as-table tbody input[type=checkbox]")
-  .forEach(c => { if (!c.disabled) c.checked = e.target.checked; });
+$("#as-all").onchange = e => { document.querySelectorAll("#as-table tbody input[type=checkbox]")
+  .forEach(c => { if (!c.disabled) c.checked = e.target.checked; }); asMap(); };
 $("#as-apply").onclick = () => {
   const id = $("#as-bulk").value;
   if ($("#as-search").value.trim() && !id) return say("Выберите оператора из списка", true);
@@ -3995,7 +4009,42 @@ function asByOperator(c) {
   c.assignments.forEach(a => { if (a.operator_id) (by[a.operator_id] = by[a.operator_id] || []).push(a.loom); });
   return by;
 }
+// Схема цеха: колонки с разрывом больше одной — проход, рисуем узким промежутком.
+function asMap() {
+  const box = $("#as-map"), lay = (AS && AS.layout) || {};
+  const rows = [...document.querySelectorAll("#as-table tbody tr")]
+    .map(tr => ({tr, sel: tr.querySelector("select"), cb: tr.querySelector("input[type=checkbox]")}))
+    .filter(r => r.sel && lay[r.sel.dataset.loom]);
+  box.hidden = !rows.length;
+  if (!rows.length) return;
+  const rs = [...new Set(rows.map(r => lay[r.sel.dataset.loom][0]))].sort((a, b) => a - b);
+  const cs = [...new Set(rows.map(r => lay[r.sel.dataset.loom][1]))].sort((a, b) => a - b);
+  const colAt = {}, tracks = [];
+  cs.forEach((c, i) => {
+    if (i && c - cs[i - 1] > 1) tracks.push("18px");          // проход
+    tracks.push("minmax(92px,1fr)"); colAt[c] = tracks.length;
+  });
+  box.style.gridTemplateColumns = tracks.join(" ");
+  const ops = Object.fromEntries(OPERATORS.map(o => [String(o.id), o]));
+  box.innerHTML = rows.map(({sel, cb}) => {
+    const loom = sel.dataset.loom, [r, c] = lay[loom], o = ops[sel.value];
+    const who = o ? `${o.code} · ${o.name.split(" ")[0]}` : "нет оператора";   // код виден и в узкой клетке
+    return `<button type="button" data-loom="${esc(loom)}" class="${o ? "" : "free"}"
+      style="grid-row:${rs.indexOf(r) + 1};grid-column:${colAt[c]};--h:${o ? hueOf(o.id) : 0}"
+      aria-pressed="${!!(cb && cb.checked)}"${cb && !cb.disabled ? "" : " disabled"}
+      title="${esc(loom)}: ${esc(o ? o.name : "нет оператора")}"><b>${esc(loom)}</b><span>${esc(who)}</span></button>`;
+  }).join("");
+}
+$("#as-map").onclick = e => {
+  const b = e.target.closest("button[data-loom]"); if (!b || b.disabled) return;
+  const cb = document.querySelector(`#as-table select[data-loom="${CSS.escape(b.dataset.loom)}"]`)
+    ?.closest("tr").querySelector("input[type=checkbox]");
+  if (cb) { cb.checked = !cb.checked; asMap(); }
+};
+$("#as-table").addEventListener("change", e => { if (e.target.type === "checkbox") asMap(); });
+
 function asSummary() {
+  asMap();
   const c = asCollect(), by = asByOperator(c);
   const free = c.assignments.filter(a => !a.operator_id).map(a => a.loom);
   $("#as-summary").innerHTML = `Станков ${c.assignments.length}, с оператором ${c.assignments.length - free.length}`

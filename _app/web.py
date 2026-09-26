@@ -478,7 +478,9 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/assignments":
                 return self._send(200, people.get_assignments(q.get("day"), q.get("shift")))
             if u.path == "/api/shift_doc":
-                return self._send(200, people.get_shift_doc(q.get("day", ""), q.get("shift", "A")))
+                d = people.get_shift_doc(q.get("day", ""), q.get("shift", "A"))
+                d["layout"] = floor_layout()
+                return self._send(200, d)
             if u.path == "/api/setup_grid":
                 return self._send(200, loomsetup.grid(q.get("day") or tickets.current_shift()[:10]))
             if u.path == "/api/yarns":
@@ -1034,6 +1036,14 @@ def _age_sec(iso):
         return int(time.time() - datetime.fromisoformat(iso).timestamp())
     except (TypeError, ValueError):
         return None
+
+
+def floor_layout():
+    """{станок: [ряд, колонка]} — где станок стоит в цехе (layout.txt FACT, в
+    последнем снимке). Нет снимка — пусто, расстановка остаётся списком."""
+    snap = livestate.load() or {}
+    return {n: [st["row"], st["col"]] for n, st in (snap.get("looms") or {}).items()
+            if st.get("row") is not None and st.get("col") is not None}
 
 
 def health():
