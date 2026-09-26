@@ -281,6 +281,40 @@ class HttpAccessTest(AccessTest):
         self.assertEqual(self.request("/api/loom_plan", token=self.plan_token)[0], 403)
         self.assertEqual(self.request("/api/users", "POST", {"id": self.admin_id, "active": False}, self.admin_token)[0], 400)
 
+    def test_http_stream_limit_falls_back_to_polling(self):
+        # Сверх лимита — 503 (монитор уходит на опрос), закрытый поток освобождает место.
+        def open_stream():
+            c = http.client.HTTPConnection("127.0.0.1", self.server.server_port, timeout=3)
+            c.request("GET", "/api/stream", headers={"Cookie": "sid=" + self.admin_token})
+            r = c.getresponse()
+            if r.status == 200:
+                for _ in range(8):
+                    if r.readline().startswith(b"data:"):
+                        break
+            return c, r
+        with patch.object(web, "STREAM_MAX", 2), patch.object(web, "PING_SEC", 0.05), \
+                patch.object(web.LIVE_EVENT, "get", return_value=b'{"looms":[]}'):
+            a, ra = open_stream()
+            b, rb = open_stream()
+            c, rc = open_stream()
+            try:
+                self.assertEqual((ra.status, rb.status, rc.status), (200, 200, 503))
+                self.assertEqual(rc.getheader("Retry-After"), "60")
+            finally:
+                rc.close(); c.close()
+                ra.close(); a.close()          # сокет держит и ответ, не только соединение
+            # Сервер замечает закрытие при следующей записи (ping раз в 0,05 с).
+            for _ in range(40):
+                if web.hub.HUB.listeners < 2:
+                    break
+                threading.Event().wait(0.05)
+            d, rd = open_stream()
+            try:
+                self.assertEqual(rd.status, 200)
+            finally:
+                rd.close(); d.close()
+                rb.close(); b.close()
+
     def test_http_open_stream_closes_after_permission_revocation(self):
         user = self.make("screen", access=self.custom(["dash"]))
         token = auth.login("screen", "test-password")

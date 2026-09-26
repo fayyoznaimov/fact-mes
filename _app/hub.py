@@ -37,6 +37,14 @@ class Hub:
         with self._cond:
             self.listeners += 1
 
+    def try_join(self, limit):
+        """Занять место, если слушателей меньше limit (проверка и занятие — разом)."""
+        with self._cond:
+            if self.listeners >= limit:
+                return False
+            self.listeners += 1
+            return True
+
     def leave(self):
         with self._cond:
             self.listeners -= 1

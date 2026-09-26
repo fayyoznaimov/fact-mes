@@ -54,6 +54,9 @@ LOG = logs.get("web")
 STARTED_AT = time.time()
 MAX_BODY = 5 * 1024 * 1024      # больше пяти мегабайт от 1С не бывает — это ошибка
 PING_SEC = 15                   # пустая строка в поток, чтобы соединение не рвали
+# Потоков толчков не больше этого: каждый держит поток сервера. Сверх — 503,
+# монитор сам переходит на опрос раз в 15 с (wall.html, cards.html).
+STREAM_MAX = int(storage.config().get("stream_max", 60))
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -331,14 +334,16 @@ class Handler(BaseHTTPRequestHandler):
         """Server-Sent Events: монитор держит соединение, мы пишем в него доску,
         как только она поменялась, а в тишине — пустую строку раз в 15 секунд."""
         self.close_connection = True
-        self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-        self.send_header("Cache-Control", "no-cache")
-        self.send_header("X-Accel-Buffering", "no")
-        self.end_headers()
-        hub.HUB.join()
+        if not hub.HUB.try_join(STREAM_MAX):
+            return self._send(503, {"error": "много мониторов на толчках — работаю опросом"},
+                              headers={"Retry-After": "60"})
         seen = None
         try:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("X-Accel-Buffering", "no")
+            self.end_headers()
             self.wfile.write(b"retry: 3000\n\n")
             while True:
                 ver = hub.HUB.version if seen is None else hub.HUB.wait(seen, PING_SEC)
