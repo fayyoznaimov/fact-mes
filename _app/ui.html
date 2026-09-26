@@ -394,7 +394,9 @@ dialog.lp-dlg::backdrop{background:rgb(0 0 0 / .35)}
 #oc-json{max-height:60vh;overflow:auto;font-size:12px;background:var(--surface-2);padding:10px;margin:0}
 #lp-table th.today,#lp-table td.today{box-shadow:inset 2px 0 0 var(--accent),inset -2px 0 0 var(--accent)}
 #lp-table th.wk{color:var(--critical)}
-#lp-table td.d[style*="--h"]{background:hsl(var(--h) 65% 50% / .13)}
+/* Цвет заказа — полосой слева, как у карточек заказов: сплошная заливка у части
+   номеров выходила розово-красной и читалась как тревога (цвет — только отклонениям). */
+#lp-table td.d[style*="--h"]{box-shadow:inset 4px 0 0 hsl(var(--h) 60% 50%)}
 #lp-table td.d b{font-family:"IBM Plex Mono",monospace;font-weight:600}
 #lp-table td.d .fx{display:block;margin-top:2px;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-size:11px;white-space:nowrap;color:var(--ink-2)}
 #lp-table td.d .fx.lo{color:var(--critical)}
@@ -571,7 +573,9 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
 /* Сенсорный экран (панель у станка, планшет мастера): кнопки, поля и флажки не
    меньше 44 px — в перчатках в 20-пиксельный флажок не попасть. Мышь — как было. */
 @media (pointer:coarse){
-  button.act,a.act,select,input:not([type=checkbox]):not([type=radio]),nav button,.chip,#lp-table button,#rep-table th.tg{min-height:44px!important}
+  button.act,a.act,select,input:not([type=checkbox]):not([type=radio]),nav button,.chip,#lp-table button,#rep-table th.tg,
+  .lp-flt button,[role=tab]{min-height:44px!important}
+  .oc .tg,.lp-flt button{min-width:44px;min-height:44px}
   input[type=checkbox],input[type=radio]{width:22px;height:22px}
   td input[type=checkbox]{margin:10px}
 }
