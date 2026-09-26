@@ -269,7 +269,9 @@ def build(day):
         # иначе отчёт молча остаётся без артикулов, когда сервер недоступен.
         path = os.path.join(MIRROR, f"{day}.{i}.txt")
         if os.path.exists(path):
-            for line in io.open(path, encoding="utf-8", errors="replace"):
+            with io.open(path, encoding="utf-8", errors="replace") as f:
+                lines = f.readlines()
+            for line in lines:
                 d = {}
                 for field in line.split(","):
                     p = field.strip().split(" ", 1)
