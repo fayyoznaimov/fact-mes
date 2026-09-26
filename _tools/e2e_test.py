@@ -26,6 +26,16 @@ SHOP = os.path.join(ROOT, "_app", "shop.db")
 RESULTS, TIMES = [], []
 
 
+def shop_rw():
+    """Запись в копию shop.db мимо приложения: триггеры журнала изменений зовут
+    функции mes_time/mes_actor, их регистрирует приложение (productionlog)."""
+    sys.path.insert(0, os.path.join(ROOT, "_app"))
+    import productionlog
+    db = sqlite3.connect(SHOP)
+    productionlog.register(db)
+    return db
+
+
 def req(method, path, body=None, cookie=True, headers=None, raw=None, timeout=180):
     h = dict(headers or {})
     if cookie:
@@ -102,7 +112,7 @@ def password_sessions():
             assert ok("/api/me")["user"]["role"] == "admin", "сессия администратора потеряна"
             return "смена сохраняет текущую сессию; сброс отзывает все сессии пользователя"
         finally:
-            with sqlite3.connect(SHOP) as db:
+            with shop_rw() as db:
                 db.execute("DELETE FROM app_session WHERE user_id IN (SELECT id FROM app_user WHERE login=?)", (login,))
                 db.execute("DELETE FROM app_user WHERE login=?", (login,))
                 db.execute("DELETE FROM login_fail WHERE login=?", (login,))
@@ -253,7 +263,7 @@ def reads():
 
     def yarn_lists():
         d = ok("/api/yarns")
-        bs = d["by_slot"]
+        bs = state["by_slot"] = d["by_slot"]      # запись ниже нужна и при провале этой проверки
         assert set(bs) == {"pile", "ground", "weft1", "weft2", "hemply", "hempoly", "weft3", "fancyply", "weft4"}
         db = sqlite3.connect(SHOP)
         kinds = {}
@@ -271,7 +281,6 @@ def reads():
                     bad.append("%s на %s" % (it["name"], slot))
         assert not bad, "чужой вид в списке: " + ", ".join(bad)
         assert all(it["lots"] for it in bs["pile"][:3]), "у первых пряж ворса нет лотов"
-        state["by_slot"] = bs
         return "ворс %d, грунт %d, уток %d; у 16/1 RING ворс-лоты %s" % (
             len(bs["pile"]), len(bs["ground"]), len(bs["weft1"]),
             next((i["lots"][:3] for i in bs["pile"] if i["name"] == "16/1 RING"), "—"))
@@ -306,10 +315,13 @@ def writes(state):
     loom = "D2"
 
     def import_mxl():
+        # Первая загрузка — подготовка (в копии рабочей базы справочник уже есть,
+        # в чистой песочнице — нет); проверяем повторную: копий не плодит.
         raw = open(MXL, "rb").read()
-        code, js, out, ms = req("POST", "/api/yarns/import", raw=raw,
-                                headers={"Content-Type": "application/octet-stream"})
-        assert code == 200, "HTTP %s: %s" % (code, out[:200])
+        for _ in range(2):
+            code, js, out, ms = req("POST", "/api/yarns/import", raw=raw,
+                                    headers={"Content-Type": "application/octet-stream"})
+            assert code == 200, "HTTP %s: %s" % (code, out[:200])
         assert js["items"] == 111 and js["new"] == 0 and js["updated"] == 111, js
         return "партий %d, обновлено %d (повторная загрузка не плодит копий)" % (js["items"], js["updated"])
     check("пряжа", "загрузка справочника .mxl повторно", import_mxl)
@@ -321,6 +333,9 @@ def writes(state):
         return js["error"]
     check("пряжа", "мусор вместо .mxl -> 400", import_bad)
 
+    # Лоты появились после загрузки справочника — список мест перечитываем.
+    code, js, out, ms = req("GET", "/api/yarns")
+    bs = js["by_slot"] if code == 200 else bs
     pile = next(i for i in bs["pile"] if i["lots"])
     weft = next(i for i in bs["weft1"] if i["lots"])
 
@@ -439,9 +454,11 @@ def extra_checks(state):
     Дашборд и план без параметров — раньше падали в 500."""
     far, loom = "2027.01.04", "J28"
     cat = ok("/api/loom_plan/catalog")["orders"]
-    o = next(e for e in cat if len(e["products"]) == 1)
+    o = next((e for e in cat if len(e["products"]) == 1), None)
 
     def put():
+        # Каталог плана — из рабочей базы; в чистой песочнице он пуст.
+        assert o, "в каталоге плана нет заказа с одним изделием — нужна копия рабочей базы"
         code, js, out, ms = req("POST", "/api/loom_plan/cells",
                                 {"changes": [{"loom": loom, "day": far, "order_no": o["order_no"]}]})
         assert code == 200 and js.get("ok") == 1, "HTTP %s: %s" % (code, out[:200])
@@ -452,6 +469,7 @@ def extra_checks(state):
     check("план", "поставить заказ в клетку", put)
 
     def clear():
+        assert o, "клетку не ставили"
         code, js, out, ms = req("POST", "/api/loom_plan/cells",
                                 {"changes": [{"loom": loom, "day": far, "order_no": "", "note": ""}]})
         assert code == 200, out[:200]
