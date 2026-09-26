@@ -4290,14 +4290,32 @@ async function loadHistory() {
     if (request === MH_REQUEST) { MH = null; $('#mh-status').textContent = 'История не загрузилась: '+e.message; }
   } finally { if (request === MH_REQUEST) $('#mh-go').disabled = false; }
 }
+// Склеить подряд идущие отрезки одного вида, если зазор меньше «пикселя» шкалы:
+// обрыв утка в 40 с на полосе в сутки меньше пикселя, 33 тыс. прямоугольников
+// рисовались 0,6 с. Список остановок и подробности станка — по-прежнему полные.
+function mhPack(items, gap, key) {
+  const out = [];
+  for (const [i, x] of items.entries()) {
+    const k = key(x), last = out[out.length - 1];
+    if (last && last.k === k && x.start - last.end < gap) {
+      last.end = Math.max(last.end, x.end); last.n++; last.sec += x.duration_sec || 0;
+    } else out.push({k, i, start: x.start, end: x.end, n: 1, sec: x.duration_sec || 0, x});
+  }
+  return out;
+}
 function renderHistory() {
-  const span = MH.end-MH.start, pct = s => 100*(s-MH.start)/span;
+  const span = MH.end-MH.start, pct = s => 100*(s-MH.start)/span, gap = span / 1000;
   const rect = (a,b,fill,extra='',title='') => `<rect x="${pct(Math.max(MH.start,a))}" y="4" width="${Math.max(0,100*(Math.min(MH.end,b,MH.generated_at)-Math.max(MH.start,a))/span)}" height="24" fill="${fill}" ${extra}>${title?'<title>'+esc(title)+'</title>':''}</rect>`;
   const hours = span/3600, step = hours===24 ? 3 : 1;
   const ticks = Array.from({length:hours/step+1},(_,i)=>`<span style="left:${i*step/hours*100}%">${i===hours/step && hours===24?'24:00':mhTime(MH.start+i*step*3600).slice(0,5)}</span>`).join('');
   $('#mh-grid').innerHTML = `<div class="mh-row mh-axis"><span>Станок</span><div class="mh-ticks">${ticks}</div><span class="mh-total">Простой</span></div>`+MH.rows.map((r,ri)=>{
-    const segs = r.segments.filter(s=>s.kind!=='future').map(s=>rect(s.start,s.end,((MH_SEGS[s.kind] || [])[0] || `url(#mh-unknown-${ri})`),'',mhSegTitle(s))).join('');
-    const events = r.events.map((e,i)=>rect(e.start,e.end,mhColor(e.cause),`data-event="${i}"`,`${e.reason} · ${mhTime(e.start,true)} — ${mhTime(e.end,true)} · ${mhDuration(e.duration_sec)}`)).join('');
+    // «Стоит по журналу» закрыт самими остановами — подложку под ними не рисуем.
+    const segs = mhPack(r.segments.filter(s=>s.kind!=='future' && s.kind!=='stop'), gap, s=>s.kind+'|'+(s.cause||''))
+      .filter(p=>p.k.startsWith('unknown') ? p.end-p.start >= gap : true)
+      .map(p=>rect(p.start,p.end,((MH_SEGS[p.x.kind] || [])[0] || `url(#mh-unknown-${ri})`),'',mhSegTitle({...p.x,start:p.start,end:p.end}))).join('');
+    const events = mhPack(r.events, gap, e=>e.cause).map(p=>rect(p.start,p.end,mhColor(p.x.cause),`data-event="${p.i}"`,
+      p.n === 1 ? `${p.x.reason} · ${mhTime(p.start,true)} — ${mhTime(p.end,true)} · ${mhDuration(p.sec)}`
+                : `${p.x.reason} ×${p.n} · ${mhTime(p.start,true)} — ${mhTime(p.end,true)} · всего ${mhDuration(p.sec)}`)).join('');
     const tickets = r.tickets.map((t,i)=>`<rect x="${pct(Math.max(MH.start,t.start))}" y="32" height="5" width="${Math.max(0,100*(Math.min(MH.end,t.end,MH.generated_at)-Math.max(MH.start,t.start))/span)}" fill="#348ec1" data-ticket="${i}"><title>Тикет ${t.id}: ${esc(t.reason)}</title></rect>`).join('');
     return `<div class="mh-row" data-row="${ri}"><button type="button" data-loom="${ri}" aria-label="История ${esc(r.loom)}">${esc(r.loom)}</button><svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="${esc(r.loom)}: ${r.events.length} остановов. Подробности по кнопке станка."><defs><pattern id="mh-unknown-${ri}" width="0.7" height="7" patternUnits="userSpaceOnUse"><rect width="0.7" height="7" fill="var(--surface-2)"/><path d="M0 7 L0.7 0" stroke="var(--rule)" stroke-width="0.16"/></pattern></defs>${segs}${events}${tickets}</svg><span class="mh-total">${Math.floor(mhStop(r.totals)/3600)} ч ${Math.floor(mhStop(r.totals)%3600/60)} мин</span></div>`;
   }).join('');
