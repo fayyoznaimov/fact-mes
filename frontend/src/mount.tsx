@@ -22,17 +22,23 @@ import { LoomController, requestLoomCatalog, requestLoomGrid, requestSetCells, u
 import type { UsersBridge } from './features/users/bridge';
 import { Users } from './features/users/Users';
 import { UsersController, requestUsers, requestOperators, postUser, postPassword } from './features/users/controller';
+import { tr, type SetupBridge } from './features/setup/bridge';
+import { Setup } from './features/setup/Setup';
+import { SetupController, requestSetupGrid, postYarn, postYarnUpdate, uploadYarnsFile } from './features/setup/controller';
 
 declare global {
   interface Window {
     FactReportLegacy: Omit<Actions,'load'|'setView'|'setup'|'period'|'excel'> & {snapshot:()=>Snapshot;
       publish:(rows:Snapshot['rows'])=>void;expire:()=>void;error:(message:string)=>void;
       prepareSetup:()=>Promise<void>;notify:(message:string,error?:boolean)=>void;openDocument:(id:number)=>void};
-    FactReactReport?: {update:()=>void;setDays:(days:string[])=>void;load:(autoSkip?:boolean)=>Promise<void>};
+    FactReactReport?: {update:()=>void;setDays:(days:string[])=>void;load:(autoSkip?:boolean)=>Promise<void>;
+      confirm:(type:'setup'|'report',payload:unknown)=>Promise<{id:number;number:string;after?:{days?:string[];after_error?:string}}|null>};
     FactPlanLegacy?: PlanBridge;
     FactPlanReact?: {loadOnec:()=>void;loadPpt:()=>void;loadPlan:()=>Promise<void>;loadGanttOnce:()=>void;loadLoomPlan:()=>Promise<void>};
     FactUsersLegacy?: UsersBridge;
     FactUsersReact?: {load:()=>void;openDialog:(id:number|null)=>void};
+    FactSetupLegacy?: SetupBridge;
+    FactSetupReact?: {load:(force:boolean)=>void;yarnsChanged:()=>void};
   }
 }
 export function mountReport() {
@@ -85,6 +91,7 @@ export function mountReport() {
     update,
     setDays:next=>{controller.setDays(next);update();},
     load:autoSkip=>controller.load(autoSkip),
+    confirm:(type,payload)=>workflow.current!.confirm(type,payload),
   };
   render();
   const language=()=>window.FactReactReport?.update();
@@ -194,4 +201,42 @@ export function mountUsers() {
   render();
   if(!element('#tab-users').classList.contains('hidden'))void controller.load();
   return ()=>{controller.dispose();delete window.FactUsersReact;root.unmount();host.remove();};
+}
+
+export function mountSetup() {
+  const legacy=window.FactSetupLegacy;
+  if(!legacy)throw new Error('Не загружена исходная оболочка заправки');
+  const element=<T extends Element>(selector:string)=>{
+    const el=document.querySelector<T>(selector);if(!el)throw new Error('Нет элемента заправки: '+selector);return el;
+  };
+  const topBar=element<HTMLElement>('#sg-day').closest('.bar') as HTMLElement;
+  const noteDay=element<HTMLElement>('#sg-note-day');
+  const table=element<HTMLTableElement>('#sg-table');
+  const fillBtn=element<HTMLButtonElement>('#sg-fill'),rowBtn=element<HTMLButtonElement>('#sg-row'),sameBtn=element<HTMLButtonElement>('#sg-same');
+  const yarnBar=element<HTMLElement>('#yarn-new').closest('.bar') as HTMLElement;
+  const yarnTableBody=element<HTMLElement>('#yarn-table tbody');
+  [topBar,noteDay,table,yarnBar,yarnTableBody].forEach(t=>t.replaceChildren());
+  const host=document.createElement('div');host.hidden=true;host.dataset.reactSetup='';document.body.appendChild(host);
+  const root=createRoot(host);
+  const render=()=>flushSync(()=>root.render(
+    <Setup topBar={topBar} noteDay={noteDay} table={table} fillBtn={fillBtn} rowBtn={rowBtn} sameBtn={sameBtn}
+      yarnBar={yarnBar} yarnTableBody={yarnTableBody} state={controller.state} bridge={legacy} controller={controller}/>
+  ));
+  const controller=new SetupController({
+    requestGrid:(day,signal)=>requestSetupGrid(day,legacy.expire,signal),
+    postYarn:body=>postYarn(body,legacy.expire),
+    postYarnUpdate:body=>postYarnUpdate(body,legacy.expire),
+    uploadYarns:file=>uploadYarnsFile(file,legacy.expire),
+    confirmSetup:payload=>window.FactReactReport!.confirm('setup',payload),
+    changed:render,say:legacy.say,
+    yarns:()=>legacy.yarns(),refreshYarns:()=>legacy.refreshYarns(),
+    confirmDiscard:text=>window.confirm(tr(text)),
+  });
+  window.FactSetupReact={
+    load:force=>{void controller.load(force);},
+    yarnsChanged:()=>render(),
+  };
+  render();
+  if(!element('#tab-setup').classList.contains('hidden'))void controller.load(true);
+  return ()=>{controller.dispose();delete window.FactSetupReact;root.unmount();host.remove();};
 }

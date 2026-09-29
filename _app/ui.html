@@ -3570,6 +3570,7 @@ document.addEventListener("keydown", e => {
 }, true);
 
 async function loadGrid(force) {
+  if (window.FactSetupReact) return window.FactSetupReact.load(!!force);
   if (!force && SG && sgDirty() && !confirmTranslated("Есть несохранённые правки — выбросить их?")) return;
   if (!$("#sg-day").value) $("#sg-day").value = shiftNow().day;
   try {
@@ -3636,15 +3637,18 @@ function sgState() {
 }
 
 $("#sg-table").addEventListener("focusin", e => {
+  if (window.FactSetupReact) return;
   if (!e.target.classList.contains("sg")) return;
   SG_FOCUS = {r: +e.target.dataset.r, c: +e.target.dataset.c};
 });
-$("#sg-table").addEventListener("input", e => { if (e.target.classList.contains("sg")) sgMark(e.target); });
+$("#sg-table").addEventListener("input", e => { if (!window.FactSetupReact && e.target.classList.contains("sg")) sgMark(e.target); });
 $("#sg-table").addEventListener("change", e => {
+  if (window.FactSetupReact) return;
   const i = e.target;
   if (i.classList.contains("sg") && SG_COLS[+i.dataset.c].yarn) { sgCheckYarn(i); sgMark(i); }
 });
 $("#sg-table").addEventListener("keydown", e => {
+  if (window.FactSetupReact) return;
   const i = e.target;
   if (!i.classList || !i.classList.contains("sg")) return;
   const r = +i.dataset.r, c = +i.dataset.c, yarn = SG_COLS[c].yarn;
@@ -3670,6 +3674,7 @@ $("#sg-table").addEventListener("keydown", e => {
 });
 // Блок из Excel: строки — по станкам вниз, колонки — вправо от ячейки, куда вставили.
 $("#sg-table").addEventListener("paste", e => {
+  if (window.FactSetupReact) return;
   const i = e.target;
   if (!i.classList.contains("sg") || i.readOnly) return;
   const text = (e.clipboardData || window.clipboardData).getData("text");
@@ -3743,6 +3748,7 @@ $("#sg-save").onclick = async () => {
 };
 
 function renderYarns() {
+  if (window.FactSetupReact) return window.FactSetupReact.yarnsChanged();
   const uses = {};
   if (SG) SG.rows.forEach(r => SG_COLS.filter(c => c.yarn).forEach(c => {
     const v = r.values[c.k];
@@ -4947,4 +4953,7 @@ window.FactReportLegacy = {
 window.FactPlanLegacy = {can, say, esc, nf, fday, ftime, dmy, expire: sessionEnded, refreshPlan: () => loadPlan()};
 // Тот же мост для вкладки «Пользователи»: React владеет таблицей и обоими диалогами.
 window.FactUsersLegacy = {can, say, ftime, expire: sessionEnded, roles: () => ROLES};
+// И для «Заправки»: справочник пряжи (YARNS) и автокомплит (PICK) остаются здесь —
+// ими пользуется и уже перенесённое окно заправки станка, и таблица заправки.
+window.FactSetupLegacy = {can, say, expire: sessionEnded, fday, yarns: () => YARNS, refreshYarns: () => loadYarns()};
 </script>

@@ -1,4 +1,5 @@
-import { mountPlan, mountReport, mountUsers } from './mount';
+import { mountPlan, mountReport, mountSetup, mountUsers } from './mount';
 mountReport();
 mountPlan();
 mountUsers();
+mountSetup();
