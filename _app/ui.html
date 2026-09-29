@@ -2136,7 +2136,7 @@ const TL_COL = CAUSE_COLOR;
 const gtMonday = () => { const t = new Date(); t.setDate(t.getDate() - (t.getDay() + 6) % 7); return ymd(t); };
 const gtAdd = (d, n) => { const t = new Date(d.replace(/\./g, "-") + "T12:00"); t.setDate(t.getDate() + n); return ymd(t); };
 const gtIso = t => `${ymd(t).replace(/\./g, "-")}T${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}:00`;
-function loadGanttOnce() { if (!GT.data) loadGantt(); }
+function loadGanttOnce() { if (window.FactPlanReact) return window.FactPlanReact.loadGanttOnce(); if (!GT.data) loadGantt(); }
 async function loadGantt() {
   if (!GT.from) GT.from = gtMonday();
   const n = +$("#gt-days").value || 7;
@@ -2190,8 +2190,8 @@ function gtOpenFrom(el) {
   if (f) openTimeline(row.loom, f.start, f.end);
   else say(`По ${n.dataset.loom} за эти дни смен с работой нет`);
 }
-$("#gt-wrap").addEventListener("click", e => gtOpenFrom(e.target));
-$("#gt-wrap").addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.closest(".gt-b.fact")) { e.preventDefault(); gtOpenFrom(e.target); } });
+$("#gt-wrap").addEventListener("click", e => { if (window.FactPlanReact) return; gtOpenFrom(e.target); });
+$("#gt-wrap").addEventListener("keydown", e => { if (window.FactPlanReact) return; if ((e.key === "Enter" || e.key === " ") && e.target.closest(".gt-b.fact")) { e.preventDefault(); gtOpenFrom(e.target); } });
 $("#gt-prev").onclick = () => { GT.from = gtAdd(GT.from || gtMonday(), -(+$("#gt-days").value || 7)); loadGantt(); };
 $("#gt-next").onclick = () => { GT.from = gtAdd(GT.from || gtMonday(), +$("#gt-days").value || 7); loadGantt(); };
 $("#gt-today").onclick = () => { GT.from = gtMonday(); loadGantt(); };

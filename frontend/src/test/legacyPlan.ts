@@ -109,6 +109,91 @@ export function legacyCodes(data: {unmapped?: unknown[]; cloth_map?: unknown[]})
   return {doc, calls};
 }
 
+// --- Ганта (gantt) ---
+export const ganttMarkup = between(
+  '<div class="pane hidden" data-pane="gantt" role="tabpanel">',
+  '<div class="pane hidden" data-pane="orders" role="tabpanel">',
+);
+
+export function legacyGantt(data: unknown, group = '') {
+  const doc = document.implementation.createHTMLDocument();
+  doc.body.innerHTML = ganttMarkup;
+  (doc.querySelector('#gt-group') as HTMLSelectElement).value = group;
+  const script = [
+    source.match(/^const esc = .*$/m)![0],
+    source.match(/^const nf = .*$/m)![0],
+    source.match(/^const dmy = .*$/m)![0],
+    source.match(/^const ymd = .*$/m)![0],
+    source.match(/^const hueOf = .*$/m)![0],
+    source.match(/^const gtAdd = .*$/m)![0],
+    'const GT = {data};',
+    between('function renderGantt() {', '\nfunction gtOpenFrom'),
+    'renderGantt();',
+  ].join('\n');
+  runInNewContext(script, {document: doc, $: (s: string) => doc.querySelector(s), data}, {timeout: 2000});
+  return doc;
+}
+
+// Compares parsed CSSOM values, not the raw attribute string: React and the legacy
+// HTML string normalize property order, spacing and colour notation differently
+// even when the rendered result (and this comparison) is identical.
+const styleOf = (el: Element) => {
+  const s = (el as HTMLElement).style;
+  return {left: s.left, width: s.width, background: s.background};
+};
+
+export function ganttOutput(doc: Document) {
+  const shallow = (sel: string) => Array.from(doc.querySelectorAll(sel)).map(el => ({
+    tag: el.tagName, classes: [...el.classList].sort(), text: el.textContent,
+  }));
+  const bars = (sel: string) => Array.from(doc.querySelectorAll(sel)).map(b => ({
+    text: b.textContent, classes: [...b.classList].sort(), title: b.getAttribute('title'), style: styleOf(b),
+  }));
+  return {
+    names: shallow('.gt-names > *'),
+    axisLabels: bars('.gt-ax > b'), shiftLabels: bars('.gt-ax > small'),
+    background: bars('.gt-body > i.gt-s'), nowLine: bars('.gt-body > i.gt-now'),
+    rowStructure: shallow('.gt-body > .gt-g, .gt-body > .gt-r'),
+    planBars: bars('.gt-lane.p .gt-b'), factBars: bars('.gt-lane.f .gt-b'),
+    range: doc.querySelector('#gt-range')?.textContent,
+  };
+}
+
+export async function legacyTimeline(loom: string, a: string, b: string, data: unknown) {
+  const doc = document.implementation.createHTMLDocument();
+  doc.body.innerHTML = ganttMarkup;
+  const dialog = doc.querySelector<HTMLDialogElement>('#gt-dlg')!;
+  Object.defineProperties(dialog, {showModal: {configurable: true, value() { this.setAttribute('open', ''); }}});
+  const script = [
+    source.match(/^const esc = .*$/m)![0],
+    source.match(/^const nf = .*$/m)![0],
+    source.match(/^const dmy = .*$/m)![0],
+    between('const CAUSE_COLOR = {', '\nconst ICONS'),
+    'const TL_COL = CAUSE_COLOR; const GT = {tl: null}; const say = () => {};',
+    between('async function openTimeline(loom, a, b) {', '\nconst gtStep'),
+    `openTimeline(${JSON.stringify(loom)}, ${JSON.stringify(a)}, ${JSON.stringify(b)});`,
+  ].join('\n');
+  const result = runInNewContext(script, {document: doc, $: (s: string) => doc.querySelector(s),
+    api: () => Promise.resolve(data)}, {timeout: 2000});
+  await result;
+  return doc;
+}
+
+export function timelineOutput(doc: Document) {
+  const el = (sel: string) => doc.querySelector(sel);
+  const bars = (sel: string) => Array.from(doc.querySelectorAll(sel)).map(b => ({
+    style: styleOf(b), title: b.getAttribute('title'), text: b.textContent,
+  }));
+  return {
+    title: el('#gt-dlg-t')?.textContent, summary: el('#gt-dlg-sum')?.textContent,
+    tlClass: [...(el('#gt-tl')?.classList ?? [])].sort(), events: bars('#gt-tl i'),
+    ticks: bars('#gt-tl-ax span'), legend: bars('#gt-tl-leg span'),
+    rows: Array.from(doc.querySelectorAll('#gt-tl-list tbody tr')).map(row => ({
+      cells: Array.from(row.querySelectorAll('td')).map(td => ({text: td.textContent, colspan: td.getAttribute('colspan')})),
+    })),
+  };
+}
+
 // --- Заказы и сроки (orders) ---
 export const ordersMarkup = between(
   '<div class="pane hidden" data-pane="orders" role="tabpanel">',

@@ -15,6 +15,8 @@ import { Ppt } from './features/plan/ppt/Ppt';
 import { PptController, requestPptCheck } from './features/plan/ppt/controller';
 import { Orders } from './features/plan/orders/Orders';
 import { OrdersController, requestAddOrder, requestAssign, requestClose, requestImport1c, requestPlan, requestSavePpt } from './features/plan/orders/controller';
+import { Gantt } from './features/plan/gantt/Gantt';
+import { GanttController, TimelineController, requestGantt, requestLoomTimeline } from './features/plan/gantt/controller';
 
 declare global {
   interface Window {
@@ -23,7 +25,7 @@ declare global {
       prepareSetup:()=>Promise<void>;notify:(message:string,error?:boolean)=>void;openDocument:(id:number)=>void};
     FactReactReport?: {update:()=>void;setDays:(days:string[])=>void;load:(autoSkip?:boolean)=>Promise<void>};
     FactPlanLegacy?: PlanBridge;
-    FactPlanReact?: {loadOnec:()=>void;loadPpt:()=>void;loadPlan:()=>Promise<void>};
+    FactPlanReact?: {loadOnec:()=>void;loadPpt:()=>void;loadPlan:()=>Promise<void>;loadGanttOnce:()=>void};
   }
 }
 export function mountReport() {
@@ -99,7 +101,9 @@ export function mountPlan() {
   const productsList=element<HTMLElement>('#pl-products');
   document.body.appendChild(productsList); // даталист общий для трёх полей — не должен пропасть при очистке formBar.
   const tilesEl=element<HTMLElement>('#pl-tiles'),ordersBody=element<HTMLElement>('#pl-table tbody'),pptNote=element<HTMLElement>('#pl-ppt-note');
-  [tbody,dialog,unmappedBody,mapBody,pptBody,formBar,pptFormBar,ordersBody].forEach(t=>t.replaceChildren());
+  const gtBar=element<HTMLElement>('#gt-days').closest('.bar') as HTMLElement;
+  const gtWrap=element<HTMLElement>('#gt-wrap'),gtDialog=element<HTMLDialogElement>('#gt-dlg');
+  [tbody,dialog,unmappedBody,mapBody,pptBody,formBar,pptFormBar,ordersBody,gtBar,gtWrap,gtDialog].forEach(t=>t.replaceChildren());
   const host=document.createElement('div');host.hidden=true;host.dataset.reactPlan='';document.body.appendChild(host);
   const root=createRoot(host);
   const render=()=>flushSync(()=>root.render(<>
@@ -115,6 +119,9 @@ export function mountPlan() {
       toggleClosed={()=>orders.toggleClosed()} showAllOrders={()=>orders.showAllOrders()}
       assign={(id,loom)=>{void orders.assign(id,loom);}} toggleClose={(id,closed)=>{void orders.toggleClose(id,!!closed);}}
       savePpt={(k,p,pn)=>orders.savePpt(k,p,pn)}/>
+    <Gantt barEl={gtBar} wrapEl={gtWrap} dialog={gtDialog} state={gantt.state} timeline={timeline.state} bridge={legacy}
+      setDays={n=>gantt.setDays(n)} setGroup={g=>gantt.setGroup(g)} prev={()=>gantt.prev()} next={()=>gantt.next()} today={()=>gantt.today()}
+      openTimeline={(loom,a,b)=>{void timeline.open(loom,a,b);}} stepTimeline={h=>timeline.step(h)} closeTimeline={()=>timeline.close()}/>
   </>));
   const onec=new OnecController({request:signal=>requestOnecMessages(signal,legacy.expire),changed:render});
   const codes=new CodesController({changed:render,say:legacy.say,refreshPlan:legacy.refreshPlan,
@@ -125,8 +132,11 @@ export function mountPlan() {
     postOrder:(o,p,q,d)=>requestAddOrder(o,p,q,d,legacy.expire),postImport1c:()=>requestImport1c(legacy.expire),
     postAssign:(id,loom)=>requestAssign(id,loom,legacy.expire),postClose:(id,closed)=>requestClose(id,closed,legacy.expire),
     postPpt:(k,p,pn)=>requestSavePpt(k,p,pn,legacy.expire)});
-  window.FactPlanReact={loadOnec:()=>{void onec.load();},loadPpt:()=>{void ppt.load();},loadPlan:()=>orders.load()};
+  const gantt=new GanttController({request:(from,to,signal)=>requestGantt(from,to,signal,legacy.expire),changed:render,say:legacy.say});
+  const timeline=new TimelineController({request:(loom,from,to,signal)=>requestLoomTimeline(loom,from,to,signal,legacy.expire),changed:render,say:legacy.say});
+  window.FactPlanReact={loadOnec:()=>{void onec.load();},loadPpt:()=>{void ppt.load();},loadPlan:()=>orders.load(),
+    loadGanttOnce:()=>gantt.loadOnce()};
   render();
   if(!element('#tab-plan').classList.contains('hidden')){void onec.load();void ppt.load();void orders.load();}
-  return ()=>{onec.dispose();ppt.dispose();orders.dispose();delete window.FactPlanReact;root.unmount();host.remove();};
+  return ()=>{onec.dispose();ppt.dispose();orders.dispose();gantt.dispose();timeline.dispose();delete window.FactPlanReact;root.unmount();host.remove();};
 }
