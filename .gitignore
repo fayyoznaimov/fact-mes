@@ -42,6 +42,11 @@ postman/MES-local.postman_environment.json
 # Редакторы и ОС
 .vscode/
 .idea/
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/test-results/
+frontend/playwright-report/
 Thumbs.db
 desktop.ini
 

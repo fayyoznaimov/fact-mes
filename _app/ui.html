@@ -2980,7 +2980,8 @@ async function boot() {
     const shOpts = SHIFTS.map((s,i)=>`<option value="${i}">${shiftLabel(s)}</option>`).join("");
     $("#sal-shift").innerHTML = shOpts;
     const dayOpts = days.days.map(d=>`<option value="${d}">${fday(d)}</option>`).join("");
-    $("#rep-day").innerHTML = dayOpts;
+    if (window.FactReactReport) window.FactReactReport.setDays(days.days);
+    else $("#rep-day").innerHTML = dayOpts;
     $("#dash-day").innerHTML = dayOpts;
     // «Простои»: сводка по причинам и обход смены
     $("#ex-from").innerHTML = dayOpts; $("#ex-to").innerHTML = dayOpts;
@@ -3028,8 +3029,10 @@ const paintRpm = () => "";
 /* --- отчёт --- */
 $("#rep-day").onchange = () => loadReport(false);
 async function loadReport(autoSkip) {
+  if (window.FactReactReport) return window.FactReactReport.load(autoSkip);
   try {
     const { rows } = await api("/api/report?day=" + encodeURIComponent($("#rep-day").value));
+    if (window.FactReactReport) return; // React принял владение во время запроса.
     // Текущий день обычно незавершён (смена C ещё не прошла) — его итоги выглядят
     // провалом. При первой загрузке перескакиваем на последний полный день.
     if (autoSkip && rows.length) {
@@ -3186,7 +3189,7 @@ function repVisible() {
 function repToggle(groups, open) {
   groups.forEach(g => { const o = open ?? REP_HIDE.has(g); if (o) REP_HIDE.delete(g); else REP_HIDE.add(g); });
   try { localStorage.setItem("rep-hide", JSON.stringify([...REP_HIDE])); } catch (e) {}
-  $("#rep-table thead").innerHTML = "";
+  if (!window.FactReactReport) $("#rep-table thead").innerHTML = "";
   renderReport();
 }
 function syncRepChecks() {
@@ -3320,6 +3323,7 @@ function repCell(c, r) {
 }
 
 function renderReport() {
+  if (window.FactReactReport) { window.FactReactReport.update(); return; }
   if (!$("#rep-table thead").children.length) buildRepHead();
   const all = REP_ROWS, tests = [], bad = [];
   REP_COLS.forEach((c, i) => {
@@ -4913,5 +4917,19 @@ DOC_VIEW.reason = {
   tiles: c => [['Причина', esc(c.summary.name || '')], ['Категория', esc(c.summary.category || '')],
                ['Тикетов с этой причиной', nf(c.summary.tickets)]],
   changes: c => '<h4>Что изменится</h4>' + diffTable(c.changes, {before: 'Сейчас', after: 'Станет'})
+};
+// Граница миграции: React владеет отчётом, оболочка — входом и общими диалогами.
+// На основном адресе React не загружается, прежнее поведение сохраняется.
+window.FactReportLegacy = {
+  snapshot: () => ({rows: REP_ROWS, filters: {...REP_F}, sort: REP_SORT && {...REP_SORT},
+    hidden: [...REP_HIDE], flag: $('#rep-flag').value, day: $('#rep-day').value,
+    setupEdit: can('setup_edit'), exportAllowed: can('export')}),
+  publish: rows => { REP_ROWS = rows; }, // Пока старое окно заправки читает эти строки.
+  expire: sessionEnded,
+  error: message => say(message, true),
+  prepareSetup: async () => { if (!YARNS.length) await loadYarns(); },
+  notify: say, openDocument,
+  full: repFull, stick: repStick,
+  approved: $('#rp-list').onclick,
 };
 </script>

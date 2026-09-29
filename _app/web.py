@@ -33,6 +33,7 @@ import changes
 import dashboard
 import doc_kinds
 import documents
+import frontend
 import hub
 import integration
 import livestate
@@ -233,7 +234,8 @@ def page_bytes(name):
     mtime = os.path.getmtime(path)
     c = _page_cache.get(name)
     if not c or c["mtime"] != mtime:
-        data = open(path, "rb").read()
+        with open(path, "rb") as source:
+            data = source.read()
         c = {"mtime": mtime, "data": data, "csp": page_csp(data),
              "etag": '"%s"' % hashlib.sha1(data).hexdigest()[:20]}
         _page_cache[name] = c
@@ -403,6 +405,11 @@ class Handler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
         try:
+            if u.path == "/next" or u.path.startswith("/next/"):
+                code, data, ctype, headers = frontend.response(u.path)
+                if code == 200 and ctype.startswith("text/html"):
+                    headers["Content-Security-Policy"] = page_csp(data)
+                return self._send(code, data, ctype, headers)
             if u.path in ("/", "/index.html"):
                 return self._send_page("ui.html")
             if u.path == "/ui_i18n.js":
@@ -659,7 +666,8 @@ class Handler(BaseHTTPRequestHandler):
         path = reports.excel_path(day)
         if not os.path.exists(path):
             return self._send(404, {"error": "файл ещё не собран"})
-        data = open(path, "rb").read()
+        with open(path, "rb") as source:
+            data = source.read()
         self.send_response(200)
         self.send_header("Content-Type",
                          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
