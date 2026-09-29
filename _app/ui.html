@@ -2113,7 +2113,7 @@ async function loadPlan() {
     const list = Object.entries(srcs).map(([k,v]) => `${k} — ${v}`).join(", ");
     $("#pl-ppt-note").textContent = (list ? `Пиков на изделие берём: ${list}. ` : "")
       + "Значение из 1С или введённое вручную главнее расчёта по счётчикам.";
-    renderClothMap(d);
+    if (window.FactPlanReact) window.FactPlanReact.onPlan(d); else renderClothMap(d);
     const po = d.plan_only || [];
     $("#pl-ppt-note").textContent += po.length ? ` В плане цеха есть заказы, которых ещё нет из 1С: ${
       po.slice(0, 20).map(p => p.order_no).join(", ")}${po.length > 20 ? " и ещё " + (po.length - 20) : ""}.` : "";
@@ -4936,5 +4936,5 @@ window.FactReportLegacy = {
 };
 // Тот же мост для вкладки «План»: подвкладки переносятся на React по одной,
 // каждая проверяет window.FactPlanReact и уступает ему рендер и загрузку.
-window.FactPlanLegacy = {can, say, esc, nf, fday, ftime, dmy, expire: sessionEnded};
+window.FactPlanLegacy = {can, say, esc, nf, fday, ftime, dmy, expire: sessionEnded, refreshPlan: () => loadPlan()};
 </script>

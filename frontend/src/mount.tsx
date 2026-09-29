@@ -9,6 +9,9 @@ import { ReportWorkflow, type WorkflowHandle } from './features/report/ReportWor
 import type { PlanBridge } from './features/plan/bridge';
 import { Onec } from './features/plan/onec/Onec';
 import { OnecController, requestOnecDetail, requestOnecMessages } from './features/plan/onec/controller';
+import { Codes } from './features/plan/codes/Codes';
+import { CodesController, requestClothMap } from './features/plan/codes/controller';
+import type { PlanClothData } from './features/plan/codes/model';
 
 declare global {
   interface Window {
@@ -17,7 +20,7 @@ declare global {
       prepareSetup:()=>Promise<void>;notify:(message:string,error?:boolean)=>void;openDocument:(id:number)=>void};
     FactReactReport?: {update:()=>void;setDays:(days:string[])=>void;load:(autoSkip?:boolean)=>Promise<void>};
     FactPlanLegacy?: PlanBridge;
-    FactPlanReact?: {loadOnec:()=>void};
+    FactPlanReact?: {loadOnec:()=>void;onPlan:(data:PlanClothData)=>void};
   }
 }
 export function mountReport() {
@@ -85,15 +88,20 @@ export function mountPlan() {
     const el=document.querySelector<T>(selector);if(!el)throw new Error('Нет элемента плана: '+selector);return el;
   };
   const tbody=element<HTMLElement>('#oc-msgs tbody'),dialog=element<HTMLDialogElement>('#oc-dlg');
-  tbody.replaceChildren();dialog.replaceChildren();
+  const unmappedBody=element<HTMLElement>('#cm-unmapped tbody'),mapBody=element<HTMLElement>('#cm-map tbody');
+  [tbody,dialog,unmappedBody,mapBody].forEach(t=>t.replaceChildren());
   const host=document.createElement('div');host.hidden=true;host.dataset.reactPlan='';document.body.appendChild(host);
   const root=createRoot(host);
-  const render=()=>flushSync(()=>root.render(
+  const render=()=>flushSync(()=>root.render(<>
     <Onec tbody={tbody} dialog={dialog} state={onec.state} bridge={legacy}
-      loadDetail={id=>requestOnecDetail(id,legacy.expire)}/>,
-  ));
+      loadDetail={id=>requestOnecDetail(id,legacy.expire)}/>
+    <Codes unmappedBody={unmappedBody} mapBody={mapBody} state={codes.state} bridge={legacy}
+      link={(cloth,product)=>{void codes.link(cloth,product);}} unlink={cloth=>{void codes.unlink(cloth);}}/>
+  </>));
   const onec=new OnecController({request:signal=>requestOnecMessages(signal,legacy.expire),changed:render});
-  window.FactPlanReact={loadOnec:()=>{void onec.load();}};
+  const codes=new CodesController({changed:render,say:legacy.say,refreshPlan:legacy.refreshPlan,
+    postClothMap:(cloth,product)=>requestClothMap(cloth,product,legacy.expire)});
+  window.FactPlanReact={loadOnec:()=>{void onec.load();},onPlan:data=>codes.setData(data)};
   render();
   if(!element('#tab-plan').classList.contains('hidden'))void onec.load();
   return ()=>{onec.dispose();delete window.FactPlanReact;root.unmount();host.remove();};

@@ -9,6 +9,7 @@ export type PlanBridge = {
   ftime: (v: unknown) => string;
   dmy: (d: string) => string;
   expire: () => void;
+  refreshPlan: () => void;
 };
 
 declare global {

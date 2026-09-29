@@ -14,7 +14,7 @@ const messages: OnecMessage[] = [
 ];
 function bridge(): PlanBridge {
   const f = legacyFormatters();
-  return {can: () => true, say: vi.fn(), expire: vi.fn(), esc: f.esc, nf: f.nf, fday: f.fday, ftime: f.ftime, dmy: f.dmy};
+  return {can: () => true, say: vi.fn(), expire: vi.fn(), refreshPlan: vi.fn(), esc: f.esc, nf: f.nf, fday: f.fday, ftime: f.ftime, dmy: f.dmy};
 }
 function mount(state: OnecState, loadDetail = vi.fn()) {
   document.body.innerHTML = onecMarkup;

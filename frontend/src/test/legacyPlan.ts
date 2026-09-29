@@ -79,3 +79,43 @@ export async function legacyOnecDetail(message: unknown) {
 export function onecDetailOutput(doc: Document) {
   return {title: doc.querySelector('#oc-dlg-t')?.textContent, json: doc.querySelector('#oc-json')?.textContent};
 }
+
+// --- Коды ткани (codes) ---
+export const codesMarkup = between(
+  '<div class="pane hidden" data-pane="codes" role="tabpanel">',
+  '<!-- ДОКУМЕНТЫ:',
+);
+
+// renderClothMap() is synchronous (no fetch): it only lays out the two tables and
+// wires their buttons. api()/say()/loadPlan() calls made when a button is clicked are
+// recorded for assertions instead of hitting the network.
+export function legacyCodes(data: {unmapped?: unknown[]; cloth_map?: unknown[]}) {
+  const doc = document.implementation.createHTMLDocument();
+  doc.body.innerHTML = codesMarkup;
+  const calls: {api: unknown[][]; say: unknown[][]; loadPlan: number} = {api: [], say: [], loadPlan: 0};
+  const script = [
+    source.match(/^const esc = .*$/m)![0],
+    source.match(/^const nf = .*$/m)![0],
+    source.match(/^const fday = .*$/m)![0],
+    between('function renderClothMap(d) {', '\n$("#ppt-save").onclick'),
+    'renderClothMap(data);',
+  ].join('\n');
+  runInNewContext(script, {
+    document: doc, data, $: (s: string) => doc.querySelector(s),
+    api: (...args: unknown[]) => {calls.api.push(args); return Promise.resolve({});},
+    say: (...args: unknown[]) => {calls.say.push(args);},
+    loadPlan: () => {calls.loadPlan++;},
+  }, {timeout: 2000});
+  return {doc, calls};
+}
+
+export function codesOutput(doc: Document) {
+  // Whitespace between inline elements is layout noise, not a design difference —
+  // legacy builds rows from an indented template string, React from adjacent JSX.
+  const table = (sel: string) => Array.from(doc.querySelectorAll(sel)).map(row => ({
+    cells: Array.from(row.querySelectorAll('td')).map(td => ({
+      text: td.textContent?.replace(/\s+/g, ' ').trim(), classes: [...td.classList].sort(), colspan: td.getAttribute('colspan'),
+    })),
+  }));
+  return {unmapped: table('#cm-unmapped tbody tr'), map: table('#cm-map tbody tr')};
+}
