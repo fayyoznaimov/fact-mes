@@ -1,2 +1,3 @@
-import { mountReport } from './mount';
+import { mountPlan, mountReport } from './mount';
 mountReport();
+mountPlan();

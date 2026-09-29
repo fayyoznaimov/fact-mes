@@ -2628,6 +2628,7 @@ document.addEventListener("keydown", e => {
 });
 
 async function loadOneC() {
+  if (window.FactPlanReact) return window.FactPlanReact.loadOnec(); // React принял владение подвкладкой.
   try {
     const r = await api("/api/onec/messages?limit=50");
     $("#oc-msgs tbody").innerHTML = r.messages.map(m => `<tr>
@@ -2639,6 +2640,7 @@ async function loadOneC() {
   } catch (e) { /* без права смотреть — просто пусто */ }
 }
 $("#oc-msgs").addEventListener("click", async e => {
+  if (window.FactPlanReact) return; // React принял владение подвкладкой.
   const b = e.target.closest("[data-m]"); if (!b) return;
   try {
     const m = await api("/api/onec/message?id=" + b.dataset.m);
@@ -4932,4 +4934,7 @@ window.FactReportLegacy = {
   full: repFull, stick: repStick,
   approved: $('#rp-list').onclick,
 };
+// Тот же мост для вкладки «План»: подвкладки переносятся на React по одной,
+// каждая проверяет window.FactPlanReact и уступает ему рендер и загрузку.
+window.FactPlanLegacy = {can, say, esc, nf, fday, ftime, dmy, expire: sessionEnded};
 </script>

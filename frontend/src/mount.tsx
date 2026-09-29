@@ -6,6 +6,9 @@ import type { Snapshot } from './features/report/model';
 import { ReportController, requestReport } from './features/report/controller';
 import { SetupDialog } from './features/report/SetupDialog';
 import { ReportWorkflow, type WorkflowHandle } from './features/report/ReportWorkflow';
+import type { PlanBridge } from './features/plan/bridge';
+import { Onec } from './features/plan/onec/Onec';
+import { OnecController, requestOnecDetail, requestOnecMessages } from './features/plan/onec/controller';
 
 declare global {
   interface Window {
@@ -13,6 +16,8 @@ declare global {
       publish:(rows:Snapshot['rows'])=>void;expire:()=>void;error:(message:string)=>void;
       prepareSetup:()=>Promise<void>;notify:(message:string,error?:boolean)=>void;openDocument:(id:number)=>void};
     FactReactReport?: {update:()=>void;setDays:(days:string[])=>void;load:(autoSkip?:boolean)=>Promise<void>};
+    FactPlanLegacy?: PlanBridge;
+    FactPlanReact?: {loadOnec:()=>void};
   }
 }
 export function mountReport() {
@@ -71,4 +76,25 @@ export function mountReport() {
   window.addEventListener('mes-language-change',language);
   if(days.length && !element('#tab-report').classList.contains('hidden'))void controller.load(true);
   return ()=>{alive=false;controller.dispose();window.removeEventListener('mes-language-change',language);delete window.FactReactReport;root.unmount();host.remove();};
+}
+
+export function mountPlan() {
+  const legacy=window.FactPlanLegacy;
+  if(!legacy)throw new Error('Не загружена исходная оболочка плана');
+  const element=<T extends Element>(selector:string)=>{
+    const el=document.querySelector<T>(selector);if(!el)throw new Error('Нет элемента плана: '+selector);return el;
+  };
+  const tbody=element<HTMLElement>('#oc-msgs tbody'),dialog=element<HTMLDialogElement>('#oc-dlg');
+  tbody.replaceChildren();dialog.replaceChildren();
+  const host=document.createElement('div');host.hidden=true;host.dataset.reactPlan='';document.body.appendChild(host);
+  const root=createRoot(host);
+  const render=()=>flushSync(()=>root.render(
+    <Onec tbody={tbody} dialog={dialog} state={onec.state} bridge={legacy}
+      loadDetail={id=>requestOnecDetail(id,legacy.expire)}/>,
+  ));
+  const onec=new OnecController({request:signal=>requestOnecMessages(signal,legacy.expire),changed:render});
+  window.FactPlanReact={loadOnec:()=>{void onec.load();}};
+  render();
+  if(!element('#tab-plan').classList.contains('hidden'))void onec.load();
+  return ()=>{onec.dispose();delete window.FactPlanReact;root.unmount();host.remove();};
 }
