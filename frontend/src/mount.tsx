@@ -11,9 +11,10 @@ import { Onec } from './features/plan/onec/Onec';
 import { OnecController, requestOnecDetail, requestOnecMessages } from './features/plan/onec/controller';
 import { Codes } from './features/plan/codes/Codes';
 import { CodesController, requestClothMap } from './features/plan/codes/controller';
-import type { PlanClothData } from './features/plan/codes/model';
 import { Ppt } from './features/plan/ppt/Ppt';
 import { PptController, requestPptCheck } from './features/plan/ppt/controller';
+import { Orders } from './features/plan/orders/Orders';
+import { OrdersController, requestAddOrder, requestAssign, requestClose, requestImport1c, requestPlan, requestSavePpt } from './features/plan/orders/controller';
 
 declare global {
   interface Window {
@@ -22,7 +23,7 @@ declare global {
       prepareSetup:()=>Promise<void>;notify:(message:string,error?:boolean)=>void;openDocument:(id:number)=>void};
     FactReactReport?: {update:()=>void;setDays:(days:string[])=>void;load:(autoSkip?:boolean)=>Promise<void>};
     FactPlanLegacy?: PlanBridge;
-    FactPlanReact?: {loadOnec:()=>void;onPlan:(data:PlanClothData)=>void;loadPpt:()=>void};
+    FactPlanReact?: {loadOnec:()=>void;loadPpt:()=>void;loadPlan:()=>Promise<void>};
   }
 }
 export function mountReport() {
@@ -93,7 +94,12 @@ export function mountPlan() {
   const unmappedBody=element<HTMLElement>('#cm-unmapped tbody'),mapBody=element<HTMLElement>('#cm-map tbody');
   const pptBody=element<HTMLElement>('#ppt-prod tbody'),pptDaysSummary=element<HTMLElement>('#ppt-days-sum');
   const pptDaysBody=element<HTMLElement>('#ppt-days tbody'),pptDaysDetails=element<HTMLDetailsElement>('#ppt-days-box');
-  [tbody,dialog,unmappedBody,mapBody,pptBody].forEach(t=>t.replaceChildren());
+  const formBar=element<HTMLElement>('#pl-order').closest('.bar') as HTMLElement;
+  const pptFormBar=element<HTMLElement>('#ppt-key').closest('.bar') as HTMLElement;
+  const productsList=element<HTMLElement>('#pl-products');
+  document.body.appendChild(productsList); // даталист общий для трёх полей — не должен пропасть при очистке formBar.
+  const tilesEl=element<HTMLElement>('#pl-tiles'),ordersBody=element<HTMLElement>('#pl-table tbody'),pptNote=element<HTMLElement>('#pl-ppt-note');
+  [tbody,dialog,unmappedBody,mapBody,pptBody,formBar,pptFormBar,ordersBody].forEach(t=>t.replaceChildren());
   const host=document.createElement('div');host.hidden=true;host.dataset.reactPlan='';document.body.appendChild(host);
   const root=createRoot(host);
   const render=()=>flushSync(()=>root.render(<>
@@ -103,13 +109,24 @@ export function mountPlan() {
       link={(cloth,product)=>{void codes.link(cloth,product);}} unlink={cloth=>{void codes.unlink(cloth);}}/>
     <Ppt productsBody={pptBody} daysSummary={pptDaysSummary} daysBody={pptDaysBody} daysDetails={pptDaysDetails}
       state={ppt.state} bridge={legacy}/>
+    <Orders formBar={formBar} pptBar={pptFormBar} productsList={productsList} tilesEl={tilesEl} tableBody={ordersBody}
+      pptNote={pptNote} state={orders.state} bridge={legacy}
+      addOrder={(o,p,q,d)=>orders.addOrder(o,p,q,d)} importFrom1c={()=>{void orders.importFrom1c();}}
+      toggleClosed={()=>orders.toggleClosed()} showAllOrders={()=>orders.showAllOrders()}
+      assign={(id,loom)=>{void orders.assign(id,loom);}} toggleClose={(id,closed)=>{void orders.toggleClose(id,!!closed);}}
+      savePpt={(k,p,pn)=>orders.savePpt(k,p,pn)}/>
   </>));
   const onec=new OnecController({request:signal=>requestOnecMessages(signal,legacy.expire),changed:render});
   const codes=new CodesController({changed:render,say:legacy.say,refreshPlan:legacy.refreshPlan,
     postClothMap:(cloth,product)=>requestClothMap(cloth,product,legacy.expire)});
   const ppt=new PptController({request:signal=>requestPptCheck(signal,legacy.expire),changed:render});
-  window.FactPlanReact={loadOnec:()=>{void onec.load();},onPlan:data=>codes.setData(data),loadPpt:()=>{void ppt.load();}};
+  const orders=new OrdersController({request:(closed,signal)=>requestPlan(closed,signal,legacy.expire),changed:render,
+    onData:data=>codes.setData(data),say:legacy.say,
+    postOrder:(o,p,q,d)=>requestAddOrder(o,p,q,d,legacy.expire),postImport1c:()=>requestImport1c(legacy.expire),
+    postAssign:(id,loom)=>requestAssign(id,loom,legacy.expire),postClose:(id,closed)=>requestClose(id,closed,legacy.expire),
+    postPpt:(k,p,pn)=>requestSavePpt(k,p,pn,legacy.expire)});
+  window.FactPlanReact={loadOnec:()=>{void onec.load();},loadPpt:()=>{void ppt.load();},loadPlan:()=>orders.load()};
   render();
-  if(!element('#tab-plan').classList.contains('hidden')){void onec.load();void ppt.load();}
-  return ()=>{onec.dispose();ppt.dispose();delete window.FactPlanReact;root.unmount();host.remove();};
+  if(!element('#tab-plan').classList.contains('hidden')){void onec.load();void ppt.load();void orders.load();}
+  return ()=>{onec.dispose();ppt.dispose();orders.dispose();delete window.FactPlanReact;root.unmount();host.remove();};
 }

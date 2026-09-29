@@ -2046,6 +2046,7 @@ let PL_ALL = false;
 const PL_LIMIT = 60;
 
 async function loadPlan() {
+  if (window.FactPlanReact) { await window.FactPlanReact.loadPlan(); loadLoomPlan(); return; } // React принял владение подвкладкой.
   try {
     const d = await api("/api/plan" + (PLAN_CLOSED ? "?closed=1" : ""));
     const o = d.orders;
@@ -2113,7 +2114,7 @@ async function loadPlan() {
     const list = Object.entries(srcs).map(([k,v]) => `${k} — ${v}`).join(", ");
     $("#pl-ppt-note").textContent = (list ? `Пиков на изделие берём: ${list}. ` : "")
       + "Значение из 1С или введённое вручную главнее расчёта по счётчикам.";
-    if (window.FactPlanReact) window.FactPlanReact.onPlan(d); else renderClothMap(d);
+    renderClothMap(d);
     const po = d.plan_only || [];
     $("#pl-ppt-note").textContent += po.length ? ` В плане цеха есть заказы, которых ещё нет из 1С: ${
       po.slice(0, 20).map(p => p.order_no).join(", ")}${po.length > 20 ? " и ещё " + (po.length - 20) : ""}.` : "";

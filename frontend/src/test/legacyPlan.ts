@@ -109,6 +109,46 @@ export function legacyCodes(data: {unmapped?: unknown[]; cloth_map?: unknown[]})
   return {doc, calls};
 }
 
+// --- Заказы и сроки (orders) ---
+export const ordersMarkup = between(
+  '<div class="pane hidden" data-pane="orders" role="tabpanel">',
+  '<div class="pane hidden" data-pane="ppt" role="tabpanel">',
+);
+
+export async function legacyOrders(data: unknown, opts: {closed?: boolean; all?: boolean} = {}) {
+  const doc = document.implementation.createHTMLDocument();
+  doc.body.innerHTML = ordersMarkup;
+  const script = [
+    source.match(/^const esc = .*$/m)![0],
+    source.match(/^const nf = .*$/m)![0],
+    source.match(/^const fday = .*$/m)![0],
+    source.match(/^const dmy = .*$/m)![0],
+    `let PLAN_CLOSED=${opts.closed ? 'true' : 'false'}, PL_ALL=${opts.all ? 'true' : 'false'}, PL_LIMIT=60;`,
+    between('async function loadPlan() {', '\n/* план цеха по станкам'),
+    'loadPlan();',
+  ].join('\n');
+  const result = runInNewContext(script, {document: doc, window: {}, $: (s: string) => doc.querySelector(s),
+    api: () => Promise.resolve(data), renderClothMap: () => {}, loadLoomPlan: () => {}, say: () => {}}, {timeout: 2000});
+  await result;
+  return doc;
+}
+
+export function ordersOutput(doc: Document) {
+  const table = (sel: string) => Array.from(doc.querySelectorAll(sel)).map(row => ({
+    cells: Array.from(row.querySelectorAll('td')).map(td => ({
+      text: td.textContent?.replace(/\s+/g, ' ').trim(), classes: [...td.classList].sort(), colspan: td.getAttribute('colspan'),
+    })),
+  }));
+  return {
+    tiles: Array.from(doc.querySelectorAll('#pl-tiles .tile')).map(t => ({
+      label: t.querySelector('.l')?.textContent, value: t.querySelector('.v')?.textContent,
+      badClass: t.querySelector('.v span')?.className ?? null,
+    })),
+    rows: table('#pl-table tbody tr'),
+    pptNote: doc.querySelector('#pl-ppt-note')?.textContent,
+  };
+}
+
 // --- Сверка PPT (ppt) ---
 export const pptMarkup = between(
   '<div class="pane hidden" data-pane="ppt" role="tabpanel">',
