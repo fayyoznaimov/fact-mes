@@ -25,6 +25,9 @@ import { UsersController, requestUsers, requestOperators, postUser, postPassword
 import { tr, type SetupBridge } from './features/setup/bridge';
 import { Setup } from './features/setup/Setup';
 import { SetupController, requestSetupGrid, postYarn, postYarnUpdate, uploadYarnsFile } from './features/setup/controller';
+import type { DashBridge } from './features/dash/bridge';
+import { Dash } from './features/dash/Dash';
+import { DashController, requestDashboard, requestForecast, postLoomArticle } from './features/dash/controller';
 
 declare global {
   interface Window {
@@ -39,6 +42,8 @@ declare global {
     FactUsersReact?: {load:()=>void;openDialog:(id:number|null)=>void};
     FactSetupLegacy?: SetupBridge;
     FactSetupReact?: {load:(force:boolean)=>void;yarnsChanged:()=>void};
+    FactDashLegacy?: DashBridge;
+    FactDashReact?: {setDays:(days:string[])=>void;load:()=>void};
   }
 }
 export function mountReport() {
@@ -239,4 +244,36 @@ export function mountSetup() {
   render();
   if(!element('#tab-setup').classList.contains('hidden'))void controller.load(true);
   return ()=>{controller.dispose();delete window.FactSetupReact;root.unmount();host.remove();};
+}
+
+export function mountDash() {
+  const legacy=window.FactDashLegacy;
+  if(!legacy)throw new Error('Не загружена исходная оболочка дашборда');
+  const element=<T extends Element>(selector:string)=>{
+    const el=document.querySelector<T>(selector);if(!el)throw new Error('Нет элемента дашборда: '+selector);return el;
+  };
+  const topBar=element<HTMLElement>('#dash-day').closest('.bar') as HTMLElement;
+  const tiles=element<HTMLElement>('#dash-tiles'),note=element<HTMLElement>('#dash-note');
+  const warnEl=element<HTMLDetailsElement>('#dash-warn'),soon=element<HTMLElement>('#dash-soon');
+  const tbody=element<HTMLElement>('#dash-table tbody');
+  [topBar,tiles,note,warnEl,soon,tbody].forEach(t=>t.replaceChildren());
+  const host=document.createElement('div');host.hidden=true;host.dataset.reactDash='';document.body.appendChild(host);
+  const root=createRoot(host);
+  const render=()=>flushSync(()=>root.render(
+    <Dash topBar={topBar} tiles={tiles} note={note} warnEl={warnEl} soon={soon} tbody={tbody}
+      state={controller.state} bridge={legacy} controller={controller}/>
+  ));
+  const controller=new DashController({
+    requestDashboard:(day,shift,signal)=>requestDashboard(day,shift,legacy.expire,signal),
+    requestForecast:signal=>requestForecast(legacy.expire,signal),
+    postLoomArticle:(loom,productCode,day)=>postLoomArticle(loom,productCode,day,legacy.expire),
+    changed:render,say:legacy.say,
+  });
+  window.FactDashReact={
+    setDays:days=>controller.setDays(days),
+    load:()=>{void controller.load();void controller.loadSoon();},
+  };
+  render();
+  if(!element('#tab-dash').classList.contains('hidden')){void controller.load();void controller.loadSoon();}
+  return ()=>{controller.dispose();delete window.FactDashReact;root.unmount();host.remove();};
 }

@@ -1902,6 +1902,7 @@ let DASH = null, DASH_SEQ = 0;
 const DASH_OPEN = new Set();        // раскрытые строки заправки — живут между обновлениями
 
 async function loadDash() {
+  if (window.FactDashReact) return window.FactDashReact.load();
   // Ответ на прежний запрос не должен затирать свежий: иначе при быстром
   // переключении смены на экране остаются числа за другой период.
   const seq = ++DASH_SEQ;
@@ -2953,6 +2954,7 @@ $("#key-add").onclick = async () => {
 
 /* --- дашборд: что случится в ближайшие часы --- */
 async function loadDashSoon() {
+  if (window.FactDashReact) return; // window.FactDashReact.load() уже запросил и это
   // Съём ткани и сход навоя — действия мастера: таблицей по времени, ближайшие два
   // часа сразу, остальное — свёрнуто. Раньше это был абзац из 18 событий через «·».
   try {
@@ -2992,7 +2994,8 @@ async function boot() {
     const dayOpts = days.days.map(d=>`<option value="${d}">${fday(d)}</option>`).join("");
     if (window.FactReactReport) window.FactReactReport.setDays(days.days);
     else $("#rep-day").innerHTML = dayOpts;
-    $("#dash-day").innerHTML = dayOpts;
+    if (window.FactDashReact) window.FactDashReact.setDays(days.days);
+    else $("#dash-day").innerHTML = dayOpts;
     // «Простои»: сводка по причинам и обход смены
     $("#ex-from").innerHTML = dayOpts; $("#ex-to").innerHTML = dayOpts;
     $("#ex-from").value = days.days[Math.min(days.days.length-1, 29)] || days.days.at(-1);
@@ -4956,4 +4959,5 @@ window.FactUsersLegacy = {can, say, ftime, expire: sessionEnded, roles: () => RO
 // И для «Заправки»: справочник пряжи (YARNS) и автокомплит (PICK) остаются здесь —
 // ими пользуется и уже перенесённое окно заправки станка, и таблица заправки.
 window.FactSetupLegacy = {can, say, expire: sessionEnded, fday, yarns: () => YARNS, refreshYarns: () => loadYarns()};
+window.FactDashLegacy = {say, expire: sessionEnded, nf, fday};
 </script>
