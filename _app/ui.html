@@ -2267,6 +2267,7 @@ async function loadLoomPlan() {
 
 /* Сверка PPT за две недели: по изделиям и по станко-дням. */
 async function loadPpt() {
+  if (window.FactPlanReact) return window.FactPlanReact.loadPpt(); // React принял владение подвкладкой.
   try {
     const r = await api("/api/ppt_check");
     const sign = v => v == null ? "" : (v > 0 ? "+" : "") + nf(v, 1) + "%";

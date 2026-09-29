@@ -109,6 +109,43 @@ export function legacyCodes(data: {unmapped?: unknown[]; cloth_map?: unknown[]})
   return {doc, calls};
 }
 
+// --- Сверка PPT (ppt) ---
+export const pptMarkup = between(
+  '<div class="pane hidden" data-pane="ppt" role="tabpanel">',
+  '<div class="pane hidden" data-pane="onec" role="tabpanel">',
+);
+
+export async function legacyPpt(data: {products?: unknown[]; days?: unknown[]; threshold?: number}, opened = false) {
+  const doc = document.implementation.createHTMLDocument();
+  doc.body.innerHTML = pptMarkup;
+  (doc.querySelector('#ppt-days-box') as HTMLDetailsElement).open = opened;
+  const script = [
+    source.match(/^const esc = .*$/m)![0],
+    source.match(/^const nf = .*$/m)![0],
+    source.match(/^const dmy = .*$/m)![0],
+    between('async function loadPpt() {', '\n// Станко-дни'),
+    between('let PPT_DAYS = null;', '\n$("#ppt-days-box").addEventListener'),
+    'loadPpt();',
+  ].join('\n');
+  const result = runInNewContext(script, {document: doc, window: {}, $: (s: string) => doc.querySelector(s),
+    api: () => Promise.resolve(data)}, {timeout: 2000});
+  await result;
+  return doc;
+}
+
+export function pptOutput(doc: Document) {
+  const table = (sel: string) => Array.from(doc.querySelectorAll(sel)).map(row => ({
+    cells: Array.from(row.querySelectorAll('td')).map(td => ({
+      text: td.textContent?.replace(/\s+/g, ' ').trim(), classes: [...td.classList].sort(),
+      title: td.getAttribute('title'), colspan: td.getAttribute('colspan'),
+    })),
+  }));
+  return {
+    products: table('#ppt-prod tbody tr'), days: table('#ppt-days tbody tr'),
+    summary: doc.querySelector('#ppt-days-sum')?.textContent,
+  };
+}
+
 export function codesOutput(doc: Document) {
   // Whitespace between inline elements is layout noise, not a design difference —
   // legacy builds rows from an indented template string, React from adjacent JSX.

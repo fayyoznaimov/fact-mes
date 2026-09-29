@@ -12,6 +12,8 @@ import { OnecController, requestOnecDetail, requestOnecMessages } from './featur
 import { Codes } from './features/plan/codes/Codes';
 import { CodesController, requestClothMap } from './features/plan/codes/controller';
 import type { PlanClothData } from './features/plan/codes/model';
+import { Ppt } from './features/plan/ppt/Ppt';
+import { PptController, requestPptCheck } from './features/plan/ppt/controller';
 
 declare global {
   interface Window {
@@ -20,7 +22,7 @@ declare global {
       prepareSetup:()=>Promise<void>;notify:(message:string,error?:boolean)=>void;openDocument:(id:number)=>void};
     FactReactReport?: {update:()=>void;setDays:(days:string[])=>void;load:(autoSkip?:boolean)=>Promise<void>};
     FactPlanLegacy?: PlanBridge;
-    FactPlanReact?: {loadOnec:()=>void;onPlan:(data:PlanClothData)=>void};
+    FactPlanReact?: {loadOnec:()=>void;onPlan:(data:PlanClothData)=>void;loadPpt:()=>void};
   }
 }
 export function mountReport() {
@@ -89,7 +91,9 @@ export function mountPlan() {
   };
   const tbody=element<HTMLElement>('#oc-msgs tbody'),dialog=element<HTMLDialogElement>('#oc-dlg');
   const unmappedBody=element<HTMLElement>('#cm-unmapped tbody'),mapBody=element<HTMLElement>('#cm-map tbody');
-  [tbody,dialog,unmappedBody,mapBody].forEach(t=>t.replaceChildren());
+  const pptBody=element<HTMLElement>('#ppt-prod tbody'),pptDaysSummary=element<HTMLElement>('#ppt-days-sum');
+  const pptDaysBody=element<HTMLElement>('#ppt-days tbody'),pptDaysDetails=element<HTMLDetailsElement>('#ppt-days-box');
+  [tbody,dialog,unmappedBody,mapBody,pptBody].forEach(t=>t.replaceChildren());
   const host=document.createElement('div');host.hidden=true;host.dataset.reactPlan='';document.body.appendChild(host);
   const root=createRoot(host);
   const render=()=>flushSync(()=>root.render(<>
@@ -97,12 +101,15 @@ export function mountPlan() {
       loadDetail={id=>requestOnecDetail(id,legacy.expire)}/>
     <Codes unmappedBody={unmappedBody} mapBody={mapBody} state={codes.state} bridge={legacy}
       link={(cloth,product)=>{void codes.link(cloth,product);}} unlink={cloth=>{void codes.unlink(cloth);}}/>
+    <Ppt productsBody={pptBody} daysSummary={pptDaysSummary} daysBody={pptDaysBody} daysDetails={pptDaysDetails}
+      state={ppt.state} bridge={legacy}/>
   </>));
   const onec=new OnecController({request:signal=>requestOnecMessages(signal,legacy.expire),changed:render});
   const codes=new CodesController({changed:render,say:legacy.say,refreshPlan:legacy.refreshPlan,
     postClothMap:(cloth,product)=>requestClothMap(cloth,product,legacy.expire)});
-  window.FactPlanReact={loadOnec:()=>{void onec.load();},onPlan:data=>codes.setData(data)};
+  const ppt=new PptController({request:signal=>requestPptCheck(signal,legacy.expire),changed:render});
+  window.FactPlanReact={loadOnec:()=>{void onec.load();},onPlan:data=>codes.setData(data),loadPpt:()=>{void ppt.load();}};
   render();
-  if(!element('#tab-plan').classList.contains('hidden'))void onec.load();
-  return ()=>{onec.dispose();delete window.FactPlanReact;root.unmount();host.remove();};
+  if(!element('#tab-plan').classList.contains('hidden')){void onec.load();void ppt.load();}
+  return ()=>{onec.dispose();ppt.dispose();delete window.FactPlanReact;root.unmount();host.remove();};
 }
