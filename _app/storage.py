@@ -442,9 +442,20 @@ def shop_readonly():
     return db
 
 
+class ReadConnection(sqlite3.Connection):
+    """Read scopes own their connection; leaving a scope releases the file."""
+
+    def __exit__(self, *exc):
+        try:
+            return super().__exit__(*exc)
+        finally:
+            self.close()
+
+
 def fact():
     """База станков для отчётов — только чтение: пишет в неё один сборщик."""
-    db = sqlite3.connect(f"file:{FACT_DB}?mode=ro", uri=True, timeout=10)
+    db = sqlite3.connect(f"file:{FACT_DB}?mode=ro", uri=True, timeout=10,
+                         factory=ReadConnection)
     db.row_factory = sqlite3.Row
     return db
 

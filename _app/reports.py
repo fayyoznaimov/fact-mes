@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 import cache
 import loomsetup
 import metrics
+import report_quality
 import tickets
 from storage import REPORTS_DIR, SHIFT_LETTERS, TOOLS_DIR, fact
 
@@ -148,7 +149,8 @@ def report_period(date_from, date_to):
         d = daily.get((s["day"], s["loom"])) or {}
         a = looms.setdefault(s["loom"], dict(loom=s["loom"], days=0, shifts=0, run_min=0.0, stop_min=0.0,
                                              picks=0.0, rows=0, towels=0, towels_known=True, kg=0.0,
-                                             pile=0, weft=0, ground=0, other=0, designs=[], gsm=[]))
+                                             pile=0, weft=0, ground=0, other=0, designs=[], gsm=[],
+                                             _kg_values=[], _towel_values=[]))
         a["days"] += 1
         a["shifts"] += s["shifts"]
         for k in ("run_min", "stop_min", "picks"):
@@ -159,6 +161,9 @@ def report_period(date_from, date_to):
         elif s["pieces"]:
             a["towels_known"] = False
         a["kg"] += d.get("achieved_kg") or 0
+        a["_kg_values"].append(d.get("achieved_kg"))
+        a["_towel_values"].append(int((s["pieces"] or 0) * d["panels"])
+                                   if d.get("panels") else 0 if s["pieces"] == 0 else None)
         a["pile"] += d.get("pile_total") if d.get("pile_total") is not None else (s["top_ct"] or 0)
         a["weft"] += d.get("weft_total") if d.get("weft_total") is not None else (s["weft_ct"] or 0)
         a["ground"] += d.get("ground_total") if d.get("ground_total") is not None else (s["warp_ct"] or 0)
@@ -169,22 +174,38 @@ def report_period(date_from, date_to):
             a["gsm"].append(d["gsm"])
     rows = []
     for a in sorted(looms.values(), key=lambda x: loomsetup._loom_key(x["loom"])):
+        a["quality"] = {"kg": report_quality.coverage(a.pop("_kg_values")),
+                        "towels": report_quality.coverage(a.pop("_towel_values"))}
+        a["kg"] = a["quality"]["kg"]["value"]
+        a["towels"] = a["quality"]["towels"]["value"]
         total = a["run_min"] + a["stop_min"]
         a.update(effic=round(100 * a["run_min"] / total, 1) if total else None,
                  run_min=round(a["run_min"]), stop_min=round(a["stop_min"]), picks=round(a["picks"]),
-                 kg=round(a["kg"], 1))
+                 kg=round(a["kg"], 1) if a["kg"] is not None else None)
         rows.append(a)
     run = sum(r["run_min"] for r in rows)
     stop = sum(r["stop_min"] for r in rows)
     totals = dict(looms=len(rows), days=len(days), run_min=run, stop_min=stop,
                   effic=round(100 * run / (run + stop), 1) if run + stop else None,
                   picks=sum(r["picks"] for r in rows), rows=sum(r["rows"] for r in rows),
-                  towels=sum(r["towels"] for r in rows), kg=round(sum(r["kg"] for r in rows), 1),
+                  towels=None, kg=None,
                   pile=sum(r["pile"] for r in rows), weft=sum(r["weft"] for r in rows),
                   ground=sum(r["ground"] for r in rows), other=sum(r["other"] for r in rows))
-    missing = sorted({s["day"] for s in shifts} - {d for d, _ in daily})
+    totals["quality"] = {k: report_quality.merge(r["quality"][k] for r in rows)
+                         for k in ("kg", "towels")}
+    totals["towels"] = totals["quality"]["towels"]["value"]
+    kg = totals["quality"]["kg"]["value"]
+    totals["kg"] = round(kg, 1) if kg is not None else None
+    missing_pairs = [{"day": s["day"], "loom": s["loom"]} for s in shifts
+                     if (s["day"], s["loom"]) not in daily]
+    missing = sorted({s["day"] for s in missing_pairs})
+    uncalculated = [{"day": s["day"], "loom": s["loom"],
+                    "reason": "Дневной отчёт не собран" if (s["day"], s["loom"]) not in daily
+                    else "Не рассчитаны килограммы: проверьте PPT, вес и панели"}
+                   for s in shifts if daily.get((s["day"], s["loom"]), {}).get("achieved_kg") is None]
     return {"from": date_from, "to": date_to, "rows": rows, "totals": totals, "days": sorted(days),
-            "days_without_report": missing}
+            "days_without_report": missing, "missing_reports": missing_pairs,
+            "uncalculated_kg": uncalculated}
 
 
 def all_days():

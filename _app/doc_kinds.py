@@ -419,6 +419,10 @@ def check_report(db, payload):
     if data["days_without_report"]:
         warnings.append("дневной отчёт не собран за %d дн.: %s — нет изделия и килограммов" % (
             len(data["days_without_report"]), ", ".join(data["days_without_report"][:10])))
+    import report_quality
+    kg_quality = data["totals"].get("quality", {}).get("kg")
+    if kg_quality and kg_quality["status"] != "complete":
+        warnings.append("Выпуск в кг — " + report_quality.note(kg_quality))
     unknown = [r["loom"] for r in data["rows"] if not r["towels_known"]]
     if unknown:
         warnings.append("полотенца не посчитаны (нет панелей): " + ", ".join(unknown[:15]))
