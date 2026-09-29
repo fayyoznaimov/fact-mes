@@ -19,6 +19,9 @@ import { Gantt } from './features/plan/gantt/Gantt';
 import { GanttController, TimelineController, requestGantt, requestLoomTimeline } from './features/plan/gantt/controller';
 import { Loom } from './features/plan/loom/Loom';
 import { LoomController, requestLoomCatalog, requestLoomGrid, requestSetCells, uploadLoomExcel } from './features/plan/loom/controller';
+import type { UsersBridge } from './features/users/bridge';
+import { Users } from './features/users/Users';
+import { UsersController, requestUsers, requestOperators, postUser, postPassword } from './features/users/controller';
 
 declare global {
   interface Window {
@@ -28,6 +31,8 @@ declare global {
     FactReactReport?: {update:()=>void;setDays:(days:string[])=>void;load:(autoSkip?:boolean)=>Promise<void>};
     FactPlanLegacy?: PlanBridge;
     FactPlanReact?: {loadOnec:()=>void;loadPpt:()=>void;loadPlan:()=>Promise<void>;loadGanttOnce:()=>void;loadLoomPlan:()=>Promise<void>};
+    FactUsersLegacy?: UsersBridge;
+    FactUsersReact?: {load:()=>void;openDialog:(id:number|null)=>void};
   }
 }
 export function mountReport() {
@@ -158,4 +163,35 @@ export function mountPlan() {
   render();
   if(!element('#tab-plan').classList.contains('hidden')){void onec.load();void ppt.load();void orders.load();void loom.load();}
   return ()=>{onec.dispose();ppt.dispose();orders.dispose();gantt.dispose();timeline.dispose();loom.dispose();delete window.FactPlanReact;root.unmount();host.remove();};
+}
+
+export function mountUsers() {
+  const legacy=window.FactUsersLegacy;
+  if(!legacy)throw new Error('Не загружена исходная оболочка пользователей');
+  const element=<T extends Element>(selector:string)=>{
+    const el=document.querySelector<T>(selector);if(!el)throw new Error('Нет элемента пользователей: '+selector);return el;
+  };
+  const bar=element<HTMLElement>('#u-new').closest('.bar') as HTMLElement;
+  const tbody=element<HTMLElement>('#u-table tbody');
+  const dialog=element<HTMLDialogElement>('#u-dlg'),pwDialog=element<HTMLDialogElement>('#u-pw-dlg');
+  [bar,tbody,dialog,pwDialog].forEach(t=>t.replaceChildren());
+  const host=document.createElement('div');host.hidden=true;host.dataset.reactUsers='';document.body.appendChild(host);
+  const root=createRoot(host);
+  const render=()=>flushSync(()=>root.render(
+    <Users bar={bar} tbody={tbody} dialog={dialog} pwDialog={pwDialog} state={controller.state} bridge={legacy} controller={controller}/>
+  ));
+  const controller=new UsersController({
+    request:signal=>requestUsers(signal,legacy.expire),
+    requestOperators:()=>requestOperators(legacy.expire),
+    postUser:body=>postUser(body,legacy.expire),
+    postPassword:body=>postPassword(body,legacy.expire),
+    changed:render,say:legacy.say,
+  });
+  window.FactUsersReact={
+    load:()=>{void controller.load();},
+    openDialog:id=>{void controller.openDialog(id!=null?controller.state.rows.find(x=>x.id===id)||null:null);},
+  };
+  render();
+  if(!element('#tab-users').classList.contains('hidden'))void controller.load();
+  return ()=>{controller.dispose();delete window.FactUsersReact;root.unmount();host.remove();};
 }
