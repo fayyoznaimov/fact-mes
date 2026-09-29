@@ -17,6 +17,8 @@ import { Orders } from './features/plan/orders/Orders';
 import { OrdersController, requestAddOrder, requestAssign, requestClose, requestImport1c, requestPlan, requestSavePpt } from './features/plan/orders/controller';
 import { Gantt } from './features/plan/gantt/Gantt';
 import { GanttController, TimelineController, requestGantt, requestLoomTimeline } from './features/plan/gantt/controller';
+import { Loom } from './features/plan/loom/Loom';
+import { LoomController, requestLoomCatalog, requestLoomGrid, requestSetCells, uploadLoomExcel } from './features/plan/loom/controller';
 
 declare global {
   interface Window {
@@ -25,7 +27,7 @@ declare global {
       prepareSetup:()=>Promise<void>;notify:(message:string,error?:boolean)=>void;openDocument:(id:number)=>void};
     FactReactReport?: {update:()=>void;setDays:(days:string[])=>void;load:(autoSkip?:boolean)=>Promise<void>};
     FactPlanLegacy?: PlanBridge;
-    FactPlanReact?: {loadOnec:()=>void;loadPpt:()=>void;loadPlan:()=>Promise<void>;loadGanttOnce:()=>void};
+    FactPlanReact?: {loadOnec:()=>void;loadPpt:()=>void;loadPlan:()=>Promise<void>;loadGanttOnce:()=>void;loadLoomPlan:()=>Promise<void>};
   }
 }
 export function mountReport() {
@@ -103,7 +105,15 @@ export function mountPlan() {
   const tilesEl=element<HTMLElement>('#pl-tiles'),ordersBody=element<HTMLElement>('#pl-table tbody'),pptNote=element<HTMLElement>('#pl-ppt-note');
   const gtBar=element<HTMLElement>('#gt-days').closest('.bar') as HTMLElement;
   const gtWrap=element<HTMLElement>('#gt-wrap'),gtDialog=element<HTMLDialogElement>('#gt-dlg');
-  [tbody,dialog,unmappedBody,mapBody,pptBody,formBar,pptFormBar,ordersBody,gtBar,gtWrap,gtDialog].forEach(t=>t.replaceChildren());
+  const lpPeriodBar=element<HTMLElement>('#lp-from').closest('.bar') as HTMLElement;
+  const lpEditBar=element<HTMLElement>('#lp-span').closest('.bar') as HTMLElement;
+  const lpNote=element<HTMLElement>('#lp-note'),lpContext=element<HTMLElement>('.lp-context');
+  const lpTable=element<HTMLElement>('#lp-table'),lpPalette=element<HTMLElement>('.lp-pal');
+  const lpOrderList=element<HTMLElement>('#lp-order-list'),lpDialog=element<HTMLDialogElement>('#lp-dlg');
+  const lpWrap=element<HTMLElement>('.lp-wrap'),lpScroll=element<HTMLElement>('#lp-scroll');
+  const lpInitialFrom=element<HTMLInputElement>('#lp-from').value,lpInitialTo=element<HTMLInputElement>('#lp-to').value;
+  [tbody,dialog,unmappedBody,mapBody,pptBody,formBar,pptFormBar,ordersBody,gtBar,gtWrap,gtDialog,
+    lpPeriodBar,lpEditBar,lpContext,lpTable,lpPalette,lpOrderList,lpDialog].forEach(t=>t.replaceChildren());
   const host=document.createElement('div');host.hidden=true;host.dataset.reactPlan='';document.body.appendChild(host);
   const root=createRoot(host);
   const render=()=>flushSync(()=>root.render(<>
@@ -122,6 +132,8 @@ export function mountPlan() {
     <Gantt barEl={gtBar} wrapEl={gtWrap} dialog={gtDialog} state={gantt.state} timeline={timeline.state} bridge={legacy}
       setDays={n=>gantt.setDays(n)} setGroup={g=>gantt.setGroup(g)} prev={()=>gantt.prev()} next={()=>gantt.next()} today={()=>gantt.today()}
       openTimeline={(loom,a,b)=>{void timeline.open(loom,a,b);}} stepTimeline={h=>timeline.step(h)} closeTimeline={()=>timeline.close()}/>
+    <Loom periodBar={lpPeriodBar} editBar={lpEditBar} noteEl={lpNote} contextEl={lpContext} table={lpTable} palette={lpPalette}
+      orderList={lpOrderList} dialog={lpDialog} wrapEl={lpWrap} scrollEl={lpScroll} state={loom.state} bridge={legacy} controller={loom}/>
   </>));
   const onec=new OnecController({request:signal=>requestOnecMessages(signal,legacy.expire),changed:render});
   const codes=new CodesController({changed:render,say:legacy.say,refreshPlan:legacy.refreshPlan,
@@ -134,9 +146,16 @@ export function mountPlan() {
     postPpt:(k,p,pn)=>requestSavePpt(k,p,pn,legacy.expire)});
   const gantt=new GanttController({request:(from,to,signal)=>requestGantt(from,to,signal,legacy.expire),changed:render,say:legacy.say});
   const timeline=new TimelineController({request:(loom,from,to,signal)=>requestLoomTimeline(loom,from,to,signal,legacy.expire),changed:render,say:legacy.say});
+  const loom=new LoomController(lpInitialFrom,lpInitialTo,{
+    requestGrid:(from,to,signal)=>requestLoomGrid(from,to,signal,legacy.expire),
+    requestCatalog:signal=>requestLoomCatalog(signal,legacy.expire),
+    postCells:changes=>requestSetCells(changes,legacy.expire),
+    uploadExcel:file=>uploadLoomExcel(file,legacy.expire),
+    changed:render,say:legacy.say,canEdit:()=>legacy.can('plan_edit'),dmy:legacy.dmy,refreshPlan:legacy.refreshPlan,
+  });
   window.FactPlanReact={loadOnec:()=>{void onec.load();},loadPpt:()=>{void ppt.load();},loadPlan:()=>orders.load(),
-    loadGanttOnce:()=>gantt.loadOnce()};
+    loadGanttOnce:()=>gantt.loadOnce(),loadLoomPlan:()=>loom.load()};
   render();
-  if(!element('#tab-plan').classList.contains('hidden')){void onec.load();void ppt.load();void orders.load();}
-  return ()=>{onec.dispose();ppt.dispose();orders.dispose();gantt.dispose();timeline.dispose();delete window.FactPlanReact;root.unmount();host.remove();};
+  if(!element('#tab-plan').classList.contains('hidden')){void onec.load();void ppt.load();void orders.load();void loom.load();}
+  return ()=>{onec.dispose();ppt.dispose();orders.dispose();gantt.dispose();timeline.dispose();loom.dispose();delete window.FactPlanReact;root.unmount();host.remove();};
 }

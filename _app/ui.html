@@ -2246,6 +2246,7 @@ const SLOT_RU = { vors: "ворс", karenoy: "грунт", utog1: "уток", ut
                   utog2x: "кромка полиэстер", utog3: "бордюр", utog3p: "бордюр кручёная", utog4: "бордюр полиэстер" };
 
 async function loadLoomPlan() {
+  if (window.FactPlanReact) return window.FactPlanReact.loadLoomPlan(); // React принял владение подвкладкой.
   try {
     const from = encodeURIComponent(dash2dot($("#lp-from").value.trim()));
     const to = encodeURIComponent(dash2dot($("#lp-to").value.trim()));
@@ -2609,6 +2610,7 @@ $('#lp-scroll').addEventListener('pointermove', e => {
   if(LP_PAN){e.preventDefault();e.stopImmediatePropagation();}
 },true));
 document.addEventListener("keydown", e => {
+  if (window.FactPlanReact) return; // React принял владение подвкладкой.
   if ($("#tab-plan").classList.contains("hidden") || !LP.g) return;
   if (e.target.closest("input, textarea, select, dialog, button, a, [contenteditable]")) return;
   if (e.key === "Escape") {

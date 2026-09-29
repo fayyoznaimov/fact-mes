@@ -194,6 +194,111 @@ export function timelineOutput(doc: Document) {
   };
 }
 
+// --- По станкам (loom) ---
+export const loomMarkup = between(
+  '<div class="pane" data-pane="loom" role="tabpanel">',
+  '<div class="pane hidden" data-pane="gantt" role="tabpanel">',
+);
+
+type LegacyLP = {
+  g: unknown; cat: unknown[]; today: string; looms: string[];
+  rows: Record<string, unknown>; li: Record<string, number>; di: Record<string, number>;
+  sel: Set<string>; focus: string | null;
+};
+function toLegacyLP(grid: {days: string[]; looms: {loom: string; cells: unknown}[]} & Record<string, unknown>,
+  catalog: unknown[], today: string, selection: string[], focus: string | null): LegacyLP {
+  const looms = grid.looms.map(l => l.loom);
+  return {
+    g: grid, cat: catalog, today, looms,
+    rows: Object.fromEntries(grid.looms.map(x => [x.loom, x.cells])),
+    li: Object.fromEntries(looms.map((l, i) => [l, i])), di: Object.fromEntries(grid.days.map((d, i) => [d, i])),
+    sel: new Set(selection), focus,
+  };
+}
+
+export function legacyLoomGrid(grid: {days: string[]; looms: {loom: string; cells: unknown}[]} & Record<string, unknown>,
+  catalog: unknown[], today: string, selection: string[] = [], focus: string | null = null, canEdit = true) {
+  const doc = document.implementation.createHTMLDocument();
+  doc.body.innerHTML = loomMarkup;
+  const LP = toLegacyLP(grid, catalog, today, selection, focus);
+  const script = [
+    source.match(/^const esc = .*$/m)![0],
+    source.match(/^const nf = .*$/m)![0],
+    source.match(/^const dmy = .*$/m)![0],
+    source.match(/^const hueOf = .*$/m)![0],
+    between('const lpOrd = ', '\nconst SLOT_RU'),
+    `const can = () => ${canEdit};`,
+    between('function lpCellHtml(l, d) {', '\nfunction renderOrders'),
+    'renderLP();',
+  ].join('\n');
+  runInNewContext(script, {document: doc, $: (s: string) => doc.querySelector(s), LP}, {timeout: 2000});
+  return doc;
+}
+
+export function loomGridOutput(doc: Document) {
+  const cellOf = (el: Element) => ({
+    classes: [...el.classList].sort(), title: el.getAttribute('title'),
+    draggable: el.getAttribute('draggable'), text: el.textContent?.replace(/\s+/g, ' ').trim(),
+  });
+  return {
+    headers: Array.from(doc.querySelectorAll('#lp-table thead th')).map(cellOf),
+    rows: Array.from(doc.querySelectorAll('#lp-table tbody tr')).map(row => Array.from(row.children).map(cellOf)),
+    editDisabled: doc.querySelector<HTMLButtonElement>('#lp-edit')?.disabled,
+    selectionText: doc.querySelector('#lp-selection')?.textContent,
+    focusHidden: doc.querySelector('#lp-focus')?.classList.contains('hidden'),
+    focusText: doc.querySelector('#lp-focus b')?.textContent,
+  };
+}
+
+export function legacyOrdersList(catalog: unknown[], query: string, filter: string, focus: string | null, open: string[] = []) {
+  const doc = document.implementation.createHTMLDocument();
+  doc.body.innerHTML = loomMarkup;
+  (doc.querySelector('#lp-q') as HTMLInputElement).value = query;
+  const LP = {cat: catalog, flt: filter, focus, open: new Set(open)};
+  const script = [
+    source.match(/^const esc = .*$/m)![0],
+    source.match(/^const nf = .*$/m)![0],
+    source.match(/^const dmy = .*$/m)![0],
+    source.match(/^const hueOf = .*$/m)![0],
+    between('function renderOrders() {', '\nfunction renderCard'),
+    'renderOrders();',
+  ].join('\n');
+  runInNewContext(script, {document: doc, $: (s: string) => doc.querySelector(s), LP}, {timeout: 2000});
+  return doc;
+}
+
+export function ordersListOutput(doc: Document) {
+  return {
+    count: doc.querySelector('#lp-order-count')?.textContent,
+    cards: Array.from(doc.querySelectorAll('#lp-orders > *')).map(el => ({
+      tag: el.tagName, classes: [...el.classList].sort(), text: el.textContent?.replace(/\s+/g, ' ').trim(),
+    })),
+  };
+}
+
+export function legacyOrderCard(catalog: unknown[], focus: string | null) {
+  const doc = document.implementation.createHTMLDocument();
+  doc.body.innerHTML = loomMarkup;
+  const LP = {cat: catalog, focus};
+  const script = [
+    source.match(/^const esc = .*$/m)![0],
+    source.match(/^const nf = .*$/m)![0],
+    source.match(/^const dmy = .*$/m)![0],
+    source.match(/^const ftime = .*$/m)![0],
+    source.match(/^const fday = .*$/m)![0],
+    source.match(/^const SLOT_RU = \{[\s\S]*?\};/m)![0],
+    between('function renderCard() {', '\n/* Заказ, брошенный'),
+    'renderCard();',
+  ].join('\n');
+  runInNewContext(script, {document: doc, $: (s: string) => doc.querySelector(s), LP}, {timeout: 2000});
+  return doc;
+}
+
+export function orderCardOutput(doc: Document) {
+  const card = doc.querySelector('#lp-card');
+  return {hidden: card?.classList.contains('hidden'), text: card?.textContent?.replace(/\s+/g, ' ').trim()};
+}
+
 // --- Заказы и сроки (orders) ---
 export const ordersMarkup = between(
   '<div class="pane hidden" data-pane="orders" role="tabpanel">',
