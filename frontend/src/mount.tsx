@@ -28,6 +28,9 @@ import { SetupController, requestSetupGrid, postYarn, postYarnUpdate, uploadYarn
 import type { DashBridge } from './features/dash/bridge';
 import { Dash } from './features/dash/Dash';
 import { DashController, requestDashboard, requestForecast, postLoomArticle } from './features/dash/controller';
+import type { DocsBridge } from './features/docs/bridge';
+import { Docs } from './features/docs/Docs';
+import { DocsController, requestDocuments, requestDocKinds, requestChangeLog, requestDoc, requestVerify, postCancel } from './features/docs/controller';
 
 declare global {
   interface Window {
@@ -44,6 +47,8 @@ declare global {
     FactSetupReact?: {load:(force:boolean)=>void;yarnsChanged:()=>void};
     FactDashLegacy?: DashBridge;
     FactDashReact?: {setDays:(days:string[])=>void;load:()=>void};
+    FactDocsLegacy?: DocsBridge;
+    FactDocsReact?: {load:()=>void;open:(id:number)=>void;showList:(kind:'payroll'|'report')=>void};
   }
 }
 export function mountReport() {
@@ -276,4 +281,41 @@ export function mountDash() {
   render();
   if(!element('#tab-dash').classList.contains('hidden')){void controller.load();void controller.loadSoon();}
   return ()=>{controller.dispose();delete window.FactDashReact;root.unmount();host.remove();};
+}
+
+export function mountDocs() {
+  const legacy=window.FactDocsLegacy;
+  if(!legacy)throw new Error('Не загружена исходная оболочка документов');
+  const element=<T extends Element>(selector:string)=>{
+    const el=document.querySelector<T>(selector);if(!el)throw new Error('Нет элемента документов: '+selector);return el;
+  };
+  const kindsBar=element<HTMLElement>('#dx-kinds');
+  const filterBar=element<HTMLElement>('#dx-from').closest('.dx-filter') as HTMLElement;
+  const newBar=element<HTMLElement>('#dx-new');
+  const items=element<HTMLElement>('#dx-items'),form=element<HTMLElement>('#dx-form');
+  [kindsBar,filterBar,newBar,items,form].forEach(t=>t.replaceChildren());
+  const host=document.createElement('div');host.hidden=true;host.dataset.reactDocs='';document.body.appendChild(host);
+  const root=createRoot(host);
+  const render=()=>flushSync(()=>root.render(
+    <Docs kindsBar={kindsBar} filterBar={filterBar} newBar={newBar} items={items} form={form}
+      state={controller.state} bridge={legacy} controller={controller}/>
+  ));
+  const controller=new DocsController({
+    requestDocuments:(kind,from,to,signal)=>requestDocuments(kind,from,to,legacy.expire,signal),
+    requestDocKinds:()=>requestDocKinds(legacy.expire),
+    requestChangeLog:(from,to,q,entity,signal)=>requestChangeLog(from,to,q,entity,legacy.expire,signal),
+    requestDoc:(id,signal)=>requestDoc(id,legacy.expire,signal),
+    requestVerify:id=>requestVerify(id,legacy.expire),
+    postCancel:(id,reason)=>postCancel(id,reason,legacy.expire),
+    docConfirm:(type,payload)=>legacy.docConfirm(type,payload),
+    changed:render,say:legacy.say,
+  });
+  window.FactDocsReact={
+    load:()=>{void controller.load();},
+    open:id=>{void controller.openDoc(id);},
+    showList:kind=>{controller.setKind(kind);},
+  };
+  render();
+  if(!element('#tab-docs').classList.contains('hidden'))void controller.load();
+  return ()=>{controller.dispose();delete window.FactDocsReact;root.unmount();host.remove();};
 }

@@ -4668,6 +4668,7 @@ $('#dx-new').onclick=async e=>{
   if(d){await dxLoad();dxOpen(d.id);}
 };
 async function dxLoad(){
+  if (window.FactDocsReact) return window.FactDocsReact.load();
   const list=$('#dx-items');
   list.innerHTML='<li class="dx-group">Загрузка…</li>';
   const from=dash2dot($('#dx-from').value), to=dash2dot($('#dx-to').value), q=$('#dx-q').value.trim();
@@ -4828,6 +4829,7 @@ async function dxVerify(){
 async function openDocument(id){
   if(archiveDialog.open)archiveDialog.close();
   dxGo();
+  if (window.FactDocsReact) return window.FactDocsReact.open(+id);
   if(DX.kind==='log'){dxSetKind('');}
   await dxLoad();
   document.querySelectorAll('#dx-items .dx-item').forEach(x=>x.setAttribute('aria-current',x.dataset.dx===String(id)));
@@ -4835,7 +4837,9 @@ async function openDocument(id){
 }
 async function docList(type){
   if(archiveDialog.open)archiveDialog.close();
-  dxGo(); dxSetKind(type); DX.sel=null;
+  dxGo();
+  if (window.FactDocsReact) return window.FactDocsReact.showList(type);
+  dxSetKind(type); DX.sel=null;
   $('#dx-form').innerHTML='<p class="dx-blank">Выберите документ в журнале слева.</p>';
   dxLoad();
 }
@@ -4960,4 +4964,11 @@ window.FactUsersLegacy = {can, say, ftime, expire: sessionEnded, roles: () => RO
 // ими пользуется и уже перенесённое окно заправки станка, и таблица заправки.
 window.FactSetupLegacy = {can, say, expire: sessionEnded, fday, yarns: () => YARNS, refreshYarns: () => loadYarns()};
 window.FactDashLegacy = {say, expire: sessionEnded, nf, fday};
+// И для «Документов»: сам диалог проверки/проведения (docDialog/docConfirm) общий
+// с ещё не перенесёнными вкладками (Зарплата, Настройки) — переиспользуем как есть.
+window.FactDocsLegacy = {say, expire: sessionEnded, docConfirm, goToRateSettings: () => {
+  document.querySelector('nav button[data-tab="settings"]').click();
+  SETTINGS_PANES.show('rate');
+  $('#set-rate').focus();
+}};
 </script>
