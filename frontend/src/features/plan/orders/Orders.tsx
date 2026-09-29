@@ -20,6 +20,7 @@ type Props = {
 export function Orders({formBar, pptBar, productsList, tilesEl, tableBody, pptNote, state, bridge,
   addOrder, importFrom1c, toggleClosed, showAllOrders, assign, toggleClose, savePpt}: Props) {
   const {nf, fday} = bridge;
+  const canPlan = bridge.can('plan_edit'), canSetup = bridge.can('setup_edit');
   const dmy = (d: string) => d ? d.slice(8, 10) + '.' + d.slice(5, 7) : '';
   const orderRef = useRef<HTMLInputElement>(null), productRef = useRef<HTMLInputElement>(null);
   const qtyRef = useRef<HTMLInputElement>(null), dueRef = useRef<HTMLInputElement>(null);
@@ -71,10 +72,10 @@ export function Orders({formBar, pptBar, productsList, tilesEl, tableBody, pptNo
             {x.looms.length ? x.looms.map((l, i) => <span key={l.loom} className={l.matched ? '' : 'note'}>
               {i > 0 ? ', ' : ''}{l.loom} <small>{nf(l.done)}</small></span>) : '—'}
             {!!x.looms.length && !x.matched && <>{' '}<br/><small className="bad">код ткани на станке не совпал с изделием</small></>}
-            {' '}<br/><input size={5} placeholder="станок" style={{fontSize: 12}} ref={el => {assignInputs.current[x.id] = el;}}/>
-            {' '}<button className="act" style={{padding: '2px 6px'}} onClick={() => assign(x.id, assignInputs.current[x.id]?.value || '')}>+</button>
+            {' '}<br/><input size={5} placeholder="станок" style={{fontSize: 12}} disabled={!canPlan} ref={el => {assignInputs.current[x.id] = el;}}/>
+            {' '}<button className="act" style={{padding: '2px 6px'}} disabled={!canPlan} onClick={() => assign(x.id, assignInputs.current[x.id]?.value || '')}>+</button>
           </td>}
-          <td><button className="act" onClick={() => toggleClose(x.id, x.closed)}>{x.closed ? 'Вернуть' : 'Закрыть'}</button></td>
+          <td><button className="act" disabled={!canPlan} onClick={() => toggleClose(x.id, x.closed)}>{x.closed ? 'Вернуть' : 'Закрыть'}</button></td>
         </tr>;
       })}
       {state.orders.length > shown.length && <tr><td colSpan={11}>
@@ -89,8 +90,8 @@ export function Orders({formBar, pptBar, productsList, tilesEl, tableBody, pptNo
       <div className="f"><label htmlFor="pl-product">Изделие</label><input id="pl-product" size={20} list="pl-products" autoComplete="off" ref={productRef}/></div>
       <div className="f"><label htmlFor="pl-qty">Полотенец</label><input id="pl-qty" size={8} autoComplete="off" ref={qtyRef}/></div>
       <div className="f"><label htmlFor="pl-due">Срок</label><input id="pl-due" size={10} placeholder="2026.10.01" autoComplete="off" ref={dueRef}/></div>
-      <div className="f"><label>{' '}</label><button className="act primary" id="pl-add" onClick={() => {void onAdd();}}>Поставить в план</button></div>
-      <div className="f"><label>{' '}</label><button className="act" id="pl-1c" onClick={importFrom1c}>Взять заказы из 1С</button></div>
+      <div className="f"><label>{' '}</label><button className="act primary" id="pl-add" disabled={!canPlan} onClick={() => {void onAdd();}}>Поставить в план</button></div>
+      <div className="f"><label>{' '}</label><button className="act" id="pl-1c" disabled={!canPlan} onClick={importFrom1c}>Взять заказы из 1С</button></div>
       <div className="f"><label>{' '}</label><button className="act" id="pl-closed" onClick={toggleClosed}>{state.closed ? 'Только открытые' : 'Показать закрытые'}</button></div>
     </>, formBar)}
     {createPortal((state.products || []).map(p => <option key={p} value={p}/>), productsList)}
@@ -103,7 +104,7 @@ export function Orders({formBar, pptBar, productsList, tilesEl, tableBody, pptNo
       <div className="f"><label htmlFor="ppt-key">Артикул 1С или код ткани</label><input id="ppt-key" size={24} list="pl-products" autoComplete="off" ref={pptKeyRef}/></div>
       <div className="f"><label htmlFor="ppt-val">Пиков на изделие</label><input id="ppt-val" size={7} inputMode="numeric" ref={pptValRef}/></div>
       <div className="f"><label htmlFor="ppt-panels">Панелей</label><input id="ppt-panels" size={4} inputMode="numeric" ref={pptPanelsRef}/></div>
-      <div className="f"><label>{' '}</label><button className="act primary" id="ppt-save" onClick={() => {void onSavePpt();}}>Сохранить</button></div>
+      <div className="f"><label>{' '}</label><button className="act primary" id="ppt-save" disabled={!canSetup} onClick={() => {void onSavePpt();}}>Сохранить</button></div>
     </>, pptBar)}
   </>;
 }

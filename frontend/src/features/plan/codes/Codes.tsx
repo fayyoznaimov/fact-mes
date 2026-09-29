@@ -14,6 +14,7 @@ type Props = {
 
 export function Codes({unmappedBody, mapBody, state, bridge, link, unlink}: Props) {
   const inputs = useRef<Record<number, HTMLInputElement | null>>({});
+  const canSetup = bridge.can('setup_edit');
 
   const unmappedRows = state.loaded && !state.unmapped.length
     ? <tr><td colSpan={5} className="note">Все коды ткани за две недели опознаны.</td></tr>
@@ -24,9 +25,9 @@ export function Codes({unmappedBody, mapBody, state, bridge, link, unlink}: Prop
         <td className="n">{bridge.nf(u.rows)}</td>
         <td>{bridge.fday(u.last_day || '')}</td>
         <td>
-          <input size={24} list="pl-products" placeholder="артикул 1С" autoComplete="off"
+          <input size={24} list="pl-products" placeholder="артикул 1С" autoComplete="off" disabled={!canSetup}
             ref={el => {inputs.current[i] = el;}}/>
-          <button className="act" onClick={() => link(u.cloth, (inputs.current[i]?.value || '').trim())}>Связать</button>
+          <button className="act" disabled={!canSetup} onClick={() => link(u.cloth, (inputs.current[i]?.value || '').trim())}>Связать</button>
         </td>
       </tr>
     ));
@@ -36,7 +37,7 @@ export function Codes({unmappedBody, mapBody, state, bridge, link, unlink}: Prop
     : state.clothMap.map(m => (
       <tr key={m.cloth_code}>
         <td>{m.cloth_code}</td><td>{m.product_code}</td><td>{m.set_by || ''}</td>
-        <td><button className="act" onClick={() => unlink(m.cloth_code)}>Снять</button></td>
+        <td><button className="act" disabled={!canSetup} onClick={() => unlink(m.cloth_code)}>Снять</button></td>
       </tr>
     ));
 

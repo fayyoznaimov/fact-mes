@@ -124,12 +124,12 @@ export function Loom({periodBar, editBar, noteEl, contextEl, table, palette, ord
       <div className="f"><label htmlFor="lp-span">Назначить на дней</label>
         <input id="lp-span" size={3} defaultValue="1" inputMode="numeric" autoComplete="off" onChange={e => controller.setSpan(parseInt(e.target.value, 10) || 1)}/></div>
       <div className="f"><label>{' '}</label><label className="checks" style={{paddingTop: 0}}>
-        <input type="checkbox" checked={state.skipSundays} onChange={e => controller.setSkipSundays(e.target.checked)}/> без воскресений</label></div>
+        <input type="checkbox" id="lp-sun" checked={state.skipSundays} onChange={e => controller.setSkipSundays(e.target.checked)}/> без воскресений</label></div>
       <div className="f"><label>{' '}</label><button className="act" id="lp-edit" disabled={!state.selection.size || !canEdit}
         onClick={() => { const k = [...state.selection][0]; if (k) controller.openDialog(k); }}>Редактировать</button></div>
       <div className="f"><label>{' '}</label><button className="act" id="lp-undo" disabled={!state.undoStack.length} onClick={() => controller.undo()}>Отменить правку</button></div>
-      <div className="f"><label>{' '}</label><button className="act" onClick={() => fileRef.current?.click()}>Загрузить план из Excel</button>
-        <input type="file" accept=".xlsx" className="hidden" ref={fileRef} onChange={onFileChange}/></div>
+      <div className="f"><label>{' '}</label><button className="act" id="lp-up" onClick={() => fileRef.current?.click()}>Загрузить план из Excel</button>
+        <input type="file" id="lp-file" accept=".xlsx" className="hidden" ref={fileRef} onChange={onFileChange}/></div>
     </>, editBar)}
 
     {createPortal(noteText, noteEl)}
@@ -158,7 +158,7 @@ export function Loom({periodBar, editBar, noteEl, contextEl, table, palette, ord
               const view = cellView(l.loom, d, g, state.catalog, state.today, state.selection.has(key(l.loom, d)), state.focus, nf);
               const style: CSSProperties & Record<string, string> = {};
               if (view.hue != null) style['--h'] = String(view.hue);
-              return <td key={d} data-k={view.key} draggable={view.draggable || undefined} className={view.classes.join(' ')} style={style} title={view.title || undefined}
+              return <td key={d} data-k={view.key} draggable={(view.draggable && canEdit) || undefined} className={view.classes.join(' ')} style={style} title={view.title || undefined}
                 onClick={e => controller.click(view.key, {shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey})}
                 onDoubleClick={() => controller.openDialog(view.key)}
                 onDragStart={e => {
@@ -219,10 +219,11 @@ export function Loom({periodBar, editBar, noteEl, contextEl, table, palette, ord
 
 function OrderCard({o, state, bridge, controller}: {o: CatalogOrder; state: LoomState; bridge: PlanBridge; controller: LoomController}) {
   const {nf, dmy} = bridge;
+  const canEdit = bridge.can('plan_edit');
   const {done, expected} = orderProgress(o);
   const multi = o.products.length > 1, open = multi && state.open.has(o.order_no);
   const style: CSSProperties & Record<string, string> = {'--h': String(hueOf(o.order_no))};
-  return <div className={'oc' + (o.order_no === state.focus ? ' on' : '')} draggable data-o={o.order_no} style={style}
+  return <div className={'oc' + (o.order_no === state.focus ? ' on' : '')} draggable={canEdit} data-o={o.order_no} style={style}
     onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({t: 'order', o: o.order_no})); e.dataTransfer.effectAllowed = 'copy'; }}
     onClick={() => controller.clickOrderCard(o.order_no, false)}>
     <div className="t"><span><b>{o.order_no}</b> {multi ? <span className="m">изделий: {o.products.length}</span> : <>{o.size || ''} {o.design || ''}</>}
@@ -235,7 +236,7 @@ function OrderCard({o, state, bridge, controller}: {o: CatalogOrder; state: Loom
     {!!o.qty && <div className="b2" title={`сделано ${nf(o.done)}, к концу плана ≈${nf(o.expected)} из ${nf(o.qty)}`}>
       <i className="p" style={{width: expected + '%'}}/><i style={{width: done + '%'}}/></div>}
     {o.order_no === state.focus && <span className="oc-selected">✓ <span>Выбран</span></span>}
-    {open && <div className="pls">{o.products.map(p => <div key={p.product_code} className="pl" draggable data-o={o.order_no} data-p={p.product_code}
+    {open && <div className="pls">{o.products.map(p => <div key={p.product_code} className="pl" draggable={canEdit} data-o={o.order_no} data-p={p.product_code}
       title={`${p.product_code} — перетащите на станок`}
       onDragStart={e => { e.stopPropagation(); e.dataTransfer.setData('text/plain', JSON.stringify({t: 'prod', o: o.order_no, p: p.product_code})); e.dataTransfer.effectAllowed = 'copy'; }}
       onClick={e => { e.stopPropagation(); controller.clickOrderCard(o.order_no, true); }}>
