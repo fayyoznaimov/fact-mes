@@ -1476,6 +1476,14 @@ dialog{border-radius:6px;box-shadow:0 20px 50px rgba(15,23,32,.35)}
 const $ = s => document.querySelector(s);
 const tr = text => window.MesI18n ? MesI18n.t(text) : text;
 const confirmTranslated = text => window.confirm(tr(text));
+function openPrintWindow(html) {
+  const w = window.open("", "_blank");
+  if (!w) return say("Браузер не дал открыть окно печати — разрешите всплывающие окна для этого адреса", true);
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 300);
+}
 const nf = (x,d=0) => (x==null||x==="") ? "" : Number(x).toLocaleString(document.documentElement.lang==='en'?'en-GB':'ru-RU',{minimumFractionDigits:d,maximumFractionDigits:d});
 // Цвет причины простоя — один на весь интерфейс (История станков, Простои, Ганта):
 // раньше уток был красным в одном разделе, бирюзовым в другом и синим по кругу в третьем.
@@ -3967,10 +3975,14 @@ $("#as-search").onkeydown = e => {
     if (op) pickAssignOperator(op);
   }
 };
-document.addEventListener("click", e => { if (!$("#as-picker").contains(e.target)) closeAssignSuggestions(); });
+document.addEventListener("click", e => {
+  if (window.FactAssignReact) return;
+  if (!$("#as-picker").contains(e.target)) closeAssignSuggestions();
+});
 $("#as-picker").addEventListener("focusout", e => { if (!$("#as-picker").contains(e.relatedTarget)) closeAssignSuggestions(); });
 
 async function loadAssign() {
+  if (window.FactAssignReact) return window.FactAssignReact.load();
   if (!AS_SH) { const n = shiftNow(); $("#as-day").value = n.day; AS_SH = n.sh; }
   asMarkShift();
   const day = dash2dot($("#as-day").value);
@@ -4062,12 +4074,16 @@ function asMap() {
   }).join("");
 }
 $("#as-map").onclick = e => {
+  if (window.FactAssignReact) return;
   const b = e.target.closest("button[data-loom]"); if (!b || b.disabled) return;
   const cb = document.querySelector(`#as-table select[data-loom="${CSS.escape(b.dataset.loom)}"]`)
     ?.closest("tr").querySelector("input[type=checkbox]");
   if (cb) { cb.checked = !cb.checked; asMap(); }
 };
-$("#as-table").addEventListener("change", e => { if (e.target.type === "checkbox") asMap(); });
+$("#as-table").addEventListener("change", e => {
+  if (window.FactAssignReact) return;
+  if (e.target.type === "checkbox") asMap();
+});
 
 function asSummary() {
   asMap();
@@ -4457,14 +4473,18 @@ async function ticketAudit(id){
   }catch(e){$('#archive-body').textContent=e.message;}
 }
 $('#tk-table').addEventListener('click',e=>{const b=e.target.closest('[data-ticket-audit]');if(b)ticketAudit(b.dataset.ticketAudit);});
-$('#as-history').onclick=async()=>{
+async function asOpenHistory(day, shift) {
   openArchive('История расстановки');
   try{
-    const r=await api('/api/assignment_periods?'+new URLSearchParams({day:$('#as-day').value,shift:AS_SH}));
+    const r=await api('/api/assignment_periods?'+new URLSearchParams({day, shift}));
     const q={legacy_shift:'Старые данные: точность смены',scheduled:'Назначено до начала смены',recorded:'С момента сохранения'};
     $('#archive-body').innerHTML='<p>'+esc(r.note)+'</p>'+archiveTable(['Станок','С','До','Оператор','Кем','Точность'],r.periods.map(p=>[esc(p.loom),esc(archiveTime(p.start)),esc(archiveTime(p.end)),esc(p.operator?[(p.operator.operator_code||p.operator.operator_id),p.operator.operator_name].filter(Boolean).join(' — '):'Не назначен'),esc(p.actor),esc(q[p.quality])]))+
       '<h4>Исправления после окончания смены</h4>'+archiveTable(['Станок','Когда','Кем','Новое назначение'],r.corrections.map(e=>[esc(e.loom),esc(archiveTime(e.at)),esc(e.actor),esc(e.after?[e.after.operator_code,e.after.operator_name].filter(Boolean).join(' — '):'Снято')]));
   }catch(e){$('#archive-body').textContent=e.message;}
+}
+$('#as-history').onclick=()=>{
+  if (window.FactAssignReact) return;
+  asOpenHistory($('#as-day').value, AS_SH);
 };
 $('#sd-open').onclick=async()=>{
   openArchive('Версии заправки');
@@ -4968,7 +4988,7 @@ window.FactUsersLegacy = {can, say, ftime, expire: sessionEnded, roles: () => RO
 window.FactSetupLegacy = {can, say, expire: sessionEnded, fday, yarns: () => YARNS, refreshYarns: () => loadYarns()};
 window.FactDashLegacy = {say, expire: sessionEnded, nf, fday};
 // И для «Зарплаты»: справочник операторов (OPERATORS) остаётся здесь, им же
-// пользуются «Расстановка» и «Люди», пока не перенесены.
+// пользуется «Расстановка», пока не перенесена вкладка «Люди».
 window.FactSalaryLegacy = {say, expire: sessionEnded, nf, fday, operators: () => OPERATORS};
 // И для «Документов»: сам диалог проверки/проведения (docDialog/docConfirm) общий
 // с формированием ведомости на вкладке «Зарплата» и со ставкой на «Настройках» —
@@ -4978,4 +4998,10 @@ window.FactDocsLegacy = {say, expire: sessionEnded, docConfirm, goToRateSettings
   SETTINGS_PANES.show('rate');
   $('#set-rate').focus();
 }};
+// И для «Расстановки»: общий диалог «История» (openArchive) и открытие окна печати
+// остаются здесь же, где и для других разделов.
+window.FactAssignLegacy = {
+  say, expire: sessionEnded, fday, ftime, can, operators: () => OPERATORS, me: () => ME,
+  confirmTranslated, openPrintWindow, openHistory: asOpenHistory,
+};
 </script>

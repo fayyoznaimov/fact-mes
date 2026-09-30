@@ -34,6 +34,9 @@ import { DocsController, requestDocuments, requestDocKinds, requestChangeLog, re
 import type { SalaryBridge } from './features/salary/bridge';
 import { Salary } from './features/salary/Salary';
 import { SalaryController, requestSalary, postAssignOne, postAssignCopy } from './features/salary/controller';
+import type { AssignBridge } from './features/assign/bridge';
+import { Assign } from './features/assign/Assign';
+import { AssignController, requestShiftDoc, requestWeeklyDocs, postShiftDoc, postShiftDocConfirm, postShiftDocFill } from './features/assign/controller';
 
 declare global {
   interface Window {
@@ -54,6 +57,8 @@ declare global {
     FactDocsReact?: {load:()=>void;open:(id:number)=>void;showList:(kind:'payroll'|'report')=>void};
     FactSalaryLegacy?: SalaryBridge;
     FactSalaryReact?: {setShifts:(shifts:{day:string;shift:string}[])=>void;load:()=>void;copy:()=>void};
+    FactAssignLegacy?: AssignBridge;
+    FactAssignReact?: {load:()=>void};
   }
 }
 export function mountReport() {
@@ -356,4 +361,45 @@ export function mountSalary() {
   render();
   if(!element('#tab-salary').classList.contains('hidden'))void controller.load();
   return ()=>{controller.dispose();delete window.FactSalaryReact;root.unmount();host.remove();};
+}
+
+export function mountAssign() {
+  const legacy=window.FactAssignLegacy;
+  if(!legacy)throw new Error('Не загружена исходная оболочка расстановки');
+  const element=<T extends Element>(selector:string)=>{
+    const el=document.querySelector<T>(selector);if(!el)throw new Error('Нет элемента расстановки: '+selector);return el;
+  };
+  const topBar=element<HTMLElement>('#as-day').closest('.bar') as HTMLElement;
+  const status=element<HTMLElement>('#as-status');
+  const pickerBar=element<HTMLElement>('#as-picker').closest('.bar') as HTMLElement;
+  const mapEl=element<HTMLElement>('#as-map');
+  const allCheckbox=element<HTMLElement>('#as-all').parentElement as HTMLElement;
+  const tableBody=element<HTMLElement>('#as-table tbody');
+  const sidePanel=element<HTMLElement>('#as-note').closest('.bar') as HTMLElement;
+  const weeklyBody=element<HTMLElement>('#as-docs tbody');
+  [topBar,status,pickerBar,mapEl,allCheckbox,tableBody,sidePanel,weeklyBody].forEach(t=>t.replaceChildren());
+  const host=document.createElement('div');host.hidden=true;host.dataset.reactAssign='';document.body.appendChild(host);
+  const root=createRoot(host);
+  const render=()=>flushSync(()=>root.render(
+    <Assign topBar={topBar} status={status} pickerBar={pickerBar} mapEl={mapEl} allCheckbox={allCheckbox}
+      tableBody={tableBody} sidePanel={sidePanel} weeklyBody={weeklyBody}
+      state={controller.state} bridge={legacy} controller={controller}/>
+  ));
+  const controller=new AssignController({
+    requestDoc:(day,shift,signal)=>requestShiftDoc(day,shift,legacy.expire,signal),
+    requestWeekly:(from,to,signal)=>requestWeeklyDocs(from,to,legacy.expire,signal),
+    postSave:payload=>postShiftDoc(payload,legacy.expire),
+    postConfirm:(day,shift,confirmed)=>postShiftDocConfirm(day,shift,confirmed,legacy.expire),
+    postFill:(day,shift,how)=>postShiftDocFill(day,shift,how,legacy.expire),
+    operators:()=>legacy.operators(),
+    me:()=>legacy.me(),
+    confirmTranslated:text=>legacy.confirmTranslated(text),
+    fday:legacy.fday, ftime:legacy.ftime,
+    openPrintWindow:html=>legacy.openPrintWindow(html),
+    changed:render, say:legacy.say,
+  });
+  window.FactAssignReact={load:()=>{void controller.load();}};
+  render();
+  if(!element('#tab-assign').classList.contains('hidden'))void controller.load();
+  return ()=>{controller.dispose();delete window.FactAssignReact;root.unmount();host.remove();};
 }

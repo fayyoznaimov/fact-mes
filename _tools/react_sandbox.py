@@ -104,13 +104,14 @@ def sandbox(port=8791):
                 path = self.path.split("?", 1)[0]
                 if path.startswith("/api/") and path not in ("/api/me", "/api/report_days", "/api/report", "/api/explorer", "/api/excel",
                     "/api/shifts", "/api/operators", "/api/settings", "/api/rates", "/api/reasons", "/api/yarns",
-                    "/api/report_period", "/api/documents", "/api/documents/get", "/api/documents/verify", "/api/salary"):
+                    "/api/report_period", "/api/documents", "/api/documents/get", "/api/documents/verify", "/api/salary",
+                    "/api/shift_doc", "/api/shift_docs", "/api/assignment_periods"):
                     return self._send(403, {"error": "В песочнице доступны только отчёт и простои"})
                 return super().do_GET()
 
             def do_POST(self):
                 if self.path not in ("/api/export_excel", "/api/documents/preview", "/api/documents/post",
-                    "/api/assign_one", "/api/assign_copy"):
+                    "/api/assign_one", "/api/assign_copy", "/api/shift_doc", "/api/shift_doc/confirm", "/api/shift_doc/fill"):
                     self.close_connection = True
                     return self._send(403, {"error": "Запись в этой песочнице отключена"})
                 return super().do_POST()
