@@ -123,7 +123,7 @@ def sandbox(port=8791):
                     "/api/report_period", "/api/documents", "/api/documents/get", "/api/documents/verify", "/api/salary",
                     "/api/shift_doc", "/api/shift_docs", "/api/assignment_periods", "/api/walk", "/api/manual_stops",
                     "/api/tickets", "/api/live", "/api/production_events",
-                    "/api/machine_history", "/api/machine_signals"):
+                    "/api/machine_history", "/api/machine_signals", "/api/keys"):
                     return self._send(403, {"error": "В песочнице доступны только отчёт и простои"})
                 return super().do_GET()
 
@@ -131,7 +131,8 @@ def sandbox(port=8791):
                 if self.path not in ("/api/export_excel", "/api/documents/preview", "/api/documents/post",
                     "/api/assign_one", "/api/assign_copy", "/api/shift_doc", "/api/shift_doc/confirm", "/api/shift_doc/fill",
                     "/api/operators", "/api/operators/delete", "/api/operators/import", "/api/operators/import_fact",
-                    "/api/tickets/new", "/api/tickets/close", "/api/tickets/classify"):
+                    "/api/tickets/new", "/api/tickets/close", "/api/tickets/classify",
+                    "/api/settings", "/api/keys", "/api/keys/revoke"):
                     self.close_connection = True
                     return self._send(403, {"error": "Запись в этой песочнице отключена"})
                 return super().do_POST()

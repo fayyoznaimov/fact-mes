@@ -55,6 +55,16 @@ import { TicketsController, requestTickets, requestLive, postTicketNew, postTick
 import type { HistoryBridge } from './features/history/bridge';
 import { History } from './features/history/History';
 import { HistoryController, requestHistory, requestSignals } from './features/history/controller';
+import type { SettingsBridge } from './features/settings/bridge';
+import { Rate } from './features/settings/rate/Rate';
+import { RateController, requestRates } from './features/settings/rate/controller';
+import { Reasons } from './features/settings/reasons/Reasons';
+import { ReasonsController, requestReasons } from './features/settings/reasons/controller';
+import { Andon } from './features/settings/andon/Andon';
+import { AndonController, postAndonSettings } from './features/settings/andon/controller';
+import type { AndonValues } from './features/settings/andon/model';
+import { Keys } from './features/settings/keys/Keys';
+import { KeysController, requestKeys, postKey, postKeyRevoke } from './features/settings/keys/controller';
 
 declare global {
   interface Window {
@@ -89,6 +99,11 @@ declare global {
     FactTicketsReact?: {load:()=>void};
     FactHistoryLegacy?: HistoryBridge;
     FactHistoryReact?: {load:()=>void;clear:()=>void};
+    FactSettingsLegacy?: SettingsBridge;
+    FactRateReact?: {load:()=>void};
+    FactReasonsReact?: {load:()=>void};
+    FactAndonReact?: {setValues:(values:AndonValues)=>void};
+    FactKeysReact?: {load:()=>void};
   }
 }
 export function mountReport() {
@@ -602,4 +617,49 @@ export function mountHistory() {
   render();
   if(!element('#tab-history').classList.contains('hidden'))void controller.load();
   return ()=>{controller.dispose();delete window.FactHistoryReact;root.unmount();host.remove();};
+}
+
+export function mountSettings() {
+  const legacy=window.FactSettingsLegacy;
+  if(!legacy)throw new Error('Не загружена исходная оболочка настроек');
+  const element=<T extends Element>(selector:string)=>{
+    const el=document.querySelector<T>(selector);if(!el)throw new Error('Нет элемента настроек: '+selector);return el;
+  };
+  const rateBar=element<HTMLElement>('#set-from').closest('.bar') as HTMLElement;
+  const rateBody=element<HTMLElement>('#set-rates tbody');
+  const reasonsBar=element<HTMLElement>('#rs-add').closest('.bar') as HTMLElement;
+  const reasonsBody=element<HTMLElement>('#rs-table tbody');
+  const andonBar=element<HTMLElement>('#an-warn').closest('.bar') as HTMLElement;
+  const keysBar=element<HTMLElement>('#key-name').closest('.bar') as HTMLElement;
+  const keysReveal=element<HTMLElement>('#key-new');
+  const keysBody=element<HTMLElement>('#key-table tbody');
+  [rateBar,rateBody,reasonsBar,reasonsBody,andonBar,keysBar,keysReveal,keysBody].forEach(t=>t.replaceChildren());
+  const host=document.createElement('div');host.hidden=true;host.dataset.reactSettings='';document.body.appendChild(host);
+  const root=createRoot(host);
+  const render=()=>flushSync(()=>root.render(<>
+    <Rate topBar={rateBar} tableBody={rateBody} state={rate.state} bridge={legacy} controller={rate}/>
+    <Reasons topBar={reasonsBar} tableBody={reasonsBody} state={reasons.state} bridge={legacy}/>
+    <Andon topBar={andonBar} state={andon.state} controller={andon}/>
+    <Keys topBar={keysBar} revealBox={keysReveal} tableBody={keysBody} state={keys.state} bridge={legacy} controller={keys}/>
+  </>));
+  const rate=new RateController({requestRates:()=>requestRates(legacy.expire),confirmRate:p=>legacy.confirmRate(p),changed:render,say:legacy.say});
+  const reasons=new ReasonsController({requestReasons:()=>requestReasons(legacy.expire),setReasonsData:data=>legacy.setReasonsData(data),changed:render,say:legacy.say});
+  const andon=new AndonController({postSettings:v=>postAndonSettings(v,legacy.expire),changed:render,say:legacy.say});
+  const keys=new KeysController({
+    can:legacy.can,
+    requestKeys:()=>requestKeys(legacy.expire),
+    postKey:(name,scopes)=>postKey(name,scopes,legacy.expire),
+    postRevoke:id=>postKeyRevoke(id,legacy.expire),
+    confirmTranslated:legacy.confirmTranslated,
+    changed:render,say:legacy.say,
+  });
+  window.FactRateReact={load:()=>{void rate.load();}};
+  window.FactReasonsReact={load:()=>{void reasons.load();}};
+  window.FactAndonReact={setValues:values=>andon.setValues(values)};
+  window.FactKeysReact={load:()=>{void keys.load();}};
+  render();
+  return ()=>{
+    delete window.FactRateReact;delete window.FactReasonsReact;delete window.FactAndonReact;delete window.FactKeysReact;
+    root.unmount();host.remove();
+  };
 }

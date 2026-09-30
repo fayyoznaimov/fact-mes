@@ -2939,6 +2939,7 @@ $("#an-save").onclick = async () => {
 };
 
 async function loadKeys() {
+  if (window.FactKeysReact) return window.FactKeysReact.load();
   if (!can("users")) return;
   try {
     const { keys, scopes } = await api("/api/keys");
@@ -3022,8 +3023,8 @@ async function boot() {
     if (window.FactWalkReact) window.FactWalkReact.setShifts(SHIFTS);
     else { $("#wk-shift").innerHTML = shOpts; $("#wk-shift").value = 1; }          // последняя завершённая смена
     if(canSection("settings")){loadRates();loadReasons();}
-    $("#an-warn").value = set.andon_warn_min; $("#an-alarm").value = set.andon_alarm_min;
-    $("#an-notify").value = set.andon_notify_min;
+    if (window.FactAndonReact) window.FactAndonReact.setValues({warn:String(set.andon_warn_min??''),alarm:String(set.andon_alarm_min??''),notify:String(set.andon_notify_min??'')});
+    else { $("#an-warn").value = set.andon_warn_min; $("#an-alarm").value = set.andon_alarm_min; $("#an-notify").value = set.andon_notify_min; }
     // вкладка «Ручные остановы» — те же дни, по умолчанию последние 30
     if (window.FactManualReact) window.FactManualReact.setDays(days.days);
     else {
@@ -4335,6 +4336,7 @@ $("#rep-excel").onclick = async () => {
 
 /* --- настройки --- */
 async function loadRates(){
+  if (window.FactRateReact) return window.FactRateReact.load();
   try{
     const r=await api('/api/rates');
     $('#set-rate').value=r.rate; $('#set-unit').value=r.unit;
@@ -4938,6 +4940,7 @@ rsDialog.innerHTML = `<form method="dialog"><h3 id="rs-title">Причина п�
 document.body.appendChild(rsDialog);
 
 async function loadReasons() {
+  if (window.FactReasonsReact) return window.FactReasonsReact.load();
   try {
     const r = await api('/api/reasons');
     RS = r;
@@ -4966,7 +4969,10 @@ function rsOpen(id) {
 }
 $('#rs-add').onclick = () => rsOpen('');
 $('#rs-docs').onclick = () => docList('reason');
-$('#rs-table').onclick = e => { const b = e.target.closest('[data-reason]'); if (b) rsOpen(b.dataset.reason); };
+$('#rs-table').onclick = e => {
+  if (window.FactReasonsReact) return;
+  const b = e.target.closest('[data-reason]'); if (b) rsOpen(b.dataset.reason);
+};
 $('#rs-save').onclick = async () => {
   const reason = {id: $('#rs-id').value.trim().toLowerCase(), name: $('#rs-name').value.trim(),
     reason: $('#rs-reason').value.trim() || $('#rs-name').value.trim(), name_en: $('#rs-en').value.trim(),
@@ -5032,4 +5038,14 @@ window.FactWalkLegacy = {say, expire: sessionEnded, nf, fday};
 window.FactManualLegacy = {say, expire: sessionEnded, nf, fday, openTickets: () => openTab("tickets")};
 window.FactTicketsLegacy = {say, expire: sessionEnded, ftime};
 window.FactHistoryLegacy = {say, expire: sessionEnded};
+// И для «Настроек»: один мост на все панели (ставка, причины, андон, ключи) —
+// им нужны общий docConfirm и диалог причины простоя (rsDialog), которые
+// пока не перенесены.
+window.FactSettingsLegacy = {
+  say, expire: sessionEnded, fday, ftime, nf, can, confirmTranslated,
+  confirmRate: payload => docConfirm('rate', payload),
+  openReasonDialog: id => rsOpen(id),
+  showReasonChanges: () => docList('reason'),
+  setReasonsData: data => { RS = data; },
+};
 </script>
