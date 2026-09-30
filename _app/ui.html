@@ -2837,6 +2837,7 @@ const hms = s => { if (s == null) return "—"; s = Math.round(s);
   return h ? `${h}:${String(m).padStart(2,"0")}:${String(x).padStart(2,"0")}` : `${m}:${String(x).padStart(2,"0")}`; };
 
 async function loadManual() {
+  if (window.FactManualReact) return window.FactManualReact.load();
   const seq = ++MN_SEQ;
   try {
     const d = await api(`/api/manual_stops?from=${$("#mn-from").value}&to=${$("#mn-to").value}`
@@ -3018,9 +3019,12 @@ async function boot() {
     $("#an-warn").value = set.andon_warn_min; $("#an-alarm").value = set.andon_alarm_min;
     $("#an-notify").value = set.andon_notify_min;
     // вкладка «Ручные остановы» — те же дни, по умолчанию последние 30
-    $("#mn-from").innerHTML = dayOpts; $("#mn-to").innerHTML = dayOpts;
-    $("#mn-from").value = days.days[Math.min(days.days.length-1, 29)] || days.days.at(-1);
-    $("#mn-to").value = days.days[0];
+    if (window.FactManualReact) window.FactManualReact.setDays(days.days);
+    else {
+      $("#mn-from").innerHTML = dayOpts; $("#mn-to").innerHTML = dayOpts;
+      $("#mn-from").value = days.days[Math.min(days.days.length-1, 29)] || days.days.at(-1);
+      $("#mn-to").value = days.days[0];
+    }
     if(canSection("people")){ if (window.FactPeopleReact) window.FactPeopleReact.load(); else renderOperators(); }
     if(canSection("setup"))loadYarns();
     // Открыть раздел из адреса (#setup) или тот, где работали в прошлый раз.
@@ -5017,4 +5021,5 @@ window.FactPeopleLegacy = {
 };
 window.FactExplorerLegacy = {say, expire: sessionEnded, nf, fday};
 window.FactWalkLegacy = {say, expire: sessionEnded, nf, fday};
+window.FactManualLegacy = {say, expire: sessionEnded, nf, fday, openTickets: () => openTab("tickets")};
 </script>

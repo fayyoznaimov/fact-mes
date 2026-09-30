@@ -46,6 +46,9 @@ import { ExplorerController, requestExplorer } from './features/explorer/control
 import type { WalkBridge } from './features/walk/bridge';
 import { Walk } from './features/walk/Walk';
 import { WalkController, requestWalk } from './features/walk/controller';
+import type { ManualBridge } from './features/manual/bridge';
+import { Manual } from './features/manual/Manual';
+import { ManualController, requestManual } from './features/manual/controller';
 
 declare global {
   interface Window {
@@ -74,6 +77,8 @@ declare global {
     FactExplorerReact?: {setDays:(days:string[])=>void;load:()=>void};
     FactWalkLegacy?: WalkBridge;
     FactWalkReact?: {setShifts:(shifts:{day:string;shift:string}[])=>void;load:()=>void};
+    FactManualLegacy?: ManualBridge;
+    FactManualReact?: {setDays:(days:string[])=>void;load:()=>void};
   }
 }
 export function mountReport() {
@@ -498,4 +503,31 @@ export function mountWalk() {
   render();
   if(!element('#tab-walk').classList.contains('hidden'))void controller.load();
   return ()=>{controller.dispose();delete window.FactWalkReact;root.unmount();host.remove();};
+}
+
+export function mountManual() {
+  const legacy=window.FactManualLegacy;
+  if(!legacy)throw new Error('Не загружена исходная оболочка ручных остановов');
+  const element=<T extends Element>(selector:string)=>{
+    const el=document.querySelector<T>(selector);if(!el)throw new Error('Нет элемента ручных остановов: '+selector);return el;
+  };
+  const topBar=element<HTMLElement>('#mn-from').closest('.bar') as HTMLElement;
+  const reasonBtn=element<HTMLElement>('#mn-reason').parentElement as HTMLElement;
+  const tiles=element<HTMLElement>('#mn-tiles');
+  const thead=element<HTMLElement>('#mn-table thead'),tableBody=element<HTMLElement>('#mn-table tbody'),tableFoot=element<HTMLElement>('#mn-table tfoot');
+  [topBar,reasonBtn,tiles,thead,tableBody,tableFoot].forEach(t=>t.replaceChildren());
+  const host=document.createElement('div');host.hidden=true;host.dataset.reactManual='';document.body.appendChild(host);
+  const root=createRoot(host);
+  const render=()=>flushSync(()=>root.render(
+    <Manual topBar={topBar} reasonBtn={reasonBtn} tiles={tiles} thead={thead} tableBody={tableBody} tableFoot={tableFoot}
+      state={controller.state} bridge={legacy} controller={controller}/>
+  ));
+  const controller=new ManualController({
+    requestManual:(from,to,group,signal)=>requestManual(from,to,group,legacy.expire,signal),
+    changed:render, say:legacy.say,
+  });
+  window.FactManualReact={setDays:days=>controller.setDays(days),load:()=>{void controller.load();}};
+  render();
+  if(!element('#tab-manual').classList.contains('hidden'))void controller.load();
+  return ()=>{controller.dispose();delete window.FactManualReact;root.unmount();host.remove();};
 }
