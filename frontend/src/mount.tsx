@@ -49,6 +49,9 @@ import { WalkController, requestWalk } from './features/walk/controller';
 import type { ManualBridge } from './features/manual/bridge';
 import { Manual } from './features/manual/Manual';
 import { ManualController, requestManual } from './features/manual/controller';
+import type { TicketsBridge } from './features/tickets/bridge';
+import { Tickets } from './features/tickets/Tickets';
+import { TicketsController, requestTickets, requestLive, postTicketNew, postTicketClose, postTicketClassify } from './features/tickets/controller';
 
 declare global {
   interface Window {
@@ -79,6 +82,8 @@ declare global {
     FactWalkReact?: {setShifts:(shifts:{day:string;shift:string}[])=>void;load:()=>void};
     FactManualLegacy?: ManualBridge;
     FactManualReact?: {setDays:(days:string[])=>void;load:()=>void};
+    FactTicketsLegacy?: TicketsBridge;
+    FactTicketsReact?: {load:()=>void};
   }
 }
 export function mountReport() {
@@ -530,4 +535,38 @@ export function mountManual() {
   render();
   if(!element('#tab-manual').classList.contains('hidden'))void controller.load();
   return ()=>{controller.dispose();delete window.FactManualReact;root.unmount();host.remove();};
+}
+
+export function mountTickets() {
+  const legacy=window.FactTicketsLegacy;
+  if(!legacy)throw new Error('Не загружена исходная оболочка тикетов');
+  const element=<T extends Element>(selector:string)=>{
+    const el=document.querySelector<T>(selector);if(!el)throw new Error('Нет элемента тикетов: '+selector);return el;
+  };
+  const topBar=element<HTMLElement>('#tk-from').closest('.bar') as HTMLElement;
+  const needPar=element<HTMLElement>('#tk-need');
+  const tiles=element<HTMLElement>('#tk-tiles');
+  const thead=element<HTMLElement>('#tk-table thead'),tableBody=element<HTMLElement>('#tk-table tbody');
+  const dialog=element<HTMLDialogElement>('#tk-cat-dlg');
+  const dialogTitle=element<HTMLElement>('#tk-cat-title'),dialogInfo=element<HTMLElement>('#tk-cat-info'),dialogList=element<HTMLElement>('#tk-cat-list');
+  [topBar,needPar,tiles,thead,tableBody,dialogTitle,dialogInfo,dialogList].forEach(t=>t.replaceChildren());
+  const host=document.createElement('div');host.hidden=true;host.dataset.reactTickets='';document.body.appendChild(host);
+  const root=createRoot(host);
+  const render=()=>flushSync(()=>root.render(
+    <Tickets topBar={topBar} needPar={needPar} tiles={tiles} thead={thead} tableBody={tableBody}
+      dialog={dialog} dialogTitle={dialogTitle} dialogInfo={dialogInfo} dialogList={dialogList}
+      state={controller.state} bridge={legacy} controller={controller}/>
+  ));
+  const controller=new TicketsController({
+    requestTickets:(from,to,openOnly,signal)=>requestTickets(from,to,openOnly,legacy.expire,signal),
+    requestLive:signal=>requestLive(legacy.expire,signal),
+    postNew:loom=>postTicketNew(loom,legacy.expire),
+    postClose:id=>postTicketClose(id,legacy.expire),
+    postClassify:(id,categoryId,was)=>postTicketClassify(id,categoryId,was,legacy.expire),
+    changed:render, say:legacy.say,
+  });
+  window.FactTicketsReact={load:()=>{void controller.load();}};
+  render();
+  if(!element('#tab-tickets').classList.contains('hidden'))void controller.load();
+  return ()=>{controller.dispose();delete window.FactTicketsReact;root.unmount();host.remove();};
 }

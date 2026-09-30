@@ -2710,6 +2710,7 @@ const dur = sec => { sec = Math.max(0, sec|0);
 // и сортировка — на странице; плитки считаются по тому, что осталось в таблице.
 let TK = [], TK_SORT = {k: "started_at", dir: -1}, TK_EDIT = false;
 async function loadTickets() {
+  if (window.FactTicketsReact) return window.FactTicketsReact.load();
   try {
     if (!$("#tk-from").value) $("#tk-from").value = shiftNow().day;
     if (!$("#tk-to").value) $("#tk-to").value = $("#tk-from").value;
@@ -2783,6 +2784,7 @@ function renderTickets() {
 }
 let TK_SHOW = 100, TK_ROWS = [], TK_PICK = null;
 $("#tk-table tbody").onclick = async e => {
+  if (window.FactTicketsReact) return;
   const more = e.target.closest("#tk-more"), cls = e.target.closest("[data-cls]"), close = e.target.closest("[data-close]");
   if (more) { TK_SHOW += 100; return renderTickets(); }
   if (cls) {
@@ -2799,6 +2801,7 @@ $("#tk-table tbody").onclick = async e => {
   }
 };
 $("#tk-cat-list").onclick = async e => {
+  if (window.FactTicketsReact) return;
   const b = e.target.closest("[data-pick]"); if (!b || !TK_PICK) return;
   // was — что было на экране: если причину уже выбрал другой, сервер ответит 409.
   try { await api("/api/tickets/classify", { id: TK_PICK.id, category_id: b.dataset.pick, was: TK_PICK.category_id || null });
@@ -5022,4 +5025,5 @@ window.FactPeopleLegacy = {
 window.FactExplorerLegacy = {say, expire: sessionEnded, nf, fday};
 window.FactWalkLegacy = {say, expire: sessionEnded, nf, fday};
 window.FactManualLegacy = {say, expire: sessionEnded, nf, fday, openTickets: () => openTab("tickets")};
+window.FactTicketsLegacy = {say, expire: sessionEnded, ftime};
 </script>

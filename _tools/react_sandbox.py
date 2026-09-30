@@ -10,6 +10,7 @@ from pathlib import Path
 import sqlite3
 import sys
 import tempfile
+import time
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "_app"))
@@ -25,6 +26,7 @@ import make_excel_report
 import metrics
 import pptcheck
 import reports
+import tickets
 import xlsx_report
 import fact_api
 
@@ -47,6 +49,10 @@ def sandbox(port=8791):
         stack.enter_context(patch.object(make_excel_report, "MIRROR", str(root / "mirror")))
         stack.enter_context(patch.object(make_excel_report, "loom_ppt", return_value={}))
         stack.enter_context(patch.object(fact_api, "get_shift", return_value=[]))
+        # В песочнице нет живого снимка FACT (factdata/opestate) — без этой
+        # заглушки /api/live и доска тикетов падают на попытке его прочитать.
+        stack.enter_context(patch.object(tickets, "snapshot_now",
+            return_value={"source": "mirror", "looms": {}, "dir": None, "read_at": time.time()}))
         cache.clear()
         (root / "reports").mkdir()
         with closing(storage.shop()) as db:
@@ -55,6 +61,11 @@ def sandbox(port=8791):
             db.execute("INSERT INTO operator(code,name,role) VALUES('M1','Петрова','master')")
             db.executemany("INSERT INTO assignment(day,shift,loom,operator_id) VALUES(?,?,?,?)",
                            [("2026.09.25", "A", "D1", op1), ("2026.09.25", "A", "D2", op1)])
+            db.executescript(tickets.SCHEMA)
+            db.executemany("INSERT INTO ticket(loom,started_at,ended_at,duration_sec,fact_cause,shift,category_id,opened_by)"
+                           " VALUES(?,?,?,?,?,?,?,?)",
+                           [("D3", "2026-09-25T09:00:00", None, 1800, "Manual", "2026.09.25.A", None, "авто"),
+                            ("D4", "2026-09-24T10:00:00", "2026-09-24T10:20:00", 1200, "Power_off", "2026.09.24.A", None, "авто")])
             db.execute("INSERT INTO shift_master(day,shift,operator_id) VALUES('2026.09.25','A',"
                        "(SELECT id FROM operator WHERE code='M1'))")
             db.commit()
@@ -105,14 +116,16 @@ def sandbox(port=8791):
                 if path.startswith("/api/") and path not in ("/api/me", "/api/report_days", "/api/report", "/api/explorer", "/api/excel",
                     "/api/shifts", "/api/operators", "/api/settings", "/api/rates", "/api/reasons", "/api/yarns",
                     "/api/report_period", "/api/documents", "/api/documents/get", "/api/documents/verify", "/api/salary",
-                    "/api/shift_doc", "/api/shift_docs", "/api/assignment_periods", "/api/walk", "/api/manual_stops"):
+                    "/api/shift_doc", "/api/shift_docs", "/api/assignment_periods", "/api/walk", "/api/manual_stops",
+                    "/api/tickets", "/api/live", "/api/production_events"):
                     return self._send(403, {"error": "В песочнице доступны только отчёт и простои"})
                 return super().do_GET()
 
             def do_POST(self):
                 if self.path not in ("/api/export_excel", "/api/documents/preview", "/api/documents/post",
                     "/api/assign_one", "/api/assign_copy", "/api/shift_doc", "/api/shift_doc/confirm", "/api/shift_doc/fill",
-                    "/api/operators", "/api/operators/delete", "/api/operators/import", "/api/operators/import_fact"):
+                    "/api/operators", "/api/operators/delete", "/api/operators/import", "/api/operators/import_fact",
+                    "/api/tickets/new", "/api/tickets/close", "/api/tickets/classify"):
                     self.close_connection = True
                     return self._send(403, {"error": "Запись в этой песочнице отключена"})
                 return super().do_POST()
