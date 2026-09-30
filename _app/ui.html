@@ -3012,8 +3012,8 @@ async function boot() {
       $("#ex-from").value = days.days[Math.min(days.days.length-1, 29)] || days.days.at(-1);
       $("#ex-to").value = days.days[0];
     }
-    $("#wk-shift").innerHTML = shOpts;
-    $("#wk-shift").value = 1;          // последняя завершённая смена
+    if (window.FactWalkReact) window.FactWalkReact.setShifts(SHIFTS);
+    else { $("#wk-shift").innerHTML = shOpts; $("#wk-shift").value = 1; }          // последняя завершённая смена
     if(canSection("settings")){loadRates();loadReasons();}
     $("#an-warn").value = set.andon_warn_min; $("#an-alarm").value = set.andon_alarm_min;
     $("#an-notify").value = set.andon_notify_min;
@@ -4295,6 +4295,7 @@ async function loadExplorer() {
 $("#wk-go").onclick = loadWalk;
 $("#wk-shift").onchange = loadWalk;
 async function loadWalk() {
+  if (window.FactWalkReact) return window.FactWalkReact.load();
   const s = SHIFTS[+$("#wk-shift").value];
   if (!s) return;
   try {
@@ -5015,4 +5016,5 @@ window.FactPeopleLegacy = {
   confirmTranslated,
 };
 window.FactExplorerLegacy = {say, expire: sessionEnded, nf, fday};
+window.FactWalkLegacy = {say, expire: sessionEnded, nf, fday};
 </script>

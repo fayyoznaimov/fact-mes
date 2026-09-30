@@ -43,6 +43,9 @@ import { PeopleController, requestOperators as requestOperatorList, postOperator
 import type { ExplorerBridge } from './features/explorer/bridge';
 import { Explorer } from './features/explorer/Explorer';
 import { ExplorerController, requestExplorer } from './features/explorer/controller';
+import type { WalkBridge } from './features/walk/bridge';
+import { Walk } from './features/walk/Walk';
+import { WalkController, requestWalk } from './features/walk/controller';
 
 declare global {
   interface Window {
@@ -69,6 +72,8 @@ declare global {
     FactPeopleReact?: {load:()=>void};
     FactExplorerLegacy?: ExplorerBridge;
     FactExplorerReact?: {setDays:(days:string[])=>void;load:()=>void};
+    FactWalkLegacy?: WalkBridge;
+    FactWalkReact?: {setShifts:(shifts:{day:string;shift:string}[])=>void;load:()=>void};
   }
 }
 export function mountReport() {
@@ -469,4 +474,28 @@ export function mountExplorer() {
   render();
   if(!element('#tab-explorer').classList.contains('hidden'))void controller.load();
   return ()=>{controller.dispose();delete window.FactExplorerReact;root.unmount();host.remove();};
+}
+
+export function mountWalk() {
+  const legacy=window.FactWalkLegacy;
+  if(!legacy)throw new Error('Не загружена исходная оболочка обхода цеха');
+  const element=<T extends Element>(selector:string)=>{
+    const el=document.querySelector<T>(selector);if(!el)throw new Error('Нет элемента обхода цеха: '+selector);return el;
+  };
+  const topBar=element<HTMLElement>('#wk-shift').closest('.bar') as HTMLElement;
+  const tableBody=element<HTMLElement>('#wk-table tbody');
+  [topBar,tableBody].forEach(t=>t.replaceChildren());
+  const host=document.createElement('div');host.hidden=true;host.dataset.reactWalk='';document.body.appendChild(host);
+  const root=createRoot(host);
+  const render=()=>flushSync(()=>root.render(
+    <Walk topBar={topBar} tableBody={tableBody} state={controller.state} bridge={legacy} controller={controller}/>
+  ));
+  const controller=new WalkController({
+    requestWalk:(day,shift,signal)=>requestWalk(day,shift,legacy.expire,signal),
+    changed:render, say:legacy.say,
+  });
+  window.FactWalkReact={setShifts:shifts=>controller.setShifts(shifts),load:()=>{void controller.load();}};
+  render();
+  if(!element('#tab-walk').classList.contains('hidden'))void controller.load();
+  return ()=>{controller.dispose();delete window.FactWalkReact;root.unmount();host.remove();};
 }

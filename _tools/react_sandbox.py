@@ -105,7 +105,7 @@ def sandbox(port=8791):
                 if path.startswith("/api/") and path not in ("/api/me", "/api/report_days", "/api/report", "/api/explorer", "/api/excel",
                     "/api/shifts", "/api/operators", "/api/settings", "/api/rates", "/api/reasons", "/api/yarns",
                     "/api/report_period", "/api/documents", "/api/documents/get", "/api/documents/verify", "/api/salary",
-                    "/api/shift_doc", "/api/shift_docs", "/api/assignment_periods"):
+                    "/api/shift_doc", "/api/shift_docs", "/api/assignment_periods", "/api/walk"):
                     return self._send(403, {"error": "В песочнице доступны только отчёт и простои"})
                 return super().do_GET()
 

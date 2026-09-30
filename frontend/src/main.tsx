@@ -1,4 +1,4 @@
-import { mountAssign, mountDash, mountDocs, mountExplorer, mountPeople, mountPlan, mountReport, mountSalary, mountSetup, mountUsers } from './mount';
+import { mountAssign, mountDash, mountDocs, mountExplorer, mountPeople, mountPlan, mountReport, mountSalary, mountSetup, mountUsers, mountWalk } from './mount';
 mountReport();
 mountPlan();
 mountUsers();
@@ -9,3 +9,4 @@ mountSalary();
 mountAssign();
 mountPeople();
 mountExplorer();
+mountWalk();
