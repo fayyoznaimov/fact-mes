@@ -2990,7 +2990,8 @@ async function boot() {
       : [{shifts: []}, {days: []}, {operators: []}, {}][i]);
     SHIFTS = sh.shifts; OPERATORS = ops.operators;
     const shOpts = SHIFTS.map((s,i)=>`<option value="${i}">${shiftLabel(s)}</option>`).join("");
-    $("#sal-shift").innerHTML = shOpts;
+    if (window.FactSalaryReact) window.FactSalaryReact.setShifts(SHIFTS);
+    else $("#sal-shift").innerHTML = shOpts;
     const dayOpts = days.days.map(d=>`<option value="${d}">${fday(d)}</option>`).join("");
     if (window.FactReactReport) window.FactReactReport.setDays(days.days);
     else $("#rep-day").innerHTML = dayOpts;
@@ -3807,6 +3808,7 @@ $("#sal-go").onclick = loadSalary;
 $("#sal-shift").onchange = loadSalary;
 let SAL_SEQ = 0;
 async function loadSalary() {
+  if (window.FactSalaryReact) return window.FactSalaryReact.load();
   const s = SHIFTS[+$("#sal-shift").value];
   if (!s) return;
   const seq = ++SAL_SEQ;
@@ -3865,6 +3867,7 @@ async function loadSalary() {
 }
 
 $("#sal-copy").onclick = async () => {
+  if (window.FactSalaryReact) return window.FactSalaryReact.copy();
   const s = SHIFTS[+$("#sal-shift").value];
   if (!s) return;
   try {
@@ -4964,8 +4967,12 @@ window.FactUsersLegacy = {can, say, ftime, expire: sessionEnded, roles: () => RO
 // ими пользуется и уже перенесённое окно заправки станка, и таблица заправки.
 window.FactSetupLegacy = {can, say, expire: sessionEnded, fday, yarns: () => YARNS, refreshYarns: () => loadYarns()};
 window.FactDashLegacy = {say, expire: sessionEnded, nf, fday};
+// И для «Зарплаты»: справочник операторов (OPERATORS) остаётся здесь, им же
+// пользуются «Расстановка» и «Люди», пока не перенесены.
+window.FactSalaryLegacy = {say, expire: sessionEnded, nf, fday, operators: () => OPERATORS};
 // И для «Документов»: сам диалог проверки/проведения (docDialog/docConfirm) общий
-// с ещё не перенесёнными вкладками (Зарплата, Настройки) — переиспользуем как есть.
+// с формированием ведомости на вкладке «Зарплата» и со ставкой на «Настройках» —
+// эта часть пока не перенесена, переиспользуем как есть.
 window.FactDocsLegacy = {say, expire: sessionEnded, docConfirm, goToRateSettings: () => {
   document.querySelector('nav button[data-tab="settings"]').click();
   SETTINGS_PANES.show('rate');

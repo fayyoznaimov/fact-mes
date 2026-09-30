@@ -51,6 +51,12 @@ def sandbox(port=8791):
         (root / "reports").mkdir()
         with closing(storage.shop()) as db:
             db.execute("INSERT INTO yarn(name,key,kind) VALUES('20/2','20/2','pile')")
+            op1 = db.execute("INSERT INTO operator(code,name,role) VALUES('O1','Иванова','operator')").lastrowid
+            db.execute("INSERT INTO operator(code,name,role) VALUES('M1','Петрова','master')")
+            db.executemany("INSERT INTO assignment(day,shift,loom,operator_id) VALUES(?,?,?,?)",
+                           [("2026.09.25", "A", "D1", op1), ("2026.09.25", "A", "D2", op1)])
+            db.execute("INSERT INTO shift_master(day,shift,operator_id) VALUES('2026.09.25','A',"
+                       "(SELECT id FROM operator WHERE code='M1'))")
             db.commit()
         auth.create_user("preview", "Тестовый мастер", "admin", "local-preview-only", must_change=False)
         token = auth.login("preview", "local-preview-only")
@@ -98,12 +104,13 @@ def sandbox(port=8791):
                 path = self.path.split("?", 1)[0]
                 if path.startswith("/api/") and path not in ("/api/me", "/api/report_days", "/api/report", "/api/explorer", "/api/excel",
                     "/api/shifts", "/api/operators", "/api/settings", "/api/rates", "/api/reasons", "/api/yarns",
-                    "/api/report_period", "/api/documents", "/api/documents/get", "/api/documents/verify"):
+                    "/api/report_period", "/api/documents", "/api/documents/get", "/api/documents/verify", "/api/salary"):
                     return self._send(403, {"error": "В песочнице доступны только отчёт и простои"})
                 return super().do_GET()
 
             def do_POST(self):
-                if self.path not in ("/api/export_excel", "/api/documents/preview", "/api/documents/post"):
+                if self.path not in ("/api/export_excel", "/api/documents/preview", "/api/documents/post",
+                    "/api/assign_one", "/api/assign_copy"):
                     self.close_connection = True
                     return self._send(403, {"error": "Запись в этой песочнице отключена"})
                 return super().do_POST()

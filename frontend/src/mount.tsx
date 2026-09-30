@@ -31,6 +31,9 @@ import { DashController, requestDashboard, requestForecast, postLoomArticle } fr
 import type { DocsBridge } from './features/docs/bridge';
 import { Docs } from './features/docs/Docs';
 import { DocsController, requestDocuments, requestDocKinds, requestChangeLog, requestDoc, requestVerify, postCancel } from './features/docs/controller';
+import type { SalaryBridge } from './features/salary/bridge';
+import { Salary } from './features/salary/Salary';
+import { SalaryController, requestSalary, postAssignOne, postAssignCopy } from './features/salary/controller';
 
 declare global {
   interface Window {
@@ -49,6 +52,8 @@ declare global {
     FactDashReact?: {setDays:(days:string[])=>void;load:()=>void};
     FactDocsLegacy?: DocsBridge;
     FactDocsReact?: {load:()=>void;open:(id:number)=>void;showList:(kind:'payroll'|'report')=>void};
+    FactSalaryLegacy?: SalaryBridge;
+    FactSalaryReact?: {setShifts:(shifts:{day:string;shift:string}[])=>void;load:()=>void;copy:()=>void};
   }
 }
 export function mountReport() {
@@ -318,4 +323,37 @@ export function mountDocs() {
   render();
   if(!element('#tab-docs').classList.contains('hidden'))void controller.load();
   return ()=>{controller.dispose();delete window.FactDocsReact;root.unmount();host.remove();};
+}
+
+export function mountSalary() {
+  const legacy=window.FactSalaryLegacy;
+  if(!legacy)throw new Error('Не загружена исходная оболочка зарплаты');
+  const element=<T extends Element>(selector:string)=>{
+    const el=document.querySelector<T>(selector);if(!el)throw new Error('Нет элемента зарплаты: '+selector);return el;
+  };
+  const topBar=element<HTMLElement>('#sal-shift').closest('.bar') as HTMLElement;
+  const tiles=element<HTMLElement>('#sal-tiles'),note=element<HTMLElement>('#sal-note');
+  const tableBody=element<HTMLElement>('#sal-table tbody'),tableFoot=element<HTMLElement>('#sal-table tfoot');
+  const loomsBody=element<HTMLElement>('#sal-looms tbody'),loomsFoot=element<HTMLElement>('#sal-looms tfoot');
+  [topBar,tiles,note,tableBody,tableFoot,loomsBody,loomsFoot].forEach(t=>t.replaceChildren());
+  const host=document.createElement('div');host.hidden=true;host.dataset.reactSalary='';document.body.appendChild(host);
+  const root=createRoot(host);
+  const render=()=>flushSync(()=>root.render(
+    <Salary topBar={topBar} tiles={tiles} note={note} tableBody={tableBody} tableFoot={tableFoot}
+      loomsBody={loomsBody} loomsFoot={loomsFoot} state={controller.state} bridge={legacy} controller={controller}/>
+  ));
+  const controller=new SalaryController({
+    requestSalary:(day,shift,signal)=>requestSalary(day,shift,legacy.expire,signal),
+    postAssignOne:(day,shift,loom,operatorId)=>postAssignOne(day,shift,loom,operatorId,legacy.expire),
+    postAssignCopy:(day,shift)=>postAssignCopy(day,shift,legacy.expire),
+    changed:render,say:legacy.say,
+  });
+  window.FactSalaryReact={
+    setShifts:shifts=>controller.setShifts(shifts),
+    load:()=>{void controller.load();},
+    copy:()=>{void controller.copy();},
+  };
+  render();
+  if(!element('#tab-salary').classList.contains('hidden'))void controller.load();
+  return ()=>{controller.dispose();delete window.FactSalaryReact;root.unmount();host.remove();};
 }
