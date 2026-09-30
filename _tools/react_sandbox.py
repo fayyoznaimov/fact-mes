@@ -73,6 +73,7 @@ def sandbox(port=8791):
         token = auth.login("preview", "local-preview-only")
         with closing(sqlite3.connect(storage.FACT_DB)) as db:
             db.executescript(ingest.SHIFT_SCHEMA)
+            db.executescript(ingest.STOP_SCHEMA)
             db.executescript(make_excel_report.SCHEMA)
             # Старый расчёт отчёта читает компактный shift_loom; источник тот же,
             # синтетический shift_full. Пересчёт после заправки выполняется реально.
@@ -93,6 +94,10 @@ def sandbox(port=8791):
                             "stop_tm 30 20 10 0 0 50 0 0 0 0 0 0 10,stop_wtm 0 0 0 0 0 0 0 0 0 0 0 0 0")
                     rows = ingest.shift_rows(day + ".0", text)
                     db.executemany("INSERT INTO shift_full VALUES (%s)" % ",".join("?" * len(rows[0])), rows)
+            db.executemany("INSERT INTO stop_log(day,loom,shift,letter,code,cause,start_sec,dur_sec,resp_sec,picks,pieces,style)"
+                           " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                           [("2026.09.25", "D1", "2026.09.25.A", "A", "1", "Weft", 3600, 120, 30, 1000, 5, "DEMO"),
+                            ("2026.09.25", "D1", "2026.09.25.A", "A", "6", "Manual", 7200, 300, None, 1200, 6, "DEMO")])
             db.commit()
 
         def export_fixture(day):
@@ -117,7 +122,8 @@ def sandbox(port=8791):
                     "/api/shifts", "/api/operators", "/api/settings", "/api/rates", "/api/reasons", "/api/yarns",
                     "/api/report_period", "/api/documents", "/api/documents/get", "/api/documents/verify", "/api/salary",
                     "/api/shift_doc", "/api/shift_docs", "/api/assignment_periods", "/api/walk", "/api/manual_stops",
-                    "/api/tickets", "/api/live", "/api/production_events"):
+                    "/api/tickets", "/api/live", "/api/production_events",
+                    "/api/machine_history", "/api/machine_signals"):
                     return self._send(403, {"error": "В песочнице доступны только отчёт и простои"})
                 return super().do_GET()
 

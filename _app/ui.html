@@ -1610,7 +1610,10 @@ function showTab(t) {
   }
   // Ленты Истории станков — ~40 тысяч элементов SVG; раздел при входе всё равно
   // грузит данные заново, поэтому при уходе ленты убираем, а не держим в странице.
-  if (t !== "history") { $("#mh-grid").innerHTML = ""; $("#mh-detail").classList.add("hidden"); }
+  if (t !== "history") {
+    if (window.FactHistoryReact) window.FactHistoryReact.clear();
+    else { $("#mh-grid").innerHTML = ""; $("#mh-detail").classList.add("hidden"); }
+  }
   const cardsFrame = $("#machine-cards-frame");
   if (t === "cards") {
     if (!cardsFrame.getAttribute("src")) cardsFrame.src = "/cards";
@@ -4378,6 +4381,7 @@ $('#mh-go').onclick = loadHistory;
 $('#mh-loom').onchange = loadHistory;
 $('#mh-zoom').onchange = () => { $('#mh-grid').style.width = (+$('#mh-zoom').value*100)+'%'; };
 async function loadHistory() {
+  if (window.FactHistoryReact) return window.FactHistoryReact.load();
   const request = ++MH_REQUEST, selected = $('#mh-loom').value;
   const looms = selected.startsWith('row:') ? MH_CATALOG.filter(l=>l.replace(/\d+$/,'')===selected.slice(4)).join(',') : selected;
   $('#mh-status').textContent = 'Загружаю журнал Toyota…';
@@ -4462,6 +4466,7 @@ function showHistoryTicket(i) {
   $('#mh-event-detail').innerHTML=`<b>Тикет № ${t.id} · ${esc(t.reason)}</b><br>${mhTime(t.start,true)} — ${t.open?'не закрыт':mhTime(t.end,true)}<br><span data-i18n-skip>${esc(t.comment)}</span><br><span class="note">Источник: журнал тикетов MES.</span>`;
 }
 $('#mh-detail').onclick=e=>{
+  if (window.FactHistoryReact) return;
   const event=e.target.closest('[data-detail-event]'), ticket=e.target.closest('[data-detail-ticket]');
   if(event)showHistoryEvent(+event.dataset.detailEvent); if(ticket)showHistoryTicket(+ticket.dataset.detailTicket);
 };
@@ -5026,4 +5031,5 @@ window.FactExplorerLegacy = {say, expire: sessionEnded, nf, fday};
 window.FactWalkLegacy = {say, expire: sessionEnded, nf, fday};
 window.FactManualLegacy = {say, expire: sessionEnded, nf, fday, openTickets: () => openTab("tickets")};
 window.FactTicketsLegacy = {say, expire: sessionEnded, ftime};
+window.FactHistoryLegacy = {say, expire: sessionEnded};
 </script>

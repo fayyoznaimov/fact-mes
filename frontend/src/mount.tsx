@@ -52,6 +52,9 @@ import { ManualController, requestManual } from './features/manual/controller';
 import type { TicketsBridge } from './features/tickets/bridge';
 import { Tickets } from './features/tickets/Tickets';
 import { TicketsController, requestTickets, requestLive, postTicketNew, postTicketClose, postTicketClassify } from './features/tickets/controller';
+import type { HistoryBridge } from './features/history/bridge';
+import { History } from './features/history/History';
+import { HistoryController, requestHistory, requestSignals } from './features/history/controller';
 
 declare global {
   interface Window {
@@ -84,6 +87,8 @@ declare global {
     FactManualReact?: {setDays:(days:string[])=>void;load:()=>void};
     FactTicketsLegacy?: TicketsBridge;
     FactTicketsReact?: {load:()=>void};
+    FactHistoryLegacy?: HistoryBridge;
+    FactHistoryReact?: {load:()=>void;clear:()=>void};
   }
 }
 export function mountReport() {
@@ -569,4 +574,32 @@ export function mountTickets() {
   render();
   if(!element('#tab-tickets').classList.contains('hidden'))void controller.load();
   return ()=>{controller.dispose();delete window.FactTicketsReact;root.unmount();host.remove();};
+}
+
+export function mountHistory() {
+  const legacy=window.FactHistoryLegacy;
+  if(!legacy)throw new Error('Не загружена исходная оболочка истории станков');
+  const element=<T extends Element>(selector:string)=>{
+    const el=document.querySelector<T>(selector);if(!el)throw new Error('Нет элемента истории станков: '+selector);return el;
+  };
+  const topBar=element<HTMLElement>('#mh-day').closest('.bar') as HTMLElement;
+  const legendEl=element<HTMLElement>('#mh-legend'),status=element<HTMLElement>('#mh-status');
+  const gridWrap=element<HTMLElement>('#mh-grid').parentElement as HTMLElement;
+  const detail=element<HTMLElement>('#mh-detail');
+  [topBar,legendEl,status,gridWrap,detail].forEach(t=>t.replaceChildren());
+  const host=document.createElement('div');host.hidden=true;host.dataset.reactHistory='';document.body.appendChild(host);
+  const root=createRoot(host);
+  const render=()=>flushSync(()=>root.render(
+    <History topBar={topBar} legend={legendEl} status={status} gridWrap={gridWrap} detail={detail}
+      state={controller.state} bridge={legacy} controller={controller}/>
+  ));
+  const controller=new HistoryController({
+    requestHistory:(day,period,looms,signal)=>requestHistory(day,period,looms,legacy.expire,signal),
+    requestSignals:(loom,day,period,signal)=>requestSignals(loom,day,period,legacy.expire,signal),
+    changed:render, say:legacy.say,
+  });
+  window.FactHistoryReact={load:()=>{void controller.load();},clear:()=>controller.clear()};
+  render();
+  if(!element('#tab-history').classList.contains('hidden'))void controller.load();
+  return ()=>{controller.dispose();delete window.FactHistoryReact;root.unmount();host.remove();};
 }
