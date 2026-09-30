@@ -3018,7 +3018,7 @@ async function boot() {
     $("#mn-from").innerHTML = dayOpts; $("#mn-to").innerHTML = dayOpts;
     $("#mn-from").value = days.days[Math.min(days.days.length-1, 29)] || days.days.at(-1);
     $("#mn-to").value = days.days[0];
-    if(canSection("people"))renderOperators();
+    if(canSection("people")){ if (window.FactPeopleReact) window.FactPeopleReact.load(); else renderOperators(); }
     if(canSection("setup"))loadYarns();
     // Открыть раздел из адреса (#setup) или тот, где работали в прошлый раз.
     let last = null;
@@ -5003,5 +5003,11 @@ window.FactDocsLegacy = {say, expire: sessionEnded, docConfirm, goToRateSettings
 window.FactAssignLegacy = {
   say, expire: sessionEnded, fday, ftime, can, operators: () => OPERATORS, me: () => ME,
   confirmTranslated, openPrintWindow, openHistory: asOpenHistory,
+};
+// И для «Операторов»: общий справочник OPERATORS живёт здесь же — React и
+// сохраняет в него, и читает его для других разделов (Зарплата, Расстановка).
+window.FactPeopleLegacy = {
+  say, expire: sessionEnded, can, operators: () => OPERATORS, setOperators: ops => { OPERATORS = ops; },
+  confirmTranslated,
 };
 </script>

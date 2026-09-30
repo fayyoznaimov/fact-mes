@@ -111,7 +111,8 @@ def sandbox(port=8791):
 
             def do_POST(self):
                 if self.path not in ("/api/export_excel", "/api/documents/preview", "/api/documents/post",
-                    "/api/assign_one", "/api/assign_copy", "/api/shift_doc", "/api/shift_doc/confirm", "/api/shift_doc/fill"):
+                    "/api/assign_one", "/api/assign_copy", "/api/shift_doc", "/api/shift_doc/confirm", "/api/shift_doc/fill",
+                    "/api/operators", "/api/operators/delete", "/api/operators/import", "/api/operators/import_fact"):
                     self.close_connection = True
                     return self._send(403, {"error": "Запись в этой песочнице отключена"})
                 return super().do_POST()

@@ -37,6 +37,9 @@ import { SalaryController, requestSalary, postAssignOne, postAssignCopy } from '
 import type { AssignBridge } from './features/assign/bridge';
 import { Assign } from './features/assign/Assign';
 import { AssignController, requestShiftDoc, requestWeeklyDocs, postShiftDoc, postShiftDocConfirm, postShiftDocFill } from './features/assign/controller';
+import type { PeopleBridge } from './features/people/bridge';
+import { People } from './features/people/People';
+import { PeopleController, requestOperators as requestOperatorList, postOperator, postOperatorDelete, postOperatorsImport, postOperatorsImportFact } from './features/people/controller';
 
 declare global {
   interface Window {
@@ -59,6 +62,8 @@ declare global {
     FactSalaryReact?: {setShifts:(shifts:{day:string;shift:string}[])=>void;load:()=>void;copy:()=>void};
     FactAssignLegacy?: AssignBridge;
     FactAssignReact?: {load:()=>void};
+    FactPeopleLegacy?: PeopleBridge;
+    FactPeopleReact?: {load:()=>void};
   }
 }
 export function mountReport() {
@@ -402,4 +407,35 @@ export function mountAssign() {
   render();
   if(!element('#tab-assign').classList.contains('hidden'))void controller.load();
   return ()=>{controller.dispose();delete window.FactAssignReact;root.unmount();host.remove();};
+}
+
+export function mountPeople() {
+  const legacy=window.FactPeopleLegacy;
+  if(!legacy)throw new Error('Не загружена исходная оболочка операторов');
+  const element=<T extends Element>(selector:string)=>{
+    const el=document.querySelector<T>(selector);if(!el)throw new Error('Нет элемента операторов: '+selector);return el;
+  };
+  const topBar=element<HTMLElement>('#op-code').closest('.bar') as HTMLElement;
+  const pasteBar=element<HTMLElement>('#op-paste').closest('.bar') as HTMLElement;
+  const tableBody=element<HTMLElement>('#op-table tbody');
+  [topBar,pasteBar,tableBody].forEach(t=>t.replaceChildren());
+  const host=document.createElement('div');host.hidden=true;host.dataset.reactPeople='';document.body.appendChild(host);
+  const root=createRoot(host);
+  const render=()=>flushSync(()=>root.render(
+    <People topBar={topBar} pasteBar={pasteBar} tableBody={tableBody} state={controller.state} bridge={legacy} controller={controller}/>
+  ));
+  const controller=new PeopleController({
+    operators:()=>legacy.operators(),
+    requestOperators:()=>requestOperatorList(legacy.expire),
+    postOperator:body=>postOperator(body,legacy.expire),
+    postDelete:id=>postOperatorDelete(id,legacy.expire),
+    postImport:text=>postOperatorsImport(text,legacy.expire),
+    postImportFact:()=>postOperatorsImportFact(legacy.expire),
+    confirmTranslated:text=>legacy.confirmTranslated(text),
+    setOperators:ops=>legacy.setOperators(ops),
+    changed:render, say:legacy.say,
+  });
+  window.FactPeopleReact={load:()=>controller.load()};
+  render();
+  return ()=>{delete window.FactPeopleReact;root.unmount();host.remove();};
 }
