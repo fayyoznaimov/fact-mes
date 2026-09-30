@@ -3006,9 +3006,12 @@ async function boot() {
     if (window.FactDashReact) window.FactDashReact.setDays(days.days);
     else $("#dash-day").innerHTML = dayOpts;
     // «Простои»: сводка по причинам и обход смены
-    $("#ex-from").innerHTML = dayOpts; $("#ex-to").innerHTML = dayOpts;
-    $("#ex-from").value = days.days[Math.min(days.days.length-1, 29)] || days.days.at(-1);
-    $("#ex-to").value = days.days[0];
+    if (window.FactExplorerReact) window.FactExplorerReact.setDays(days.days);
+    else {
+      $("#ex-from").innerHTML = dayOpts; $("#ex-to").innerHTML = dayOpts;
+      $("#ex-from").value = days.days[Math.min(days.days.length-1, 29)] || days.days.at(-1);
+      $("#ex-to").value = days.days[0];
+    }
     $("#wk-shift").innerHTML = shOpts;
     $("#wk-shift").value = 1;          // последняя завершённая смена
     if(canSection("settings")){loadRates();loadReasons();}
@@ -4256,6 +4259,7 @@ document.querySelectorAll("#ex-group .chip").forEach(c => c.onclick = () =>
   document.querySelectorAll("#ex-group .chip").forEach(x => x.setAttribute("aria-pressed", x === c)));
 $("#ex-go").onclick = loadExplorer;
 async function loadExplorer() {
+  if (window.FactExplorerReact) return window.FactExplorerReact.load();
   const a = $("#ex-from").value, b = $("#ex-to").value;
   const [from, to] = a <= b ? [a, b] : [b, a];
   const shifts = [...document.querySelectorAll('#ex-shifts .chip[aria-pressed="true"]')].map(c => c.dataset.s).join("");
@@ -5010,4 +5014,5 @@ window.FactPeopleLegacy = {
   say, expire: sessionEnded, can, operators: () => OPERATORS, setOperators: ops => { OPERATORS = ops; },
   confirmTranslated,
 };
+window.FactExplorerLegacy = {say, expire: sessionEnded, nf, fday};
 </script>

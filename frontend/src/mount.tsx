@@ -40,6 +40,9 @@ import { AssignController, requestShiftDoc, requestWeeklyDocs, postShiftDoc, pos
 import type { PeopleBridge } from './features/people/bridge';
 import { People } from './features/people/People';
 import { PeopleController, requestOperators as requestOperatorList, postOperator, postOperatorDelete, postOperatorsImport, postOperatorsImportFact } from './features/people/controller';
+import type { ExplorerBridge } from './features/explorer/bridge';
+import { Explorer } from './features/explorer/Explorer';
+import { ExplorerController, requestExplorer } from './features/explorer/controller';
 
 declare global {
   interface Window {
@@ -64,6 +67,8 @@ declare global {
     FactAssignReact?: {load:()=>void};
     FactPeopleLegacy?: PeopleBridge;
     FactPeopleReact?: {load:()=>void};
+    FactExplorerLegacy?: ExplorerBridge;
+    FactExplorerReact?: {setDays:(days:string[])=>void;load:()=>void};
   }
 }
 export function mountReport() {
@@ -438,4 +443,30 @@ export function mountPeople() {
   window.FactPeopleReact={load:()=>controller.load()};
   render();
   return ()=>{delete window.FactPeopleReact;root.unmount();host.remove();};
+}
+
+export function mountExplorer() {
+  const legacy=window.FactExplorerLegacy;
+  if(!legacy)throw new Error('Не загружена исходная оболочка простоев');
+  const element=<T extends Element>(selector:string)=>{
+    const el=document.querySelector<T>(selector);if(!el)throw new Error('Нет элемента простоев: '+selector);return el;
+  };
+  const topBar=element<HTMLElement>('#ex-from').closest('.bar') as HTMLElement;
+  const tiles=element<HTMLElement>('#ex-tiles'),stack=element<HTMLElement>('#ex-stack'),legendEl=element<HTMLElement>('#ex-legend');
+  const tableBody=element<HTMLElement>('#ex-table tbody');
+  [topBar,tiles,stack,legendEl,tableBody].forEach(t=>t.replaceChildren());
+  const host=document.createElement('div');host.hidden=true;host.dataset.reactExplorer='';document.body.appendChild(host);
+  const root=createRoot(host);
+  const render=()=>flushSync(()=>root.render(
+    <Explorer topBar={topBar} tiles={tiles} stack={stack} legend={legendEl} tableBody={tableBody}
+      state={controller.state} bridge={legacy} controller={controller}/>
+  ));
+  const controller=new ExplorerController({
+    requestExplorer:(from,to,shifts,group,signal)=>requestExplorer(from,to,shifts,group,legacy.expire,signal),
+    changed:render, say:legacy.say,
+  });
+  window.FactExplorerReact={setDays:days=>controller.setDays(days),load:()=>{void controller.load();}};
+  render();
+  if(!element('#tab-explorer').classList.contains('hidden'))void controller.load();
+  return ()=>{controller.dispose();delete window.FactExplorerReact;root.unmount();host.remove();};
 }
